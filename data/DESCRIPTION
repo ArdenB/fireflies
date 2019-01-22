@@ -1,0 +1,6 @@
+Folder contains data and shell scripts to download and process data
+
+field: data collected by feild observations
+veg:   any RS based vegetation data
+cli:   any gridded climate data
+other: any other datasets
