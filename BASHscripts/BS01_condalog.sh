@@ -11,9 +11,9 @@ if [ -f $filein ]; then
 	today=`date '+%Y_%m_%d__%H_%M_%S'`
 	filename="/home/ubuntu/Documents/fireflies/condapack/old/condapackagefile$today.txt"
 	# echo $filename;
-    echo "Existing list found, moving list"
-    mv ../condapack/condapackagefile.txt $filename
-    echo $filename
+	echo "Existing list found, moving to old folder"
+	mv ../condapack/condapackagefile.txt $filename
+	echo $filename
 fi
 
 # +++++ Export the conda package list +++++
