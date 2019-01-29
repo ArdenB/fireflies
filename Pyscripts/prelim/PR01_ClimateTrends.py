@@ -43,6 +43,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpc
 import matplotlib as mpl
 import palettable 
+import seaborn as sns
 from scipy import stats
 # Import debugging packages 
 import ipdb
@@ -61,12 +62,21 @@ def main(args):
 	# RFinfo = Field_data(fdpath, den="fracThresh2017Ls")
 
 	# ========== Compare the overall site infomation ==========
-	r2, tau = VI_trend(RFinfo)
+	warn.warn(
+		'''
+		This is currently only in alpha testing form
+		I will replace all the variables and infomation 
+		for experiments in a dataframe so i can look at
+		different aproaches
+		''')
+	r2, tau = VI_trend(RFinfo, "NDVI", plot=True)
+	r2, tau = VI_trend(RFinfo, "LAI", plot=True)
+
 
 	ipdb.set_trace()
 
 #==============================================================================
-def VI_trend(RFinfo, plot=True):
+def VI_trend(RFinfo,var, plot=True):
 	"""
 	This is a function for looking for any correspondense between 
 	sites and observed vi trends
@@ -93,12 +103,12 @@ def VI_trend(RFinfo, plot=True):
 		''')
 
 	# ========== Load in the trend data using xarray ==========
-	ncin = "./data/veg/COPERN/NDVI_anmax_Russia_cdoregres.nc"
+	ncin = "./data/veg/COPERN/%s_anmax_Russia_cdoregres.nc" % var
 	ds   = xr.open_dataset(ncin)
 
 
 	# ========== Find the recuitment failure in the netcdf ==========
-	NDVItrend = [float(ds.NDVI.sel(
+	NDVItrend = [float(ds[var].sel(
 		{"lat":row.lat, "lon":row.lon}, method="nearest").values) for index, row in RFinfo.iterrows()]
 
 	RFinfo["VItrend"] = NDVItrend
@@ -116,10 +126,17 @@ def VI_trend(RFinfo, plot=True):
 	if plot:
 		# plot regional trend data
 		plt.figure(1)
-		ds.NDVI.plot()  
+		ds[var].plot()  
 
-		plt.figure(2)
-		RFinfo.plot.scatter(x="sden17", y="VItrend")  
+		# plt.figure(2)
+		# fig, ax = plt.subplots(figsize=(8,6))
+		
+		sns.lmplot( x="sden17", y="VItrend", data=RFinfo, fit_reg=False, hue='RF17')
+		# Move the legend to an empty part of the plot
+		plt.legend(loc='lower right')
+
+
+		# RFinfo.groupby("RF17").plot.scatter(x="sden17", y="VItrend", ax=ax)
 		plt.show()
 
 
@@ -162,6 +179,9 @@ def Field_data(fdpath, den="sDens2017Ls"):
 	# info["sden17"] = fcut.sDens2017Ls
 	info["RF17"] = [test(fcut[fcut.sn == sn]["RF2017"].values) for sn in info['sn']]
 	RFinfo = pd.DataFrame(info)
+	RFinfo["RF17"].replace(0.0, "AR", inplace=True)
+	RFinfo["RF17"].replace(1.0, "RF", inplace=True)
+	RFinfo["RF17"].replace(2.0, "IR", inplace=True)
 	return RFinfo
 #==============================================================================
 
