@@ -37,11 +37,13 @@ import datetime as dt
 from collections import OrderedDict
 import warnings as warn
 from netCDF4 import Dataset, num2date 
+import xarray as xr
 # Import plotting and colorpackages
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpc
 import matplotlib as mpl
 import palettable 
+from scipy import stats
 # Import debugging packages 
 import ipdb
 # +++++ Import my packages +++++
@@ -56,14 +58,15 @@ def main(args):
 	
 	# ========== Pull out info needed from the field data ==========
 	RFinfo = Field_data(fdpath)
+	# RFinfo = Field_data(fdpath, den="fracThresh2017Ls")
 
 	# ========== Compare the overall site infomation ==========
-	VI_trend(RFinfo)
+	r2, tau = VI_trend(RFinfo)
 
 	ipdb.set_trace()
 
 #==============================================================================
-def VI_trend(RFinfo):
+def VI_trend(RFinfo, plot=True):
 	"""
 	This is a function for looking for any correspondense between 
 	sites and observed vi trends
@@ -78,17 +81,53 @@ def VI_trend(RFinfo):
 		'''
 		This is currently only in alpha testing form
 		i'm going to using a simple trend test without
-		any considderation of significance.
+		any consideration of significance. i used cdo
+		regres on copernicious NDVI data to start. 
+		''')
+	
+	warn.warn(
+		'''
+		This approach is currently ambivilant to when fire 
+		events occured. This may need to be incoperated with 
+		some form of breakpoint detection (Chow test or MVregression)
 		''')
 
 	# ========== Load in the trend data using xarray ==========
 	ncin = "./data/veg/COPERN/NDVI_anmax_Russia_cdoregres.nc"
 	ds   = xr.open_dataset(ncin)
 
+
+	# ========== Find the recuitment failure in the netcdf ==========
+	NDVItrend = [float(ds.NDVI.sel(
+		{"lat":row.lat, "lon":row.lon}, method="nearest").values) for index, row in RFinfo.iterrows()]
+
+	RFinfo["VItrend"] = NDVItrend
+	RFinfo.dropna(inplace=True)
+
+	
+	slope, intercept, r_value, p_value, std_err = stats.linregress(x=RFinfo.sden17, y=RFinfo.VItrend)
+	# r2val = r_val**2
+	tau, p_value = stats.kendalltau(x=RFinfo.sden17, y=RFinfo.VItrend)
+	print("r-squared:", r_value**2)
+	print("kendalltau:", tau)
+
+	# make a quick plot
+
+	if plot:
+		# plot regional trend data
+		plt.figure(1)
+		ds.NDVI.plot()  
+
+		plt.figure(2)
+		RFinfo.plot.scatter(x="sden17", y="VItrend")  
+		plt.show()
+
+
 	ipdb.set_trace()
+	return r_value**2, tau
 
 
-def Field_data(fdpath):
+def Field_data(fdpath, den="sDens2017Ls"):
 	"""
 	# Aim of this function is to look at the field data a bit
 
@@ -113,12 +152,12 @@ def Field_data(fdpath):
 		try:
 			return float(val)
 		except Exception as e:
-			print(e)
+			# print(e)
 			# ipdb.set_trace()
 			return np.NAN
 		# if np.isnan(val):
 
-	info["sden17"] = [test(fcut[fcut.sn == sn]["sDens2017Ls"].values) for sn in info['sn']]
+	info["sden17"] = [test(fcut[fcut.sn == sn][den].values) for sn in info['sn']]
 
 	# info["sden17"] = fcut.sDens2017Ls
 	info["RF17"] = [test(fcut[fcut.sn == sn]["RF2017"].values) for sn in info['sn']]
