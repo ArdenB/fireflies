@@ -37,6 +37,7 @@ import datetime as dt
 from collections import OrderedDict
 import warnings as warn
 from netCDF4 import Dataset, num2date 
+from scipy import stats
 import xarray as xr
 # Import plotting and colorpackages
 import matplotlib.pyplot as plt
@@ -44,7 +45,8 @@ import matplotlib.colors as mpc
 import matplotlib as mpl
 import palettable 
 import seaborn as sns
-from scipy import stats
+import cartopy.crs as ccrs
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 # Import debugging packages 
 import ipdb
 # +++++ Import my packages +++++
@@ -125,11 +127,27 @@ def VI_trend(RFinfo,var, den, plot=True):
 	# make a quick plot
 
 	if plot:
-		# plot regional trend data
-		plt.figure(1)
-		ds[var].plot()  
+		# ========== Map of the regional trend data ==========
+		# build the figure and grid
+		plt.figure(1, figsize=(8, 4))
+		ax = plt.axes(projection=ccrs.PlateCarree())
+		# add lat long linse
+		gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+		                  linewidth=1 color='gray', alpha=0.5, linestyle='--')
+		gl.xlabels_top = False
+		gl.ylabels_right = False
+		gl.xformatter = LONGITUDE_FORMATTER
+		gl.yformatter = LATITUDE_FORMATTER
+		# define the colorbar
+		cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.PRGn_6.mpl_colors)
+		# gl.xlabel_style = {'size': 15, 'color': 'gray'}
+		# gl.xlabel_style = {'color': 'red', 'weight': 'bold'}
+		ds[var].plot(ax=ax, transform=ccrs.PlateCarree(), cmap=cmap)  
 
-		sns.lmplot( x=den, y="VItrend", data=RFinfo, fit_reg=False, hue='RF17')
+		# ========== Scatter plot of the trend vs field data ==========
+		sns.lmplot( x=den, y="VItrend", 
+			data=RFinfo, fit_reg=False, 
+			hue='RF17', height=4, aspect=2)
 		plt.show()
 
 	return r_value**2, tau
