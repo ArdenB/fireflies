@@ -150,17 +150,17 @@ densInfoPostFireDf$fracThresh2017Ls<-densInfoPostFireDf$sDens2017Ls/densInfoPost
 densInfoPostFireDf$fracThresh2018<-densInfoPostFireDf$sDens2018/densInfoPostFireDf$threshold
 
 densInfoPostFireDf$RF2017 <- factor(densInfoPostFireDf$RF2017, levels = c('0','2','1'),ordered = TRUE)
-# print(ggplot(densInfoPostFireDf, aes(x=RF2017, y = fracThresh2017Ls, fill=RF2017)) + geom_boxplot()+
-#         scale_x_discrete(limits=c('0','2','1')) +
-#         scale_fill_manual(values=c("#636363","#969696","#cccccc")))
+print(ggplot(densInfoPostFireDf, aes(x=RF2017, y = fracThresh2017Ls, fill=RF2017)) + geom_boxplot()+
+        scale_x_discrete(limits=c('0','2','1')) +
+        scale_fill_manual(values=c("#636363","#969696","#cccccc")))
 
-# print(ggplot(densInfoPostFireDf, aes(x=RF2017, y = fracThresh2017modis, fill=RF2017)) + geom_boxplot()+
-#         scale_x_discrete(limits=c('0','2','1')) +
-#         scale_fill_manual(values=c("#636363","#969696","#cccccc")))
+print(ggplot(densInfoPostFireDf, aes(x=RF2017, y = fracThresh2017modis, fill=RF2017)) + geom_boxplot()+
+        scale_x_discrete(limits=c('0','2','1')) +
+        scale_fill_manual(values=c("#636363","#969696","#cccccc")))
 
-# densInfoPostFireDf$RF2018 <- factor(densInfoPostFireDf$RF2018, levels = c('0','1'),ordered = TRUE)
-# print(ggplot(densInfoPostFireDf, aes(x=RF2018, y = fracThresh2018, fill=RF2018)) + geom_boxplot()+
-#         scale_x_discrete(limits=c('0','1')) +
-#         scale_fill_manual(values=c("#636363","#cccccc")))
+densInfoPostFireDf$RF2018 <- factor(densInfoPostFireDf$RF2018, levels = c('0','1'),ordered = TRUE)
+print(ggplot(densInfoPostFireDf, aes(x=RF2018, y = fracThresh2018, fill=RF2018)) + geom_boxplot()+
+        scale_x_discrete(limits=c('0','1')) +
+        scale_fill_manual(values=c("#636363","#cccccc")))
 
 browser()
