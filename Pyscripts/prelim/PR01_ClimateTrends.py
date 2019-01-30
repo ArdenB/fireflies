@@ -58,7 +58,8 @@ def main(args):
 	fdpath = args.fdpath 
 	
 	# ========== Pull out info needed from the field data ==========
-	RFinfo = Field_data(fdpath)
+	dens = "sDens2017modis"
+	RFinfo = Field_data(fdpath, den=dens)
 	# RFinfo = Field_data(fdpath, den="fracThresh2017Ls")
 
 	# ========== Compare the overall site infomation ==========
@@ -69,14 +70,14 @@ def main(args):
 		for experiments in a dataframe so i can look at
 		different aproaches
 		''')
-	r2, tau = VI_trend(RFinfo, "NDVI", plot=True)
-	r2, tau = VI_trend(RFinfo, "LAI", plot=True)
+	r2, tau = VI_trend(RFinfo, "NDVI",den=dens, plot=True)
+	r2, tau = VI_trend(RFinfo, "LAI", den=dens, plot=True)
 
 
 	ipdb.set_trace()
 
 #==============================================================================
-def VI_trend(RFinfo,var, plot=True):
+def VI_trend(RFinfo,var, den, plot=True):
 	"""
 	This is a function for looking for any correspondense between 
 	sites and observed vi trends
@@ -115,9 +116,9 @@ def VI_trend(RFinfo,var, plot=True):
 	RFinfo.dropna(inplace=True)
 
 	
-	slope, intercept, r_value, p_value, std_err = stats.linregress(x=RFinfo.sden17, y=RFinfo.VItrend)
+	slope, intercept, r_value, p_value, std_err = stats.linregress(x=RFinfo[den], y=RFinfo.VItrend)
 	# r2val = r_val**2
-	tau, p_value = stats.kendalltau(x=RFinfo.sden17, y=RFinfo.VItrend)
+	tau, p_value = stats.kendalltau(x=RFinfo[den], y=RFinfo.VItrend)
 	print("r-squared:", r_value**2)
 	print("kendalltau:", tau)
 
@@ -128,19 +129,9 @@ def VI_trend(RFinfo,var, plot=True):
 		plt.figure(1)
 		ds[var].plot()  
 
-		# plt.figure(2)
-		# fig, ax = plt.subplots(figsize=(8,6))
-		
-		sns.lmplot( x="sden17", y="VItrend", data=RFinfo, fit_reg=False, hue='RF17')
-		# Move the legend to an empty part of the plot
-		plt.legend(loc='lower right')
-
-
-		# RFinfo.groupby("RF17").plot.scatter(x="sden17", y="VItrend", ax=ax)
+		sns.lmplot( x=den, y="VItrend", data=RFinfo, fit_reg=False, hue='RF17')
 		plt.show()
 
-
-	ipdb.set_trace()
 	return r_value**2, tau
 
 
@@ -151,39 +142,41 @@ def Field_data(fdpath, den="sDens2017Ls"):
 	To start it just opens the file and returns the lats and longs 
 	i can then use these to look up netcdf fils
 	"""
+	# ========== Load in the relevant data ==========
 	fsum = pd.read_csv("./data/field/RF_catsum.csv")
 	fsum.sort_values(by=["sn"],inplace=True) 
 	fcut = fsum[fsum.sn<64]
 	fd18 = pd.read_csv(fdpath)
 	fd17 = pd.read_csv("./data/field/2017data/siteDescriptions.csv")
-	# lat = fd.lat 
-	# lon = fd.lon
 
+	# ========== Create and Ordered Dict for important info ==========
 	info = OrderedDict()
 	info["sn"] = fd17["site number"]
 	info["lat"] = fd17.strtY
 	info["lon"] = fd17.strtX
-	# for sn in info['sn']:
-	# 	ipdb.set_trace()
-	def test(val):
+	
+	# ========== function to return nan when a value is missing ==========
+	def _missingvalfix(val):
 		try:
 			return float(val)
 		except Exception as e:
-			# print(e)
-			# ipdb.set_trace()
 			return np.NAN
-		# if np.isnan(val):
 
-	info["sden17"] = [test(fcut[fcut.sn == sn][den].values) for sn in info['sn']]
+	info[den] = [_missingvalfix(
+		fcut[fcut.sn == sn][den].values) for sn in info['sn']]
 
-	# info["sden17"] = fcut.sDens2017Ls
-	info["RF17"] = [test(fcut[fcut.sn == sn]["RF2017"].values) for sn in info['sn']]
+	info["RF17"] = [_missingvalfix(
+		fcut[fcut.sn == sn]["RF2017"].values) for sn in info['sn']]
+	
+	# ========== Convert to dataframe and replace codes ==========
 	RFinfo = pd.DataFrame(info)
 	RFinfo["RF17"].replace(0.0, "AR", inplace=True)
 	RFinfo["RF17"].replace(1.0, "RF", inplace=True)
 	RFinfo["RF17"].replace(2.0, "IR", inplace=True)
 	return RFinfo
+
 #==============================================================================
+
 
 #==============================================================================
 if __name__ == '__main__':
