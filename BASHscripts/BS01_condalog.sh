@@ -12,7 +12,7 @@ if [ -f $filein ]; then
 	filename="/home/ubuntu/Documents/fireflies/condapack/old/condapackagefile$today.txt"
 	# echo $filename;
 	echo "Existing list found, moving to old folder"
-	mv ../condapack/condapackagefile.txt $filename
+	mv /home/ubuntu/Documents/fireflies/condapack/condapackagefile.txt $filename
 	echo $filename
 fi
 
