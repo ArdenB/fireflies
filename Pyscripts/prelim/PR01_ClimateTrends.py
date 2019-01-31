@@ -50,6 +50,7 @@ import matplotlib as mpl
 import palettable 
 import seaborn as sns
 import cartopy.crs as ccrs
+import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 # Import debugging packages 
 import ipdb
@@ -78,13 +79,13 @@ def main(args):
 		# ========== Compare the overall site infomation ==========
 		print("Using density data: %s" % dens)
 		for DS in ["NDVI", "LAI"]:
-			r2, tau = VI_trend(RFinfo, DS,den=dens, plot=False)
+			r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True)
 			r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True)
 
 	ipdb.set_trace()
 
 #==============================================================================
-def VI_trend(RFinfo,var, den, fireyear=False, plot=True):
+def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 	"""
 	This is a function for looking for any correspondense between 
 	sites and observed vi trends
@@ -126,7 +127,7 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True):
 		# 	Theilsen implemented quickly. check in the future 
 		# 	''')
 		# RFshort = RFinfo[RFinfo.fireyear<=2012] 
-		testnm = "Postfire Theilsen slope"
+		testnm = "Postfire %s slope" % testmethod #Theilsen
 		VItrend = []
 		for index, row in RFinfo.iterrows():
 			if row.fireyear<=2012:
@@ -134,7 +135,10 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True):
 				array = ds[var].sel(
 					{"lat":row.lat, "lon":row.lon},
 					method="nearest").sel(time=slice(sty, '2017-12-31'))
-				VItrend.append(scipyTheilSen(array))
+				if testmethod == "Theilsen":
+					VItrend.append(scipyTheilSen(array))
+				else:
+					VItrend.append(scipyTheilSen(array))
 			else:
 				VItrend.append(np.NAN)
 
@@ -160,9 +164,11 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True):
 		# ========== Map of the regional trend data ==========
 		# build the figure and grid
 		if not fireyear:
-
-			plt.figure(1, figsize=(8, 4))
+			plt.figure(num=var+r"$_{max}$"+" trend", figsize=(12, 6))
 			ax = plt.axes(projection=ccrs.PlateCarree())
+			ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+			ax.add_feature(cpf.RIVERS, zorder=104)
 			# add lat long linse
 			gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
 				linewidth=1, color='gray', alpha=0.5, linestyle='--')
@@ -170,16 +176,32 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True):
 			gl.ylabels_right = False
 			gl.xformatter = LONGITUDE_FORMATTER
 			gl.yformatter = LATITUDE_FORMATTER
-			# define the colorbar
-			cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.PRGn_6.mpl_colors)
-			# gl.xlabel_style = {'size': 15, 'color': 'gray'}
-			# gl.xlabel_style = {'color': 'red', 'weight': 'bold'}
-			ds[var].plot(ax=ax, transform=ccrs.PlateCarree(), cmap=cmap)  
+
+			# ========== create the colormap ==========
+			cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.PRGn_8.mpl_colors)
+			if var == "NDVI":
+				vmin = -0.02
+				vmax =  0.02
+			elif var =="LAI":
+				vmin = -0.2
+				vmax =  0.2
+			# ========== Make the map ==========
+			ds[var].plot(ax=ax, transform=ccrs.PlateCarree(),
+				cmap=cmap, cbar_kwargs={"extend":"both"}, vmin=vmin, vmax=vmax)
+
+			# ========== Add site markers ==========
+			# ipdb.set_trace()
+			for vas, cl in zip(RFinfo.RF17.unique().tolist(), ['yx', "r*","k."]):
+				ax.plot(RFinfo[RFinfo.RF17 == vas].lon.values, RFinfo[RFinfo.RF17 == vas].lat.values, 
+					cl, markersize=8, transform=ccrs.PlateCarree())
+			plt.show()
 
 		# ========== Scatter plot of the trend vs field data ==========
-		sns.lmplot( x=den, y="VItrend", 
+		pp = sns.lmplot( x=den, y="VItrend", 
 			data=RFinfo, fit_reg=False, 
 			hue='RF17', height=4, aspect=2)
+		# plt.title('Trend in %smax vs %s' %(var, den))
+		pp.fig.canvas.set_window_title('Trend in %smax vs %s' %(var, den))
 		plt.show()
 
 	return r_value**2, tau
@@ -265,6 +287,24 @@ def scipyTheilSen(array):
 	 	print(e) 
 	 	ipdb.set_trace()
 
+# @jit
+def scipyols(array):
+	"""
+	Function for rapid OLS with time. the regression is done with 
+	an independent variable rangeing from 0 to array.shape to make
+	the intercept the start which simplifies calculation
+	args:
+		array 		np : numpy array of annual max VI over time 
+	return
+		result 		np : change(total change between start and end)
+						 slopem intercept, rsquared, pvalue, std_error
+	"""
+	# +++++ Get the OLS +++++
+	slope, intercept, r_value, p_value, std_err = stats.linregress(array)
+	# +++++ calculate the total change +++++
+	# change = (slope*array.shape[0])
+	# +++++ return the results +++++
+	return slope #p.array([change, slope, intercept, r_value**2, p_value, std_err])
 
 
 #==============================================================================
