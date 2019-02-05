@@ -78,13 +78,135 @@ def main(args):
 
 		# ========== Compare the overall site infomation ==========
 		print("Using density data: %s" % dens)
-		for DS in ["NDVI", "LAI"]:
-			r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True)
-			r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True)
-
+		# Loop over the VI datasets
+		# for DS in ["NDVI", "LAI"]:
+		# 	r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True)
+		# 	r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True)
+		# r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True)
+		r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True, fireyear=True)
 	ipdb.set_trace()
 
 #==============================================================================
+def CLI_trend( RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
+	"""
+	This is a function for looking for any correspondense between 
+	sites and observed vi trends
+
+	Note:
+		This is a niave approach. I'm ignoring key infomation about the
+		timing of the fire, the intensity of the fire etc etc. This is more
+		of a proof of concept 
+	"""
+
+	# warn.warn(
+	# 	'''
+	# 	This is currently only in alpha testing form
+	# 	i'm going to using a simple trend test without
+	# 	any consideration of significance. i used cdo
+	# 	regres on copernicious NDVI data to start. 
+	# 	''')
+	
+	# warn.warn(
+	# 	'''
+	# 	This approach is currently ambivilant to when fire 
+	# 	events occured. This may need to be incoperated with 
+	# 	some form of breakpoint detection (Chow test or MVregression)
+	# 	''')
+
+	# ========== Load in the trend data using xarray ==========
+	if fireyear:
+		if var == "ppt":
+			ncin = "./data/cli/1.TERRACLIMATE/TerraClimate_merged_1980to2017_ppt_yearsum_RUSSIA.nc"
+	# 	# COnsidering the fireyear
+	# 	ncin = "./data/veg/COPERN/%s_anmax_Russia.nc" % var
+	else:
+		# 	# Only looking at years since the fire
+		if var == "ppt":
+			ncin = "./data/cli/1.TERRACLIMATE/TerraClimate_merged_1980to2017_ppt_yearsum_RUSSIA_cdoregres.nc"
+		# ncin = "./data/veg/COPERN/%s_anmax_Russia_cdoregres.nc" % var
+	ds   = xr.open_dataset(ncin)
+
+
+	# ========== Find the recuitment failure in the netcdf ==========
+	if fireyear:
+		# warn.warn('''
+		# 	Theilsen implemented quickly. check in the future 
+		# 	''')
+		# RFshort = RFinfo[RFinfo.fireyear<=2012] 
+		testnm = "Four Year Mean Postfire anomoly" 
+		CLtrend = []
+		for index, row in RFinfo.iterrows():
+			if row.fireyear<=2013:
+				array = ds[var].sel(
+					{"lat":row.lat, "lon":row.lon},
+					method="nearest")#.sel(time=slice(sty, '2017-12-31'))
+				CLtrend.append(ClimateAnom(array, row.fireyear))
+			else:
+				CLtrend.append(np.NAN)
+
+	else:
+		testnm = "1999-2017 OLS slope"
+		CLtrend = [float(ds[var].sel(
+			{"lat":row.lat, "lon":row.lon}, method="nearest").values) for index, row in RFinfo.iterrows()]
+
+	RFinfo["CLtrend"] = CLtrend
+	RFinfo.dropna(inplace=True, subset=['sn', 'lat', 'lon', den, 'RF17', 'CLtrend'])
+
+	
+	slope, intercept, r_value, p_value, std_err = stats.linregress(x=RFinfo[den], y=RFinfo.CLtrend)
+	# r2val = r_val**2
+	tau, p_value = stats.kendalltau(x=RFinfo[den], y=RFinfo.CLtrend)
+	print(var, den, testnm)
+	print("r-squared:", r_value**2)
+	print("kendalltau:", tau)
+	# make a quick plot
+
+	if plot:
+		# ========== Map of the regional trend data ==========
+		# build the figure and grid
+		if not fireyear:
+			plt.figure(num=var+r"$_{max}$"+" trend", figsize=(12, 6))
+			ax = plt.axes(projection=ccrs.PlateCarree())
+			ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+			ax.add_feature(cpf.RIVERS, zorder=104)
+			# add lat long linse
+			gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+				linewidth=1, color='gray', alpha=0.5, linestyle='--')
+			gl.xlabels_top = False
+			gl.ylabels_right = False
+			gl.xformatter = LONGITUDE_FORMATTER
+			gl.yformatter = LATITUDE_FORMATTER
+
+			# ========== create the colormap ==========
+			cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_20_r.mpl_colors)
+			# if var == "NDVI":
+			# 	vmin = -0.02
+			# 	vmax =  0.02
+			# elif var =="LAI":
+			# 	vmin = -0.2
+			# 	vmax =  0.2
+			# ========== Make the map ==========
+			ds[var].plot(ax=ax, transform=ccrs.PlateCarree(),
+				cmap=cmap, cbar_kwargs={"extend":"both"})#, vmin=vmin, vmax=vmax)
+
+			# ========== Add site markers ==========
+			# ipdb.set_trace()
+			for vas, cl in zip(RFinfo.RF17.unique().tolist(), ['yx', "r*","k."]):
+				ax.plot(RFinfo[RFinfo.RF17 == vas].lon.values, RFinfo[RFinfo.RF17 == vas].lat.values, 
+					cl, markersize=8, transform=ccrs.PlateCarree())
+			plt.show()
+
+		# ========== Scatter plot of the trend vs field data ==========
+		pp = sns.lmplot( x=den, y="CLtrend", 
+			data=RFinfo, fit_reg=False, 
+			hue='RF17', height=4, aspect=2)
+		# plt.title('Trend in %smax vs %s' %(var, den))
+		pp.fig.canvas.set_window_title('Trend in %smax vs %s' %(var, den))
+		plt.show()
+		ipdb.set_trace()
+	return r_value**2, tau
+
 def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 	"""
 	This is a function for looking for any correspondense between 
@@ -138,7 +260,7 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 				if testmethod == "Theilsen":
 					VItrend.append(scipyTheilSen(array))
 				else:
-					VItrend.append(scipyTheilSen(array))
+					VItrend.append(scipyols(array))
 			else:
 				VItrend.append(np.NAN)
 
@@ -266,6 +388,12 @@ def Field_data(fdpath, den="sDens2017Ls"):
 	return RFinfo
 
 #==============================================================================
+def ClimateAnom(array, year):
+	sty   = '%d-01-01' % (int(year))
+	stf   = '%d-12-11' % (int(year+4))
+	return bn.nanmean(((array - array.mean())/array.std()).sel(time=slice(sty, stf)))
+	# return bn.nanmean((array - array.mean()).sel(time=slice(sty, stf)))
+
 
 # @jit
 def scipyTheilSen(array):
