@@ -74,6 +74,9 @@ def main(args):
 	# ========== Pull out info needed from the field data ==========
 	for dens in ["sDens2017Ls", "sDens2017modis"]:
 		RFinfo = Field_data(fdpath, den=dens)
+		sns.lmplot( x="YearsPostFire", y=dens, data=RFinfo, hue='RF17', height=4, aspect=2)
+		plt.show()
+		ipdb.set_trace()
 		# RFinfo = Field_data(fdpath, den="fracThresh2017Ls")
 
 		# ========== Compare the overall site infomation ==========
@@ -83,7 +86,12 @@ def main(args):
 		# 	r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True)
 		# 	r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True)
 		# r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True)
+		
+		# years since fire
+
 		r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True, fireyear=True)
+
+
 	ipdb.set_trace()
 
 #==============================================================================
@@ -385,6 +393,7 @@ def Field_data(fdpath, den="sDens2017Ls"):
 	RFinfo["RF17"].replace(0.0, "AR", inplace=True)
 	RFinfo["RF17"].replace(1.0, "RF", inplace=True)
 	RFinfo["RF17"].replace(2.0, "IR", inplace=True)
+	RFinfo["YearsPostFire"] = 2017.0 - RFinfo.fireyear
 	return RFinfo
 
 #==============================================================================
