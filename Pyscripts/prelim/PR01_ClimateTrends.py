@@ -348,7 +348,7 @@ def Field_data(fdpath, den="sDens2017Ls"):
 	fsum = pd.read_csv("./data/field/RF_catsum.csv")
 	fsum.sort_values(by=["sn"],inplace=True) 
 	fcut = fsum[fsum.sn<64]
-	fd18 = pd.read_csv(fdpath)
+	# fd18 = pd.read_csv(fdpath)
 	fd17 = pd.read_csv("./data/field/2017data/siteDescriptions.csv")
 
 	# ========== Create and Ordered Dict for important info ==========
