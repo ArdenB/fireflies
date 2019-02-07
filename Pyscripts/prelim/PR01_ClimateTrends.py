@@ -76,15 +76,15 @@ def main(args):
 		RFinfo = Field_data(fdpath, den=dens)
 		sns.lmplot( x="YearsPostFire", y=dens, data=RFinfo, hue='RF17', height=4, aspect=2)
 		plt.show()
-		ipdb.set_trace()
+		# ipdb.set_trace()
 		# RFinfo = Field_data(fdpath, den="fracThresh2017Ls")
 
 		# ========== Compare the overall site infomation ==========
 		print("Using density data: %s" % dens)
 		# Loop over the VI datasets
-		# for DS in ["NDVI", "LAI"]:
-		# 	r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True)
-		# 	r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True)
+		for DS in ["NDVI", "LAI"]:
+			r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True)
+			r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True)
 		# r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True)
 		
 		# years since fire
@@ -212,7 +212,7 @@ def CLI_trend( RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 		# plt.title('Trend in %smax vs %s' %(var, den))
 		pp.fig.canvas.set_window_title('Trend in %smax vs %s' %(var, den))
 		plt.show()
-		ipdb.set_trace()
+		# ipdb.set_trace()
 	return r_value**2, tau
 
 def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
@@ -280,7 +280,6 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 	RFinfo["VItrend"] = VItrend
 	RFinfo.dropna(inplace=True, subset=['sn', 'lat', 'lon', den, 'RF17', 'VItrend'])
 
-	
 	slope, intercept, r_value, p_value, std_err = stats.linregress(x=RFinfo[den], y=RFinfo.VItrend)
 	# r2val = r_val**2
 	tau, p_value = stats.kendalltau(x=RFinfo[den], y=RFinfo.VItrend)
@@ -437,11 +436,15 @@ def scipyols(array):
 						 slopem intercept, rsquared, pvalue, std_error
 	"""
 	# +++++ Get the OLS +++++
-	slope, intercept, r_value, p_value, std_err = stats.linregress(array)
-	# +++++ calculate the total change +++++
-	# change = (slope*array.shape[0])
-	# +++++ return the results +++++
-	return slope #p.array([change, slope, intercept, r_value**2, p_value, std_err])
+	try:
+		slope, intercept, r_value, p_value, std_err = stats.linregress(array)
+		# +++++ calculate the total change +++++
+		# change = (slope*array.shape[0])
+		# +++++ return the results +++++
+		return slope #p.array([change, slope, intercept, r_value**2, p_value, std_err])
+	except:
+		ipdb.set_trace()
+		return np.NAN
 
 
 #==============================================================================
