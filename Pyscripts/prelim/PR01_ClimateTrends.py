@@ -74,22 +74,26 @@ def main(args):
 	# ========== Pull out info needed from the field data ==========
 	for dens in ["sDens2017Ls", "sDens2017modis"]:
 		RFinfo = Field_data(fdpath, den=dens)
+		# years since fire
 		sns.lmplot( x="YearsPostFire", y=dens, data=RFinfo, hue='RF17', height=4, aspect=2)
 		plt.show()
-		# ipdb.set_trace()
+		ipdb.set_trace()
 		# RFinfo = Field_data(fdpath, den="fracThresh2017Ls")
 
 		# ========== Compare the overall site infomation ==========
 		print("Using density data: %s" % dens)
 		# Loop over the VI datasets
 		for DS in ["NDVI", "LAI"]:
-			r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True)
-			r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True)
+			# ipdb.set_trace()
+			r2, tau = VI_trend(RFinfo, DS,den=dens, fireyear=True, axn=1)
+			r2, tau = VI_trend(RFinfo, DS,den=dens, plot=True, axn=1)
+			# ipdb.set_trace()
+			# ax = plt.subplot(2, 1, 2)
+			# plt.show()
 		# r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True)
 		
-		# years since fire
 
-		r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True, fireyear=True)
+		# r2, tau = CLI_trend(RFinfo, "ppt", den=dens, plot=True, fireyear=True)
 
 
 	ipdb.set_trace()
@@ -130,7 +134,9 @@ def CLI_trend( RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 	else:
 		# 	# Only looking at years since the fire
 		if var == "ppt":
-			ncin = "./data/cli/1.TERRACLIMATE/TerraClimate_merged_1980to2017_ppt_yearsum_RUSSIA_cdoregres.nc"
+			nctrend = "./data/cli/1.TERRACLIMATE/TerraClimate_merged_1980to2017_ppt_yearsum_RUSSIA_cdoregres.nc"
+			dst  = xr.open_dataset(nctrend)
+			ncin = "./data/cli/1.TERRACLIMATE/TerraClimate_merged_1980to2017_ppt_yearsum_RUSSIA.nc"
 		# ncin = "./data/veg/COPERN/%s_anmax_Russia_cdoregres.nc" % var
 	ds   = xr.open_dataset(ncin)
 
@@ -195,7 +201,7 @@ def CLI_trend( RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 			# 	vmin = -0.2
 			# 	vmax =  0.2
 			# ========== Make the map ==========
-			ds[var].plot(ax=ax, transform=ccrs.PlateCarree(),
+			dst[var].plot(ax=ax, transform=ccrs.PlateCarree(),
 				cmap=cmap, cbar_kwargs={"extend":"both"})#, vmin=vmin, vmax=vmax)
 
 			# ========== Add site markers ==========
@@ -210,12 +216,16 @@ def CLI_trend( RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 			data=RFinfo, fit_reg=False, 
 			hue='RF17', height=4, aspect=2)
 		# plt.title('Trend in %smax vs %s' %(var, den))
-		pp.fig.canvas.set_window_title('Trend in %smax vs %s' %(var, den))
+		axf = pp.axes[0,0]
+		axf.text(0.85,0.85,"R_squ: %1.5f \n K_tau: %1.5f" % (r_value**2, tau), transform=axf.transAxes)
+		pp.fig.canvas.set_window_title('%s (%smax) vs %s' %(name, var, den))
+		plt.savefig("./plots/%s_%s_%s.pdf" % (name,var,den))
+		plt.savefig("./plots/%s_%s_%s.png" % (name,var,den))
 		plt.show()
 		# ipdb.set_trace()
 	return r_value**2, tau
 
-def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
+def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="Theilsen", axn=1):
 	"""
 	This is a function for looking for any correspondense between 
 	sites and observed vi trends
@@ -226,40 +236,29 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 		of a proof of concept 
 	"""
 
-	# warn.warn(
-	# 	'''
-	# 	This is currently only in alpha testing form
-	# 	i'm going to using a simple trend test without
-	# 	any consideration of significance. i used cdo
-	# 	regres on copernicious NDVI data to start. 
-	# 	''')
-	
-	# warn.warn(
-	# 	'''
-	# 	This approach is currently ambivilant to when fire 
-	# 	events occured. This may need to be incoperated with 
-	# 	some form of breakpoint detection (Chow test or MVregression)
-	# 	''')
-
 	# ========== Load in the trend data using xarray ==========
 	if fireyear:
 		# COnsidering the fireyear
 		ncin = "./data/veg/COPERN/%s_anmax_Russia.nc" % var
+		name = "PostFireVItrend"
 	else:
 		# Only looking at years since the fire
-		ncin = "./data/veg/COPERN/%s_anmax_Russia_cdoregres.nc" % var
+		name = "VItrend"
+		ncin = "./data/veg/COPERN/%s_anmax_Russia.nc" % var
+		nctrend = "./data/veg/COPERN/%s_anmax_Russia_cdoregres.nc" % var
+		dst  = xr.open_dataset(nctrend)
+	
 	ds   = xr.open_dataset(ncin)
 
-
 	# ========== Find the recuitment failure in the netcdf ==========
-	if fireyear:
-		# warn.warn('''
-		# 	Theilsen implemented quickly. check in the future 
-		# 	''')
-		# RFshort = RFinfo[RFinfo.fireyear<=2012] 
-		testnm = "Postfire %s slope" % testmethod #Theilsen
-		VItrend = []
-		for index, row in RFinfo.iterrows():
+	# warn.warn('''
+	# 	Theilsen implemented quickly. check in the future 
+	# 	''')
+	# RFshort = RFinfo[RFinfo.fireyear<=2012] 
+	VItrend = []
+	for index, row in RFinfo.iterrows():
+		if fireyear:
+			testnm = "Postfire %s slope" % testmethod #Theilsen
 			if row.fireyear<=2012:
 				sty   = '%d-01-01' % (int(row.fireyear))
 				array = ds[var].sel(
@@ -268,21 +267,33 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 				if testmethod == "Theilsen":
 					VItrend.append(scipyTheilSen(array))
 				else:
+					warn.warn("The OLS implmentation is currently broken")
+					ipdb.set_trace()
 					VItrend.append(scipyols(array))
 			else:
 				VItrend.append(np.NAN)
+				# break
+		else:
+			testnm = "1999-2017 %s slope" % testmethod
+			array = ds[var].sel({"lat":row.lat, "lon":row.lon},	method="nearest")
+			if testmethod == "Theilsen":
+				VItrend.append(scipyTheilSen(array))
+			else:
+				warn.warn("The OLS implmentation is currently broken")
+				ipdb.set_trace()
+				VItrend.append(scipyols(array))
 
-	else:
-		testnm = "1999-2017 OLS slope"
-		VItrend = [float(ds[var].sel(
-			{"lat":row.lat, "lon":row.lon}, method="nearest").values) for index, row in RFinfo.iterrows()]
 
-	RFinfo["VItrend"] = VItrend
-	RFinfo.dropna(inplace=True, subset=['sn', 'lat', 'lon', den, 'RF17', 'VItrend'])
+	# else:
+	# 	VItrend = [float(ds[var].sel(
+			# {"lat":row.lat, "lon":row.lon}, method="nearest").values) for index, row in RFinfo.iterrows()]
+	# ipdb.set_trace()
+	RFinfo[name] = VItrend
+	RFinfo.dropna(inplace=True, subset=['sn', 'lat', 'lon', den, 'RF17', name])
 
-	slope, intercept, r_value, p_value, std_err = stats.linregress(x=RFinfo[den], y=RFinfo.VItrend)
+	slope, intercept, r_value, p_value, std_err = stats.linregress(x=RFinfo[den], y=RFinfo[name])
 	# r2val = r_val**2
-	tau, p_value = stats.kendalltau(x=RFinfo[den], y=RFinfo.VItrend)
+	tau, p_value = stats.kendalltau(x=RFinfo[den], y=RFinfo[name])
 	print(var, den, testnm)
 	print("r-squared:", r_value**2)
 	print("kendalltau:", tau)
@@ -315,7 +326,7 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 				vmin = -0.2
 				vmax =  0.2
 			# ========== Make the map ==========
-			ds[var].plot(ax=ax, transform=ccrs.PlateCarree(),
+			dst[var].plot(ax=ax, transform=ccrs.PlateCarree(),
 				cmap=cmap, cbar_kwargs={"extend":"both"}, vmin=vmin, vmax=vmax)
 
 			# ========== Add site markers ==========
@@ -326,11 +337,16 @@ def VI_trend(RFinfo,var, den, fireyear=False, plot=True, testmethod="OLS"):
 			plt.show()
 
 		# ========== Scatter plot of the trend vs field data ==========
-		pp = sns.lmplot( x=den, y="VItrend", 
+		# axS = plt.subplot(2, 1, axn)
+		pp = sns.lmplot( x=den, y=name, 
 			data=RFinfo, fit_reg=False, 
 			hue='RF17', height=4, aspect=2)
 		# plt.title('Trend in %smax vs %s' %(var, den))
-		pp.fig.canvas.set_window_title('Trend in %smax vs %s' %(var, den))
+		axf = pp.axes[0,0]
+		axf.text(0.85,0.85,"R_squ: %1.5f \n K_tau: %1.5f" % (r_value**2, tau), transform=axf.transAxes)
+		pp.fig.canvas.set_window_title('%s (%smax) vs %s' %(name, var, den))
+		plt.savefig("./plots/%s_%s_%s.pdf" % (name,var,den))
+		plt.savefig("./plots/%s_%s_%s.png" % (name,var,den))
 		plt.show()
 
 	return r_value**2, tau
@@ -422,6 +438,7 @@ def scipyTheilSen(array):
 	except Exception as e:
 	 	print(e) 
 	 	ipdb.set_trace()
+	 	return np.NAN
 
 # @jit
 def scipyols(array):
