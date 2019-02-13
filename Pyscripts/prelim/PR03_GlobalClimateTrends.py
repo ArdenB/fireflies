@@ -74,15 +74,16 @@ def main():
 		'var':"tmean"
 		})
 	for dt in data:
+		# st_yrs = [1982, 1970]#, 1960]
+		st_yrs = [1960, 1970, 1982, 1990, 1999]
 		# ipdb.set_trace()
 		# polyfit
-		# trendmapper(
-		# 	data[dt]["fname"], data[dt]["var"], 
-		# 	"scipyols", [1982, 1970, 1960])
 		trendmapper(
 			data[dt]["fname"], data[dt]["var"], 
-			"polyfit", [1982, 1970, 1960])
-		# [1982, 1999, 1990, 1970, 1960]
+			"scipyols", st_yrs, force=True)
+		# trendmapper(
+		# 	data[dt]["fname"], data[dt]["var"], 
+		# 	"polyfit", st_yrs)#, force=True)
 
 
 
@@ -91,58 +92,108 @@ def main():
 	ipdb.set_trace()
 
 #==============================================================================
-def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath=""):
+def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force = False):
+
+
 	
 	ds = xr.open_dataset(fname)
-	# RFinfo = Field_data()#fdpath, den="sDens2017modis")
-	# seasons = ["Annual", "DJF", "MAM", "JJA", "SON"]
+	fout = './results/netcdf/TerraClimate_%s_%sto%d.nc' % ( var, method, endyr)
+	if all([os.path.isfile(fout), not force]):
+		warn.warn("Loading existing file, force is needed to overwrite")
+		ds_trend = xr.open_dataset(fout)
+		kys = [n for n in ds_trend.data_vars]
+	else:
+
+		results     = []
+		# ========== Create the global attributes ==========
+		global_attrs = GlobalAttributes(ds, var)
+
+		# trends = _fitvals(dst)
+		# trends = _fitvals(dst[var], method="theilsen")
+
+
+		for styr in start_years:
+			dst = ds[var].sel(time=slice('%d-01-01' % styr, '%d-12-31' % endyr))
+			trends, kys = _fitvals(dst, method=method)
+			results.append(trends)
+
+
+		layers, encoding = dsmaker(ds, var, results, kys, start_years, method)
+		ds_trend = xr.Dataset(layers, attrs= global_attrs)
+
+
+		try:
+			print("Starting write of data")
+			ds_trend.to_netcdf(fout, 
+				format         = 'NETCDF4', 
+				encoding       = encoding,
+				unlimited_dims = ["time"])
+		except Exception as e:
+			print(e)
+			warn.warn(" \n something went wrong with the save, going interactive")
+			ipdb.set_trace()
+	
+	# ========== Build all the plots ==========
+	pn = 1
+
+	for styp in range(0, len(start_years)):
+		for num in range(0, len(kys)):
+			print(styp, num)
+			ax = plt.subplot(len(start_years),len(kys), pn, projection=ccrs.PlateCarree())
+			ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+			ax.add_feature(cpf.RIVERS, zorder=104)
+			# add lat long linse
+			gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+				linewidth=1, color='gray', alpha=0.5, linestyle='--')
+			gl.xlabels_top = False
+			gl.ylabels_right = False
+			if num == 0:
+				gl.xlabels_bottom = False
+
+			if not ((pn-1) % len(start_years)):
+				gl.ylabels_left = False
+
+			gl.xformatter = LONGITUDE_FORMATTER
+			gl.yformatter = LATITUDE_FORMATTER
+
+			# ========== create the colormap ==========
+			cmap, vmin, vmax = cbvals(var, kys[num])
+			if cmap is None:
+				ipdb.set_trace()
+
+			# ========== Make the map ==========
+			# ipdb.set_trace()
+			ds_trend[kys[num]].isel(time=styp).plot(ax=ax, transform=ccrs.PlateCarree(),
+				cmap=cmap, vmin=vmin, vmax=vmax, cbar_kwargs={
+				"extend":"both"})#,  "pad":0.0075,"fraction":0.125, "shrink":0.74}) #"fraction":0.05,
+			pn += 1
+			# ax.set_title=seasons[num]
+			# for vas, cl in zip(RFinfo.RF17.unique().tolist(), ['yx', "r*","k."]):
+			# ax.plot(RFinfo.lon.values, RFinfo.lat.values, 
+			# 	"kx", markersize=4, transform=ccrs.PlateCarree())
+
 
 	
-	results     = []
-	# ========== Create the global attributes ==========
-	global_attrs = GlobalAttributes(ds, var)
+	# plt.subplots_adjust(
+	# 	top=0.98,
+	# 	bottom=0.02,
+	# 	left=0.038,
+	# 	right=0.989,
+	# 	hspace=0.05,
+	# 	wspace=0.037)
+	# fig = plt.gcf()
+	# fig.set_size_inches(18.5, 8.5)
+	# plt.tight_layout()
 
-	# trends = _fitvals(dst)
-	# trends = _fitvals(dst[var], method="theilsen")
+	plt.show()
 
-
-	for styr in start_years:
-		dst = ds[var].sel(time=slice('%d-01-01' % styr, '%d-12-31' % endyr))
-		trends, kys = _fitvals(dst, method=method)
-		results.append(trends)
-
-
-	layers, encoding = dsmaker(ds, var, results, kys, start_years, method)
-	ds_trend = xr.Dataset(layers, attrs= global_attrs)
-	
 	ipdb.set_trace()
-	# Build all the plots
-	# plt.figure(num=var+r"$_{max}$"+" trend", figsize=(12, 6))
-	sys.exit()
-	
-	for num in range(0, len(seasons)):
-		ax = plt.subplot(2, 3, num+1, projection=ccrs.PlateCarree())
-		# ax = plt.subplot(1, 5, num+1, projection=ccrs.PlateCarree())
-		# ax = plt.axes(projection=ccrs.PlateCarree())
-		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-		ax.add_feature(cpf.RIVERS, zorder=104)
-		# add lat long linse
-		gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
-			linewidth=1, color='gray', alpha=0.5, linestyle='--')
-		gl.xlabels_top = False
-		gl.ylabels_right = False
-		# if not (num >=2):
-		# 	gl.xlabels_bottom = False
-
-		if not (num in [0, 3]):
-			gl.ylabels_left = False
 
 
-		gl.xformatter = LONGITUDE_FORMATTER
-		gl.yformatter = LATITUDE_FORMATTER
-
-		# ========== create the colormap ==========
+		# get the value
+def cbvals(var, ky):
+	if ky == "slope":
 		if var == "tmean":
 			vmax =  0.07
 			vmin = -0.07
@@ -151,36 +202,29 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath=""):
 			vmin = -3.0
 			vmax =  3.0
 			cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_20_r.mpl_colors)
-		# ========== Make the map ==========
-		# ipdb.set_trace()
-		ds_trend[seasons[num]].drop('time').plot(ax=ax, transform=ccrs.PlateCarree(),
-			cmap=cmap, vmin=vmin, vmax=vmax, cbar_kwargs={
-			"extend":"both",  "pad":0.0075,"fraction":0.125, "shrink":0.74}) #"fraction":0.05,
-		# ax.set_title=seasons[num]
-		# for vas, cl in zip(RFinfo.RF17.unique().tolist(), ['yx', "r*","k."]):
-		ax.plot(RFinfo.lon.values, RFinfo.lat.values, 
-			"kx", markersize=4, transform=ccrs.PlateCarree())
+		else:
+			warn.warn("unknown variable")
+			ipdb.set_trace()
+	elif ky == "pvalue":
+		cmap = mpc.ListedColormap(
+			palettable.cmocean.diverging.Curl_20.mpl_colormap
+			)
+		vmin = 0.0
+		vmax = 1.0
+	elif ky == "rsquared":
+		cmap = mpc.ListedColormap(
+			palettable.cmocean.sequential.Haline_20_r.mpl_colors
+			)
+		vmin = 0.0
+		vmax = 1.0
+		# cmap =  
+	else:
+		cmap = None
+		vmin = None
+		vmax = None
+	# elif ky == "intercept":
 
-
-	
-	plt.subplots_adjust(
-		top=0.98,
-		bottom=0.02,
-		left=0.038,
-		right=0.989,
-		hspace=0.05,
-		wspace=0.037)
-	fig = plt.gcf()
-	fig.set_size_inches(18.5, 8.5)
-	# plt.tight_layout()
-
-	plt.show()
-
-	# ipdb.set_trace()
-
-
-		# get the value
-
+	return cmap, vmin, vmax
 
 def _fitvals(dvt, method="polyfit"):
 	"""
@@ -199,8 +243,14 @@ def _fitvals(dvt, method="polyfit"):
 	if method=="polyfit":
 		vals2[np.isnan(vals2)] = 0
 		regressions = np.polyfit(years, vals2, 1)
+		regressions[regressions== 0] = np.NAN
 		trends = [regressions[0,:].reshape(vals.shape[1], vals.shape[2])]
 		kys = ["slope"]
+		# stacked = dvt.stack(allpoints=['latitude','longitude'])
+		# trend = stacked.groupby('allpoints').apply(scipyolsXR)
+		# trends = trend.unstack('allpoints')
+		# trend = stacked.groupby('allpoints').apply(linear_trend)
+		# kys = ["slope", "intercept", "rsquared", "pvalue"]
 	elif method == "theilsen":
 		regressions = alongax(vals2, scipyTheilSen)
 		trds = regressions.reshape(4, vals.shape[1], vals.shape[2])
@@ -314,8 +364,8 @@ def dsmaker(ds, var, results, keys, start_years, method):
 
 		DA.longitude.attrs['units'] = 'degrees_east'
 		DA.latitude.attrs['units']  = 'degrees_north'
-		layers[season] = DA
-		encoding[season] = ({'shuffle':True, 
+		layers[ky] = DA
+		encoding[ky] = ({'shuffle':True, 
 			# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
 			'zlib':True,
 			'complevel':5})
@@ -415,6 +465,8 @@ def scipyols(array):
 		# warn.warn("unhandeled Error has occured")
 		# ipdb.set_trace()
 		return np.array([np.NAN, np.NAN, np.NAN, np.NAN])
+
+
 #==============================================================================
 if __name__ == '__main__':
 	main()
