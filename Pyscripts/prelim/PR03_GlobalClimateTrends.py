@@ -76,15 +76,18 @@ def main():
 	for dt in data:
 		# st_yrs = [1982, 1970]#, 1960]
 		st_yrs = [1960, 1970, 1982, 1990, 1999]
+		plot = False
 		# ipdb.set_trace()
 		# polyfit
 		trendmapper(
 			data[dt]["fname"], data[dt]["var"], 
-			"scipyols", st_yrs, force=True)
-		# trendmapper(
-		# 	data[dt]["fname"], data[dt]["var"], 
-		# 	"polyfit", st_yrs)#, force=True)
-
+			"scipyols", st_yrs, plot = plot)#, force=True)
+		trendmapper(
+			data[dt]["fname"], data[dt]["var"], 
+			"polyfit", st_yrs, plot = plot)#, force=True)
+		trendmapper(
+			data[dt]["fname"], data[dt]["var"], 
+			"theilsen", st_yrs, plot = plot)#, force=True)
 
 
 	 # Reshape to an array with as many rows as years and as many columns as there are pixels
@@ -92,7 +95,7 @@ def main():
 	ipdb.set_trace()
 
 #==============================================================================
-def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force = False):
+def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force = False, plot=True):
 
 
 	
@@ -134,10 +137,20 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 			ipdb.set_trace()
 	
 	# ========== Build all the plots ==========
+
+	if not plot:
+		return True
 	pn = 1
 
 	for styp in range(0, len(start_years)):
 		for num in range(0, len(kys)):
+			# ========== create the colormap ==========
+			cmap, vmin, vmax = cbvals(var, kys[num])
+			if cmap is None:
+				# ipdb.set_trace()
+				warn.warn("no colorbar exists for %s, skipping" % (kys[num]))
+				continue
+
 			print(styp, num)
 			ax = plt.subplot(len(start_years),len(kys), pn, projection=ccrs.PlateCarree())
 			ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
@@ -157,10 +170,6 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 			gl.xformatter = LONGITUDE_FORMATTER
 			gl.yformatter = LATITUDE_FORMATTER
 
-			# ========== create the colormap ==========
-			cmap, vmin, vmax = cbvals(var, kys[num])
-			if cmap is None:
-				ipdb.set_trace()
 
 			# ========== Make the map ==========
 			# ipdb.set_trace()
@@ -206,15 +215,12 @@ def cbvals(var, ky):
 			warn.warn("unknown variable")
 			ipdb.set_trace()
 	elif ky == "pvalue":
-		cmap = mpc.ListedColormap(
-			palettable.cmocean.diverging.Curl_20.mpl_colormap
-			)
+		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20.mpl_colormap)
 		vmin = 0.0
 		vmax = 1.0
 	elif ky == "rsquared":
-		cmap = mpc.ListedColormap(
-			palettable.cmocean.sequential.Haline_20_r.mpl_colors
-			)
+		# cmap = mpc.ListedColormap(palettable.matplotlib,Viridis_20.mpl_colors)
+		# plt.viridis
 		vmin = 0.0
 		vmax = 1.0
 		# cmap =  
@@ -252,7 +258,7 @@ def _fitvals(dvt, method="polyfit"):
 		# trend = stacked.groupby('allpoints').apply(linear_trend)
 		# kys = ["slope", "intercept", "rsquared", "pvalue"]
 	elif method == "theilsen":
-		regressions = alongax(vals2, scipyTheilSen)
+		regressions = alongaxFAST(vals2, scipyTheilSen)
 		trds = regressions.reshape(4, vals.shape[1], vals.shape[2])
 		trends = []
 		for n in range(0, trds.shape[0]):
