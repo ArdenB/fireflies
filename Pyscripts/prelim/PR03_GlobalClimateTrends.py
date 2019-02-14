@@ -70,21 +70,22 @@ def main():
 		'var':"ppt"
 		})
 	data["tas"] = ({
-		'fname':"./data/cli/1.TERRACLIMATE/1.TERRA.tmean.1980.2017v2_RUSSIA.nc",
+		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_OptimalAccumulllatedtmean_1960to2017_GIMMS.nc",
 		'var':"tmean"
 		})
 	for dt in data:
 		# st_yrs = [1982, 1970]#, 1960]
 		st_yrs = [1960, 1970, 1982, 1990, 1999]
-		plot = False
+		plot = True
 		# ipdb.set_trace()
 		# polyfit
+		# trendmapper(
+		# 	data[dt]["fname"], data[dt]["var"], 
+		# 	"polyfit", st_yrs, plot = plot)#, force=True)
+
 		trendmapper(
 			data[dt]["fname"], data[dt]["var"], 
 			"scipyols", st_yrs, plot = plot)#, force=True)
-		trendmapper(
-			data[dt]["fname"], data[dt]["var"], 
-			"polyfit", st_yrs, plot = plot)#, force=True)
 		trendmapper(
 			data[dt]["fname"], data[dt]["var"], 
 			"theilsen", st_yrs, plot = plot)#, force=True)
@@ -140,16 +141,17 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 
 	if not plot:
 		return True
+	# +++++ Plot number +++++
 	pn = 1
 
 	for styp in range(0, len(start_years)):
 		for num in range(0, len(kys)):
 			# ========== create the colormap ==========
 			cmap, vmin, vmax = cbvals(var, kys[num])
-			if cmap is None:
-				# ipdb.set_trace()
+			if any ([cm is None for cm in [cmap, vmin, vmax]]):
 				warn.warn("no colorbar exists for %s, skipping" % (kys[num]))
-				continue
+				ipdb.set_trace()
+				# continue
 
 			print(styp, num)
 			ax = plt.subplot(len(start_years),len(kys), pn, projection=ccrs.PlateCarree())
@@ -191,10 +193,12 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 	# 	right=0.989,
 	# 	hspace=0.05,
 	# 	wspace=0.037)
-	# fig = plt.gcf()
-	# fig.set_size_inches(18.5, 8.5)
+	fig = plt.gcf()
+	fig.set_size_inches(len(start_years)*3, len(kys)*6)
 	# plt.tight_layout()
-
+	ipdb.set_trace()
+	plt.savefig("./Testplotv2.png")
+	# plt.savefig("./Testplot.pdf")
 	plt.show()
 
 	ipdb.set_trace()
@@ -202,6 +206,11 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 
 		# get the value
 def cbvals(var, ky):
+
+	"""Function to store all the colorbar infomation i need """
+	cmap = None
+	vmin = None
+	vmax = None
 	if ky == "slope":
 		if var == "tmean":
 			vmax =  0.07
@@ -211,24 +220,27 @@ def cbvals(var, ky):
 			vmin = -3.0
 			vmax =  3.0
 			cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_20_r.mpl_colors)
-		else:
-			warn.warn("unknown variable")
-			ipdb.set_trace()
 	elif ky == "pvalue":
-		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20.mpl_colormap)
+		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20.hex_colors)
 		vmin = 0.0
 		vmax = 1.0
 	elif ky == "rsquared":
-		# cmap = mpc.ListedColormap(palettable.matplotlib,Viridis_20.mpl_colors)
-		# plt.viridis
+		cmap = mpc.ListedColormap(palettable.matplotlib.Viridis_20.hex_colors)
 		vmin = 0.0
 		vmax = 1.0
 		# cmap =  
-	else:
-		cmap = None
-		vmin = None
-		vmax = None
-	# elif ky == "intercept":
+	elif ky == "intercept":
+		cmap = mpc.ListedColormap(palettable.cmocean.sequential.Ice_20_r.mpl_colors)
+		if var == "tmean":
+			# vmax =  0.07
+			# vmin = -0.07
+			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_20.mpl_colors)
+			# ipdb.set_trace()
+			pass
+		elif var =="ppt":
+			vmin = 0
+			vmax = 1000
+			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_20_r.mpl_colors)
 
 	return cmap, vmin, vmax
 
