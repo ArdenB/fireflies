@@ -194,12 +194,15 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 	# 	hspace=0.05,
 	# 	wspace=0.037)
 	fig = plt.gcf()
-	fig.set_size_inches(len(start_years)*3, len(kys)*6)
+	# fig.set_size_inches(len(start_years)*3, len(kys)*6)
+	fig.set_size_inches(41, 20)   
 	# plt.tight_layout()
-	ipdb.set_trace()
-	plt.savefig("./Testplotv2.png")
+	plt.savefig("./%s_Testplotv2.png" % var)
+	# plt.colose
+	# ipdb.set_trace()
 	# plt.savefig("./Testplot.pdf")
-	plt.show()
+	# plt.show()
+	# plt.coloes
 
 	ipdb.set_trace()
 
