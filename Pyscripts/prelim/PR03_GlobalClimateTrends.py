@@ -76,19 +76,27 @@ def main():
 	for dt in data:
 		# st_yrs = [1982, 1970]#, 1960]
 		st_yrs = [1960, 1970, 1982, 1990, 1999]
+		windows = [20, 15, 10, 5]
 		plot = True
 		# ipdb.set_trace()
 		# polyfit
 		# trendmapper(
 		# 	data[dt]["fname"], data[dt]["var"], 
 		# 	"polyfit", st_yrs, plot = plot)#, force=True)
+		RollingWindow(
+			data[dt]["fname"], data[dt]["var"], "polyfit", windows, yr_start=1982, 
+			yr_end = 2015, force = False, plot=True)
+		RollingWindow(
+			data[dt]["fname"], data[dt]["var"], "scipyols", windows, yr_start=1982, 
+			yr_end = 2015, force = False, plot=True)
 
-		trendmapper(
-			data[dt]["fname"], data[dt]["var"], 
-			"scipyols", st_yrs, plot = plot)#, force=True)
-		trendmapper(
-			data[dt]["fname"], data[dt]["var"], 
-			"theilsen", st_yrs, plot = plot)#, force=True)
+
+		# trendmapper(
+		# 	data[dt]["fname"], data[dt]["var"], 
+		# 	"scipyols", st_yrs, plot = plot)#, force=True)
+		# trendmapper(
+		# 	data[dt]["fname"], data[dt]["var"], 
+		# 	"theilsen", st_yrs, plot = plot)#, force=True)
 
 
 	 # Reshape to an array with as many rows as years and as many columns as there are pixels
@@ -96,9 +104,78 @@ def main():
 	ipdb.set_trace()
 
 #==============================================================================
+def RollingWindow(
+	fname, var, method, window, yr_start=1982, 
+	yr_end = 2015, force = False, plot=True):
+	"""Function to perform a rolling window smoothing on the precipitation and climate data
+	args
+		fname: String
+			string of the netcdf to be opened
+		var: string
+			string of the variable name within the netcdf
+		window: int
+			the number of time periods to be used 
+		yr_start
+			the first year to be included in trend analysis 
+		yr_end
+			the last year to be included in trend analysis 
+		force: bool
+			force the creation of new netcdf files
+		plot: bool
+			true makes plots
+
+	"""
+	# ========== Open the dataset ==========
+	ds = xr.open_dataset(fname)
+	print("Starting rolling window calculations for %s" % var)
+
+	# ========== build an output file name ==========
+	fout = './results/netcdf/TerraClimate_RollingMean_%s_%sto%d.nc' % ( var, method, yr_end)
+	
+	# ========== Test if a file alread exists ==========
+	
+	if all([os.path.isfile(fout), not force]):
+		warn.warn("Loading existing file, force is needed to overwrite")
+		ds_trend = xr.open_dataset(fout)
+		kys = [n for n in ds_trend.data_vars]
+	else:
+		# ========== Create the global attributes ==========
+		global_attrs = GlobalAttributes(ds, var)
+
+		# ========== Create the rolling window means ==========
+		results = []
+		years = []
+		for win in window:
+			print("performing moving window smothing with %d years" % win)
+			rmean = ds[var].rolling(time=win).mean()
+			# ========== Get the trend ==========
+			dst = rmean.sel(time=slice('%d-01-01' % yr_start, '%d-12-31' % yr_end))
+			trends, kys = _fitvals(dst, method=method)
+			results.append(trends)
+			years.append(yr_start-win)
+		# ipdb.set_trace()
+
+		layers, encoding = dsmaker(ds, var, trends, kys, years, method)
+		ds_trend = xr.Dataset(layers, attrs= global_attrs)
+
+
+		try:
+			print("Starting write of data")
+			ds_trend.to_netcdf(fout, 
+				format         = 'NETCDF4', 
+				encoding       = encoding,
+				unlimited_dims = ["time"])
+		except Exception as e:
+			print(e)
+			warn.warn(" \n something went wrong with the save, going interactive")
+			ipdb.set_trace()
+
+		# 
+		ipdb.set_trace()
+
+
+
 def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force = False, plot=True):
-
-
 	
 	ds = xr.open_dataset(fname)
 	fout = './results/netcdf/TerraClimate_%s_%sto%d.nc' % ( var, method, endyr)
@@ -208,6 +285,7 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 
 
 		# get the value
+
 def cbvals(var, ky):
 
 	"""Function to store all the colorbar infomation i need """
@@ -251,6 +329,7 @@ def _fitvals(dvt, method="polyfit"):
 	"""
 	Takes the ds[var] and performs some form of regression on it
 	"""
+	# ipdb.set_trace()
 	vals  = dvt.values 
 	years = pd.to_datetime(dvt.time.values).year
 	vals2 = vals.reshape(len(years), -1)
@@ -367,31 +446,40 @@ def dsmaker(ds, var, results, keys, start_years, method):
 	layers   = OrderedDict()
 	encoding = OrderedDict()
 	# ========== loop over the keys ==========
-	for pos in range(0, len(keys)): 
-		Val = np.stack([res[pos] for res in results]) 
-		ky = keys[pos]
+	try:
+		for pos in range(0, len(keys)): 
+			# ipdb.set_trace()
+			if type(results[pos] == np.ndarray):
+				Val = results[pos][np.newaxis,:, :]
+			else:
+				Val = np.stack([res[pos] for res in results]) 
+			ky = keys[pos]
 
-		# build xarray dataset
-		DA=xr.DataArray(Val,
-			dims = ['time', 'latitude', 'longitude'], 
-			coords = {'time': dates,'latitude': lat, 'longitude': lon},
-			attrs = ({
-				'_FillValue':9.96921e+36,
-				'units'     :"1",
-				'standard_name':ky,
-				'long_name':"%s %s" % (method, ky)
-				}),
-		)
+			# build xarray dataset
+			DA=xr.DataArray(Val,
+				dims = ['time', 'latitude', 'longitude'], 
+				coords = {'time': dates,'latitude': lat, 'longitude': lon},
+				attrs = ({
+					'_FillValue':9.96921e+36,
+					'units'     :"1",
+					'standard_name':ky,
+					'long_name':"%s %s" % (method, ky)
+					}),
+			)
 
-		DA.longitude.attrs['units'] = 'degrees_east'
-		DA.latitude.attrs['units']  = 'degrees_north'
-		layers[ky] = DA
-		encoding[ky] = ({'shuffle':True, 
-			# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
-			'zlib':True,
-			'complevel':5})
-	
-	return layers, encoding
+			DA.longitude.attrs['units'] = 'degrees_east'
+			DA.latitude.attrs['units']  = 'degrees_north'
+			layers[ky] = DA
+			encoding[ky] = ({'shuffle':True, 
+				# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
+				'zlib':True,
+				'complevel':5})
+		
+		return layers, encoding
+	except Exception as e:
+		warn.warn("Code failed with: \n %s \n Going Interactive" % e)
+		ipdb.set_trace()
+		raise e
 
 
 # @jit
