@@ -89,6 +89,9 @@ def main():
 		RollingWindow(
 			data[dt]["fname"], data[dt]["var"], "scipyols", windows, yr_start=1982, 
 			yr_end = 2015, force = False, plot=True)
+		RollingWindow(
+			data[dt]["fname"], data[dt]["var"], "theilsen", windows, yr_start=1982, 
+			yr_end = 2015, force = False, plot=True)
 
 
 		# trendmapper(
@@ -101,7 +104,7 @@ def main():
 
 	 # Reshape to an array with as many rows as years and as many columns as there are pixels
 	
-	ipdb.set_trace()
+	# ipdb.set_trace()
 
 #==============================================================================
 def RollingWindow(
@@ -153,9 +156,8 @@ def RollingWindow(
 			trends, kys = _fitvals(dst, method=method)
 			results.append(trends)
 			years.append(yr_start-win)
-		# ipdb.set_trace()
 
-		layers, encoding = dsmaker(ds, var, trends, kys, years, method)
+		layers, encoding = dsmaker(ds, var, results, kys, years, method)
 		ds_trend = xr.Dataset(layers, attrs= global_attrs)
 
 
@@ -165,6 +167,7 @@ def RollingWindow(
 				format         = 'NETCDF4', 
 				encoding       = encoding,
 				unlimited_dims = ["time"])
+			print(".nc file created")
 		except Exception as e:
 			print(e)
 			warn.warn(" \n something went wrong with the save, going interactive")
@@ -449,7 +452,7 @@ def dsmaker(ds, var, results, keys, start_years, method):
 	try:
 		for pos in range(0, len(keys)): 
 			# ipdb.set_trace()
-			if type(results[pos] == np.ndarray):
+			if type(results[pos]) == np.ndarray:
 				Val = results[pos][np.newaxis,:, :]
 			else:
 				Val = np.stack([res[pos] for res in results]) 
