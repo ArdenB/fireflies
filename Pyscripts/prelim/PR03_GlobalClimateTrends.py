@@ -41,6 +41,8 @@ from numba import jit
 import bottleneck as bn
 import scipy as sp
 from scipy import stats
+import statsmodels.stats.multitest as smsM
+
 # Import plotting and colorpackages
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpc
@@ -61,45 +63,80 @@ print("xarray version : ", xr.__version__)
 
 #==============================================================================
 def main():
-	# Load in the netcdf data
-	# ds = xr.open_dataset("./data/cli/1.TERRACLIMATE/1.TERRA.tmean.1980.2017v2_RUSSIA_yearmean.nc")
-	# ds = xr.open_dataset("./data/cli/1.TERRACLIMATE/1.TERRA.tmean.1980.2017v2_RUSSIA_seasmean.nc")
+	# =========== Create the summary of the datasets to be analyised ==========
 	data= OrderedDict()
 	data["pre"] = ({
 		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_OptimalAccumulllatedppt_1960to2017_GIMMS.nc",
-		'var':"ppt"
+		'var':"ppt", "gridres":"GIMMS", "region":"Global", "Periods":["OptimalAccumulated"]
 		})
 	data["tas"] = ({
 		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_OptimalAccumulllatedtmean_1960to2017_GIMMS.nc",
-		'var':"tmean"
+		'var':"tmean", "gridres":"GIMMS", "region":"Global", "Periods":["OptimalAccumulated"]
 		})
+	# seasons = ["Annual", "DJF", "MAM", "JJA", "SON"]
+	# data["Mon_pre"] = ({
+	# 	'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_merged_1980to2017_ppt_Russia.nc",
+	# 	'var':"ppt", "gridres":"Native", "region":"Russia", 
+	# 	"Periods":["Annual", "DJF", "MAM", "JJA", "SON"]
+	# 	})
+	# data["Mon_tas"] = ({
+	# 	'fname':"./data/cli/1.TERRACLIMATE/1.TERRA.tmean.1980.2017v2_RUSSIA.nc",
+	# 	'var':"tmean", "gridres":"Native", "region":"Russia", 
+	# 	"Periods":["Annual", "DJF", "MAM", "JJA", "SON"]
+	# 	})
+
+	# ========== loop over each dataset ==========
+
 	for dt in data:
-		# st_yrs = [1982, 1970]#, 1960]
-		st_yrs = [1960, 1970, 1982, 1990, 1999]
+		# ========== set up the params for the trend ==========
+		st_yrs  = [1960, 1970, 1982, 1990, 1999]
 		windows = [20, 15, 10, 5]
-		plot = True
-		# ipdb.set_trace()
-		# polyfit
-		# trendmapper(
-		# 	data[dt]["fname"], data[dt]["var"], 
-		# 	"polyfit", st_yrs, plot = plot)#, force=True)
-		RollingWindow(
-			data[dt]["fname"], data[dt]["var"], "polyfit", windows, yr_start=1982, 
-			yr_end = 2015, force = False, plot=True)
-		RollingWindow(
-			data[dt]["fname"], data[dt]["var"], "scipyols", windows, yr_start=1982, 
-			yr_end = 2015, force = False, plot=True)
-		RollingWindow(
-			data[dt]["fname"], data[dt]["var"], "theilsen", windows, yr_start=1982, 
-			yr_end = 2015, force = False, plot=True)
 
+		# ========== Set the ploting and overwite params ==========
+		plot    = False #True
+		# force   = True
+		for period in data[dt]["Periods"]:
+			# ========== Perform the rolling window smoothing ==========
+			# RollingWindow(
+			# 	data[dt]["fname"], data[dt]["var"], "polyfit", windows, yr_start=1982, 
+			# 	yr_end = 2015, force = False, plot=plot)
+			RollingWindow(
+				data[dt]["fname"], data[dt]["var"], "polyfit", windows,  
+				period, data[dt]["gridres"], data[dt]["region"],
+				yr_start=1982, yr_end=2015, force=False, plot=plot)
+			RollingWindow(
+				data[dt]["fname"], data[dt]["var"], "scipyols", windows,  
+				period, data[dt]["gridres"], data[dt]["region"],
+				yr_start=1982, yr_end=2015, force=False, plot=plot)
+			RollingWindow(
+				data[dt]["fname"], data[dt]["var"], "theilsen", windows,  
+				period, data[dt]["gridres"], data[dt]["region"],
+				yr_start=1982, yr_end=2015, force=False, plot=plot)
 
-		# trendmapper(
-		# 	data[dt]["fname"], data[dt]["var"], 
-		# 	"scipyols", st_yrs, plot = plot)#, force=True)
-		# trendmapper(
-		# 	data[dt]["fname"], data[dt]["var"], 
-		# 	"theilsen", st_yrs, plot = plot)#, force=True)
+			# RollingWindow(
+			# 	data[dt]["fname"], data[dt]["var"], "theilsen", 
+			# 	windows, yr_start=1982, 
+			# 	yr_end=2015, force=False, plot=plot)
+
+			# ========== Perform the uncorrected trend detection ==========
+			trendmapper(
+				data[dt]["fname"], data[dt]["var"], "polyfit", 
+				period, data[dt]["gridres"], data[dt]["region"],
+				st_yrs, plot = plot)#, force=True)
+			trendmapper(
+				data[dt]["fname"], data[dt]["var"], "scipyols", 
+				period, data[dt]["gridres"], data[dt]["region"],
+				st_yrs, plot = plot)#, force=True)
+			trendmapper(
+				data[dt]["fname"], data[dt]["var"], "theilsen", 
+				period, data[dt]["gridres"], data[dt]["region"],
+				st_yrs, plot = plot)#, force=True)
+			# trendmapper(
+			# 	data[dt]["fname"], data[dt]["var"], 
+			# 	"scipyols", st_yrs, plot = plot, force=True)
+			# trendmapper(
+			# 	data[dt]["fname"], data[dt]["var"], 
+			# 	"theilsen", st_yrs, plot = plot, force=True)
 
 
 	 # Reshape to an array with as many rows as years and as many columns as there are pixels
@@ -107,9 +144,12 @@ def main():
 	# ipdb.set_trace()
 
 #==============================================================================
+# ============================= Primary functions =============================
+#==============================================================================
+
 def RollingWindow(
-	fname, var, method, window, yr_start=1982, 
-	yr_end = 2015, force = False, plot=True):
+	fname, var, method, window, period, gridres, region, 
+	yr_start=1982, yr_end = 2015, force = False, plot=True):
 	"""Function to perform a rolling window smoothing on the precipitation and climate data
 	args
 		fname: String
@@ -118,6 +158,12 @@ def RollingWindow(
 			string of the variable name within the netcdf
 		window: int
 			the number of time periods to be used 
+		period: str
+			description of the accumulation period
+		gridres: str
+			description of the resolution of the grid
+		region: str
+			descript of the data region
 		yr_start
 			the first year to be included in trend analysis 
 		yr_end
@@ -133,7 +179,9 @@ def RollingWindow(
 	print("Starting rolling window calculations for %s" % var)
 
 	# ========== build an output file name ==========
-	fout = './results/netcdf/TerraClimate_RollingMean_%s_%sto%d.nc' % ( var, method, yr_end)
+	fout = (
+		'./results/netcdf/TerraClimate_%s_RollingMean_%s_%sto%d_%s%s.nc' % (
+			period, var, method, yr_end, region, gridres))
 	
 	# ========== Test if a file alread exists ==========
 	
@@ -148,15 +196,42 @@ def RollingWindow(
 		# ========== Create the rolling window means ==========
 		results = []
 		years = []
+
+		# ========== Pull out the data seasonality ==========
+		if period == "OptimalAccumulated":
+			annual = ds[var]
+		else:
+			if period == "Annual":
+				man_annual = ds[var].groupby('time.year')
+			else:
+				# Grouping by the season
+				man_annual = ds[var].where(ds[var]['time.season'] == period).groupby('time.year')
+				# Account for the different variables
+			if var == "tmean":
+				annual = man_annual.mean(dim='time')
+			else:
+				annual = man_annual.sum(dim='time')
+		
+		# ========== Loop over each of the mooving windows ==========
 		for win in window:
 			print("performing moving window smothing with %d years" % win)
-			rmean = ds[var].rolling(time=win).mean()
+
+			if  period == "OptimalAccumulated":
+				rmean = annual.rolling(time=win).mean()
+				dst = rmean.sel(time=slice('%d-01-01' % yr_start, '%d-12-31' % yr_end))
+			else:
+				rmean = annual.rolling(year=win).mean()
+				dst = rmean.sel(year=slice('%d-01-01' % yr_start, '%d-12-31' % yr_end))
 			# ========== Get the trend ==========
-			dst = rmean.sel(time=slice('%d-01-01' % yr_start, '%d-12-31' % yr_end))
 			trends, kys = _fitvals(dst, method=method)
+			# ========== add a correction for multiple comparisons ==========
+			if "pvalue" in kys:
+				trends, kys = MultipleComparisons(trends, kys, aplha = 0.10)
 			results.append(trends)
 			years.append(yr_start-win)
 
+
+		# ========== convert data to netcdf format ==========
 		layers, encoding = dsmaker(ds, var, results, kys, years, method)
 		ds_trend = xr.Dataset(layers, attrs= global_attrs)
 
@@ -174,31 +249,53 @@ def RollingWindow(
 			ipdb.set_trace()
 
 		# 
+	if plot:
+		warn.warn("plotting has not been implemented in this function yet. Going interactive")
 		ipdb.set_trace()
 
-
-
-def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force = False, plot=True):
+def trendmapper(
+	fname, var, method, period, gridres, region, 
+	start_years, endyr = 2015, fdpath="", force = False, plot=True):
 	
 	ds = xr.open_dataset(fname)
-	fout = './results/netcdf/TerraClimate_%s_%sto%d.nc' % ( var, method, endyr)
+
+	# ========== Create the outfile name ==========
+	fout = './results/netcdf/TerraClimate_%s_%s_%sto%d_%s%s.nc' % (
+		period, var, method, endyr,region, gridres)
+
+	# ========== Check if the file already exists ==========
 	if all([os.path.isfile(fout), not force]):
 		warn.warn("Loading existing file, force is needed to overwrite")
 		ds_trend = xr.open_dataset(fout)
 		kys = [n for n in ds_trend.data_vars]
 	else:
-
 		results     = []
 		# ========== Create the global attributes ==========
 		global_attrs = GlobalAttributes(ds, var)
-
-		# trends = _fitvals(dst)
-		# trends = _fitvals(dst[var], method="theilsen")
-
+		if period == "OptimalAccumulated":
+			annual = ds[var]
+		else:
+			if period == "Annual":
+				man_annual = ds[var].groupby('time.year')
+			else:
+				# Grouping by the season
+				man_annual = ds[var].where(ds[var]['time.season'] == period).groupby('time.year')
+				# Account for the different variables
+			if var == "tmean":
+				annual = man_annual.mean(dim='time')
+			else:
+				annual = man_annual.sum(dim='time')
 
 		for styr in start_years:
-			dst = ds[var].sel(time=slice('%d-01-01' % styr, '%d-12-31' % endyr))
+			if period == "OptimalAccumulated":
+				dst = annual.sel(time=slice('%d-01-01' % styr, '%d-12-31' % endyr))
+			else:
+				dst = annual.sel(year=slice('%d-01-01' % styr, '%d-12-31' % endyr))
 			trends, kys = _fitvals(dst, method=method)
+			# Correct for multiple comparisons
+			if "pvalue" in kys:
+				trends, kys = MultipleComparisons(trends, kys, aplha = 0.10)
+
 			results.append(trends)
 
 
@@ -289,6 +386,175 @@ def trendmapper(fname, var, method,start_years, endyr = 2015, fdpath="", force =
 
 		# get the value
 
+#==============================================================================
+# ========================= Netcdf Creation Functions =========================
+#==============================================================================
+
+def GlobalAttributes(ds, var):
+	"""
+	Creates the global attributes for the netcdf file that is being written
+	these attributes come from :
+	https://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html
+	args
+		ds: xarray ds
+			Dataset containing the infomation im intepereting
+		var: str
+			name of the variable
+	returns:
+		attributes 	Ordered Dictionary cantaining the attribute infomation
+	"""
+	# ========== Create the ordered dictionary ==========
+	attr = OrderedDict()
+
+	# fetch the references for my publications
+	# pubs = puplications()
+	
+	# ========== Fill the Dictionary ==========
+
+	# ++++++++++ Highly recomended ++++++++++ 
+	attr["title"]               = "Trend in Climate (%s)" % (var)
+	attr["summary"]             = "Annual and season trends in %s" % var
+	attr["Conventions"]         = "CF-1.7"
+	
+	# ++++++++++ Data Provinance ++++++++++ 
+	attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s" % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
+	attr["history"]            += ds.history
+
+	attr["creator_name"]        = __author__
+	attr["creator_url"]         = "ardenburrell.com"
+	attr["creator_email"]       = __email__
+	attr["institution"]         = "University of Leicester"
+	attr["date_created"]        = str(pd.Timestamp.now())
+	
+	# ++++++++++ Netcdf Summary infomation ++++++++++ 
+	attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
+	attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
+	
+
+
+	return attr
+
+def dsmaker(ds, var, results, keys, start_years, method):
+	"""
+	Build a summary of relevant paramters
+	args
+		ds: xarray ds
+			Dataset containing the infomation im intepereting
+		var: str
+			name of the variable
+	return
+		ds 	xarray dataset
+	"""
+	# sys.exit()
+	# date = [dt.datetime(ds['time.year'].max() , 12, 31)]
+	dates = pd.to_datetime([dt.datetime(yr , 12, 31) for yr in start_years])
+
+	try:
+		lat = ds.lat.values
+		lon = ds.lon.values
+	except AttributeError:
+		lat = ds.latitude.values
+		lon = ds.longitude.values
+	# dates = [dt.datetime(yr , 12, 31) for yr in start_years]
+	# ipdb.set_trace()
+	# ========== Start making the netcdf ==========
+	layers   = OrderedDict()
+	encoding = OrderedDict()
+	# ========== loop over the keys ==========
+	try:
+		for pos in range(0, len(keys)): 
+			# ipdb.set_trace()
+			if type(results[0]) == np.ndarray:
+				Val = results[pos][np.newaxis,:, :]
+			else:
+				# multiple variables
+				Val = np.stack([res[pos] for res in results]) 
+			ky = keys[pos]
+
+			# build xarray dataset
+			DA=xr.DataArray(Val,
+				dims = ['time', 'latitude', 'longitude'], 
+				coords = {'time': dates,'latitude': lat, 'longitude': lon},
+				attrs = ({
+					'_FillValue':9.96921e+36,
+					'units'     :"1",
+					'standard_name':ky,
+					'long_name':"%s %s" % (method, ky)
+					}),
+			)
+
+			DA.longitude.attrs['units'] = 'degrees_east'
+			DA.latitude.attrs['units']  = 'degrees_north'
+			layers[ky] = DA
+			encoding[ky] = ({'shuffle':True, 
+				# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
+				'zlib':True,
+				'complevel':5})
+		
+		return layers, encoding
+	except Exception as e:
+		warn.warn("Code failed with: \n %s \n Going Interactive" % e)
+		ipdb.set_trace()
+		raise e
+
+#===============================================================================
+# ============================= Internal Functions =============================
+#===============================================================================
+
+def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_by"):
+	"""
+	Takes the results of an existing trend detection aproach and modifies them to
+	account for multiple comparisons.  
+	args
+		trends: list
+			list of numpy arrays containing results of trend analysis
+		kys: list 
+			list of what is in results
+		years:
+			years of accumulation 
+	
+	"""
+	if MCmethod == "fdr_by":
+		print("Adjusting for multiple comparisons using Benjamini/Yekutieli")
+	elif MCmethod == "fdr_bh":
+		print("Adjusting for multiple comparisons using Benjamini/Hochberg")
+	else:
+		warn.warn("unknown MultipleComparisons method, Going Interactive")
+		ipdb.set_trace()
+
+
+
+	# ========== Locate the p values and reshape them into a 1d array ==========
+	# ++++++++++ Find the pvalues ++++++++++
+	index      = kys.index("pvalue")
+	pvalue     = trends[index]
+	isnan      = np.isnan(pvalue)
+	
+	# ++++++++++ pull out the non nan pvalus ++++++++++
+	# pvalue1d = pvalue.flatten()
+	pvalue1d   = pvalue[~isnan]
+	# isnan1d  = isnan.flatten()
+	
+	# =========== Perform the MC correction ===========
+	pvalue_adj =  smsM.multipletests(pvalue1d, method=MCmethod, alpha=0.10)
+	
+	# ++++++++++ reformat the data into array ++++++++++
+	MCR =  ["Significant", "pvalue_adj"]
+	for nm in MCR:
+		# make an empty array
+		re    = np.zeros(pvalue.shape)
+		re[:] = np.NAN
+		if nm == "Significant":
+			re[~isnan] = pvalue_adj[MCR.index(nm)].astype(int).astype(float)
+		else:
+			re[~isnan] = pvalue_adj[MCR.index(nm)]
+		
+		# +++++ add the significant and adjusted pvalues to trends+++++
+		trends.append(re)
+		kys.append(nm)
+	return trends, kys
+
 def cbvals(var, ky):
 
 	"""Function to store all the colorbar infomation i need """
@@ -332,28 +598,31 @@ def _fitvals(dvt, method="polyfit"):
 	"""
 	Takes the ds[var] and performs some form of regression on it
 	"""
-	# ipdb.set_trace()
 	vals  = dvt.values 
-	years = pd.to_datetime(dvt.time.values).year
+	try:
+		years = pd.to_datetime(dvt.time.values).year
+		t0 = pd.Timestamp.now()
+		print("testing with %s from %d to %d starting at: %s" % (
+			method, pd.to_datetime(dvt.time.values).year.min(), 
+			pd.to_datetime(dvt.time.values).year.max(), str(t0)))
+
+	except AttributeError:
+		years = pd.to_datetime(dvt.year.values).year
+		t0 = pd.Timestamp.now()
+		print("testing with %s from %d to %d starting at: %s" % (
+			method, pd.to_datetime(dvt.year.values).year.min(), 
+			pd.to_datetime(dvt.year.values).year.max(), str(t0)))
 	vals2 = vals.reshape(len(years), -1)
 
-	# Do a first-degree polyfit
-	t0 = pd.Timestamp.now()
-	print("testing with %s from %d to %d starting at: %s" % (
-		method, pd.to_datetime(dvt.time.values).year.min(), 
-		pd.to_datetime(dvt.time.values).year.max(), str(t0)))
+
 
 	if method=="polyfit":
+		# Do a first-degree polyfit
 		vals2[np.isnan(vals2)] = 0
 		regressions = np.polyfit(years, vals2, 1)
 		regressions[regressions== 0] = np.NAN
 		trends = [regressions[0,:].reshape(vals.shape[1], vals.shape[2])]
 		kys = ["slope"]
-		# stacked = dvt.stack(allpoints=['latitude','longitude'])
-		# trend = stacked.groupby('allpoints').apply(scipyolsXR)
-		# trends = trend.unstack('allpoints')
-		# trend = stacked.groupby('allpoints').apply(linear_trend)
-		# kys = ["slope", "intercept", "rsquared", "pvalue"]
 	elif method == "theilsen":
 		regressions = alongaxFAST(vals2, scipyTheilSen)
 		trds = regressions.reshape(4, vals.shape[1], vals.shape[2])
@@ -376,116 +645,6 @@ def _fitvals(dvt, method="polyfit"):
 	# ipdb.set_trace()
 	return trends, kys
 
-
-#==============================================================================
-def GlobalAttributes(ds, var):
-	"""
-	Creates the global attributes for the netcdf file that is being written
-	these attributes come from :
-	https://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html
-	args:
-		runinfo		Table containing all the details of the individual runs
-		ensinfo		Custom class object containing all the infomation about 
-					the ensemble being saved
-	returns:
-		attributes 	Ordered Dictionary cantaining the attribute infomation
-	"""
-	# ========== Create the ordered dictionary ==========
-	attr = OrderedDict()
-
-	# fetch the references for my publications
-	# pubs = puplications()
-	
-	# ========== Fill the Dictionary ==========
-
-	# ++++++++++ Highly recomended ++++++++++ 
-	attr["title"]               = "Trend in Climate Variable"
-	attr["summary"]             = "Annual and season trends in %s" % var
-	attr["Conventions"]         = "CF-1.7"
-	
-	# ++++++++++ Data Provinance ++++++++++ 
-	attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s" % (
-		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
-	attr["history"]            += ds.history
-
-	attr["creator_name"]        = __author__
-	attr["creator_url"]         = "ardenburrell.com"
-	attr["creator_email"]       = __email__
-	attr["institution"]         = "University of Leicester"
-	attr["date_created"]        = str(pd.Timestamp.now())
-	
-	# ++++++++++ Netcdf Summary infomation ++++++++++ 
-	attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
-	attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
-	
-
-
-	return attr
-
-
-#==============================================================================
-
-def dsmaker(ds, var, results, keys, start_years, method):
-	"""
-	Build a summary of relevant paramters
-	args:
-		- 	ensinfo
-		- 	sig masking
-	return
-		ds 	xarray dataset
-	"""
-	# sys.exit()
-	# date = [dt.datetime(ds['time.year'].max() , 12, 31)]
-	dates = pd.to_datetime([dt.datetime(yr , 12, 31) for yr in start_years])
-	try:
-		lat = ds.lat.values
-		lon = ds.lon.values
-	except AttributeError:
-		lat = ds.latitude.values
-		lon = ds.longitude.values
-	# dates = [dt.datetime(yr , 12, 31) for yr in start_years]
-	# ipdb.set_trace()
-	# ========== Start making the netcdf ==========
-	layers   = OrderedDict()
-	encoding = OrderedDict()
-	# ========== loop over the keys ==========
-	try:
-		for pos in range(0, len(keys)): 
-			# ipdb.set_trace()
-			if type(results[pos]) == np.ndarray:
-				Val = results[pos][np.newaxis,:, :]
-			else:
-				Val = np.stack([res[pos] for res in results]) 
-			ky = keys[pos]
-
-			# build xarray dataset
-			DA=xr.DataArray(Val,
-				dims = ['time', 'latitude', 'longitude'], 
-				coords = {'time': dates,'latitude': lat, 'longitude': lon},
-				attrs = ({
-					'_FillValue':9.96921e+36,
-					'units'     :"1",
-					'standard_name':ky,
-					'long_name':"%s %s" % (method, ky)
-					}),
-			)
-
-			DA.longitude.attrs['units'] = 'degrees_east'
-			DA.latitude.attrs['units']  = 'degrees_north'
-			layers[ky] = DA
-			encoding[ky] = ({'shuffle':True, 
-				# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
-				'zlib':True,
-				'complevel':5})
-		
-		return layers, encoding
-	except Exception as e:
-		warn.warn("Code failed with: \n %s \n Going Interactive" % e)
-		ipdb.set_trace()
-		raise e
-
-
-# @jit
 def alongaxFAST(array, myfunc, lineflick=10000):
 	""" Fastest wave i've yet found to loop over an entire netcdf file
 	array 2d numpy array
@@ -520,7 +679,6 @@ def alongaxFAST(array, myfunc, lineflick=10000):
 	res[:, ana] = vals
 	return res
 
-# @jit
 def scipyTheilSen(array):
 	"""
 	Function for rapid TheilSen slop estimation with time. 
