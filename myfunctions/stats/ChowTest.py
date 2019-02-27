@@ -8,7 +8,8 @@ def ChowTest(ts):
     """
     Chow Test
     args:
-        ts
+        ts: pandas time series or x array dataseties
+            the complete unsegmented 
     """
 
     # ========== define the internal functions ==========
