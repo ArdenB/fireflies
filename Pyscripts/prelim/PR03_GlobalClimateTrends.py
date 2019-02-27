@@ -34,7 +34,7 @@ import argparse
 import datetime as dt
 from collections import OrderedDict
 import warnings as warn
-from netCDF4 import Dataset, num2date 
+from netCDF4 import Dataset, num2date, date2num 
 from scipy import stats
 import xarray as xr
 from numba import jit
@@ -448,7 +448,17 @@ def dsmaker(ds, var, results, keys, start_years, method):
 	"""
 	# sys.exit()
 	# date = [dt.datetime(ds['time.year'].max() , 12, 31)]
-	dates = pd.to_datetime([dt.datetime(yr , 12, 31) for yr in start_years])
+	times = OrderedDict()
+	tm    = [dt.datetime(yr , 12, 31) for yr in start_years]
+	times["time"] = pd.to_datetime(tm)
+
+	times["calendar"] = 'standard'
+	times["units"]    = 'days since 1900-01-01 00:00'
+	
+	times["CFTime"]   = date2num(
+		tm, calendar=times["calendar"], units=times["units"])
+
+	dates = times["CFTime"]
 
 	try:
 		lat = ds.lat.values
@@ -486,6 +496,8 @@ def dsmaker(ds, var, results, keys, start_years, method):
 
 			DA.longitude.attrs['units'] = 'degrees_east'
 			DA.latitude.attrs['units']  = 'degrees_north'
+			DA.time.attrs["calendar"]   = times["calendar"]
+			DA.time.attrs["units"]      = times["units"]
 			layers[ky] = DA
 			encoding[ky] = ({'shuffle':True, 
 				# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
