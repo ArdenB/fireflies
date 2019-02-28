@@ -73,11 +73,13 @@ def main(args):
 	data= OrderedDict()
 	data["GIMMS"] = ({
 		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1981to2017_mergetime.nc",
-		'var':"ndvi", "gridres":"8km", "region":"Global" 
+		'var':"ndvi", "gridres":"8km", "region":"Global", "timestep":"16day", 
+		"start":1981, "end":2017
 		})
 	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_MonthlyMax_1999to2017_at_1kmRUSSIA.nc",
-		'var':"ndvi", "gridres":"1km", "region":"RUSSIA"
+		'fname':"./data/veg/COPERN/NDVI_MonthlyMax_1999to2018_at_1kmRUSSIA.nc",
+		'var':"NDVI", "gridres":"1km", "region":"RUSSIA", "timestep":"Monthly",
+		"start":1999, "end":2018
 		})
 
 
@@ -88,12 +90,67 @@ def main(args):
 		# ========== Loop over each of the included vegetation datasets ==========
 		for dt in data:
 			# ========== Get the vegetation values ==========
-			VIdata  = NDVIpuller(data[dt]["fname"], data[dt]["var"], SiteInfo)
+			VIdata, MNdata, ANdata = NDVIpuller(
+				data[dt]["fname"], data[dt]["var"], SiteInfo, data[dt]["timestep"])
 
-			outfile = 
-			ipdb.set_trace()
+
+			# ========== Save the data out ==========
+			outfile = ("./data/field/exportedNDVI/NDVI_%dsites_%s_%dto%d_%s_"
+				% (syear, dt,data[dt]["start"], data[dt]["end"], data[dt]["gridres"]))
+
+			if not data[dt]["timestep"] == "Monthly":
+				VIdata.to_csv(outfile+"complete.csv", header=True)	
+			MNdata.to_csv(outfile+"MonthlyMax.csv", header=True)
+			ANdata.to_csv(outfile+"AnnualMax.csv", header=True)			
+	
+	ipdb.set_trace()
 
 #==============================================================================
+
+
+
+def NDVIpuller(fname, var, SiteInfo, timestep):
+	"""
+	args:
+		fname: str
+			name of the netcdf file to be opened
+		SiteInfo: df
+			dataframe with site details
+	"""
+	# ========== Load the file ==========
+	ds   = xr.open_dataset(fname)
+
+	# ========== Get the vegetation data from the netcdf ==========
+	VIdata = [] # All values
+	MNdata = [] # Monthly Max data
+	ANdata = [] # Annual Max values
+	for index, row in SiteInfo.iterrows():
+		try:
+			array = ds[var].sel({"latitude":row.lat, "longitude":row.lon},	method="nearest")
+		except ValueError:
+			array = ds[var].sel({"lat":row.lat, "lon":row.lon},	method="nearest")
+		# +++++ append the complete series +++++
+		VIdata.append(pd.Series(array.values, index=pd.to_datetime(ds.time.values)))
+		
+		# +++++ append the monthly max +++++
+		if timestep == "Monthly":
+			MNdata.append(pd.Series(array.values, index=pd.to_datetime(ds.time.values)))	
+		else:
+			mon = array.resample(time="1M").max()
+			MNdata.append(pd.Series(mon.values, index=pd.to_datetime(mon['time'].values)))
+		
+		# +++++ append the annual max +++++
+		ann = array.groupby('time.year').max()
+		tm = [dt.datetime(int(year) , 6, 30) for year in ann.year]
+		ANdata.append(pd.Series(ann.values, index= pd.to_datetime(tm)))
+	
+
+	# ========== COnvert to DF ==========
+	dfc = pd.DataFrame(VIdata, index=SiteInfo.sn)
+	dfm = pd.DataFrame(MNdata, index=SiteInfo.sn)
+	dfa = pd.DataFrame(ANdata, index=SiteInfo.sn)
+	return dfc, dfm, dfa
+
 
 def Field_data(year = 2018):
 	"""
@@ -166,30 +223,6 @@ def Field_data(year = 2018):
 	# RFinfo["RF17"].replace(2.0, "IR", inplace=True)
 	# RFinfo["YearsPostFire"] = 2017.0 - RFinfo.fireyear
 	return RFinfo
-
-def NDVIpuller(fname, var, SiteInfo):
-	"""
-	args:
-		fname: str
-			name of the netcdf file to be opened
-		SiteInfo: df
-			dataframe with site details
-	"""
-	# ========== Load the file ==========
-	ds   = xr.open_dataset(fname)
-
-	# ========== Get the vegetation data from the netcdf ==========
-	VIdata = []
-	for index, row in SiteInfo.iterrows():
-		try:
-			array = ds[var].sel({"latitude":row.lat, "longitude":row.lon},	method="nearest")
-		except ValueError:
-			array = ds[var].sel({"lat":row.lat, "lon":row.lon},	method="nearest")
-		VIdata.append(pd.Series(array.values, index=pd.to_datetime(ds.time.values)))
-	# ========== COnvert to DF ==========
-	df = pd.DataFrame(VIdata, index=SiteInfo.sn)
-	return df
-
 
 
 #==============================================================================
