@@ -72,7 +72,7 @@ def main(args):
 	# ========== set the filnames ==========
 	data= OrderedDict()
 	data["GIMMS"] = ({
-		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1981to2017_mergetime.nc",
+		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1981to2017_mergetime_compressed.nc",
 		'var':"ndvi", "gridres":"8km", "region":"Global", "timestep":"16day", 
 		"start":1981, "end":2017
 		})
