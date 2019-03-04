@@ -6,7 +6,7 @@ Gimms data ships with a terrible calander.
 """
 #==============================================================================
 
-__title__ = "Climate trends"
+__title__ = "Gimms Fixer"
 __author__ = "Arden Burrell"
 __version__ = "v1.0(25.02.2019)"
 __email__ = "arden.burrell@gmail.com"
