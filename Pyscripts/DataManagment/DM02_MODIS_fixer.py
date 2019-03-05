@@ -69,7 +69,8 @@ def main():
 	sensor = "aqua"
 	cf.pymkdir("./data/veg/MODIS/%s/processed/" % sensor)
 	
-	SiteInfo = Field_data(year = 2018)
+	SiteInfo = Field_data(year = 2017)
+	# SiteInfo = None
 	print("\n Starting nc creation \n")
 
 	# ========== loop over each year ==========
@@ -121,17 +122,17 @@ def sceneMoasic(sensor, product, year, daynum, force=False, SiteInfo=None):
 			# Valid file already exists
 			return
 		else:
-			print("Starting %d %03d at %s" % (year, daynum, str(pd.Timestamp.now())))
+			print("\n Starting %d %03d at %s" % (year, daynum, str(pd.Timestamp.now())))
 			t0 = pd.Timestamp.now()
 	
 
 	# ========== enlarge the grids ==========
 	subp.call(
-		" cdo -b F64 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[0], fO1),
+		" cdo -b F32 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[0], fO1),
 		shell=True
 	)
 	subp.call(
-		" cdo -b F64 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[1], fO2),
+		" cdo -b F32 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[1], fO2),
 		shell=True
 	)
 
@@ -167,7 +168,6 @@ def sceneMoasic(sensor, product, year, daynum, force=False, SiteInfo=None):
 		encoding       = {ky:encoding},
 		unlimited_dims = ["time"])
 	t1 = pd.Timestamp.now()
-	print(".nc file created for %d %03d. File took %s" % (year, daynum, str(t1-t0)))
 	
 	# ========== check the created dataset ==========
 	try:
@@ -190,6 +190,7 @@ def sceneMoasic(sensor, product, year, daynum, force=False, SiteInfo=None):
 	for fn in tmp:
 		os.remove(fn)
 	print("temp files removed")
+	print(".nc file created for %d %03d. File took %s" % (year, daynum, str(t1-t0)))
 
 
 def sitematch(fn1, fn2, dst1, dst2, ds, var,SiteInfo):
@@ -224,7 +225,6 @@ def sitematch(fn1, fn2, dst1, dst2, ds, var,SiteInfo):
 			print(values[num], values[num+1])
 			ipdb.set_trace()
 
-	ipdb.set_trace()
 
 def datefixer(year, daynum):
 	"""
