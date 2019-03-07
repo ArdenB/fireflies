@@ -71,6 +71,11 @@ def main(args):
 
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	data["MODISaqua"] = ({
+		"fname":"./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc",
+		'var':"ndvi", "gridres":"250m", "region":"SIBERIA", "timestep":"16day", 
+		"start":2002, "end":2019
+		})
 	data["GIMMS"] = ({
 		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1981to2017_mergetime_compressed.nc",
 		'var':"ndvi", "gridres":"8km", "region":"Global", "timestep":"16day", 
@@ -88,17 +93,17 @@ def main(args):
 		SiteInfo = Field_data(year = syear)
 
 		# ========== Loop over each of the included vegetation datasets ==========
-		for dt in data:
+		for dsn in data:
 			# ========== Get the vegetation values ==========
 			VIdata, MNdata, ANdata = NDVIpuller(
-				data[dt]["fname"], data[dt]["var"], SiteInfo, data[dt]["timestep"])
+				dsn, data[dsn]["fname"], data[dsn]["var"], SiteInfo, data[dsn]["timestep"])
 
 
 			# ========== Save the data out ==========
 			outfile = ("./data/field/exportedNDVI/NDVI_%dsites_%s_%dto%d_%s_"
-				% (syear, dt,data[dt]["start"], data[dt]["end"], data[dt]["gridres"]))
+				% (syear, dsn,data[dsn]["start"], data[dsn]["end"], data[dsn]["gridres"]))
 
-			if not data[dt]["timestep"] == "Monthly":
+			if not data[dsn]["timestep"] == "Monthly":
 				VIdata.to_csv(outfile+"complete.csv", header=True)	
 			MNdata.to_csv(outfile+"MonthlyMax.csv", header=True)
 			ANdata.to_csv(outfile+"AnnualMax.csv", header=True)			
@@ -109,26 +114,42 @@ def main(args):
 
 
 
-def NDVIpuller(fname, var, SiteInfo, timestep):
+def NDVIpuller(dsn, fname, var, SiteInfo, timestep):
 	"""
 	args:
+		dsn: str
+			name of the dataset
 		fname: str
 			name of the netcdf file to be opened
 		SiteInfo: df
 			dataframe with site details
+		timestep: str
+			the native temporal resolution
+	returns:
+		three dataframs of complete, monthly and annual max data
 	"""
 	# ========== Load the file ==========
-	ds   = xr.open_dataset(fname)
+	if dsn in ["MODISaqua", "MODISterra"]:
+		ds = xr.open_mfdataset(fname) 
+		# ds = ds.chunk({"time":ds.time.shape[0], "latitude":480, "longitude":941})
+
+	else:
+		ds   = xr.open_dataset(fname)
 
 	# ========== Get the vegetation data from the netcdf ==========
 	VIdata = [] # All values
 	MNdata = [] # Monthly Max data
 	ANdata = [] # Annual Max values
+	t0     = pd.Timestamp.now()
+	tDelta = pd.Timestamp.now() - pd.Timestamp.now()
 	for index, row in SiteInfo.iterrows():
+		t1   = pd.Timestamp.now()
+		sys.stdout.write("\r Starting row %d. Previous row took %s" % (index, str(tDelta)))
+		sys.stdout.flush()
 		try:
-			array = ds[var].sel({"latitude":row.lat, "longitude":row.lon},	method="nearest")
+			array = ds[var].sel({"latitude":row.lat, "longitude":row.lon},	method="nearest").copy()
 		except ValueError:
-			array = ds[var].sel({"lat":row.lat, "lon":row.lon},	method="nearest")
+			array = ds[var].sel({"lat":row.lat, "lon":row.lon},	method="nearest").copy()
 		# +++++ append the complete series +++++
 		VIdata.append(pd.Series(array.values, index=pd.to_datetime(ds.time.values)))
 		
@@ -140,15 +161,21 @@ def NDVIpuller(fname, var, SiteInfo, timestep):
 			MNdata.append(pd.Series(mon.values, index=pd.to_datetime(mon['time'].values)))
 		
 		# +++++ append the annual max +++++
-		ann = array.groupby('time.year').max()
-		tm = [dt.datetime(int(year) , 6, 30) for year in ann.year]
-		ANdata.append(pd.Series(ann.values, index= pd.to_datetime(tm)))
+		ann  = array.groupby('time.year').max() # get the years
+		annv = array.resample(time="1Y").max() # get the values, much faster than groupby
+		tm   = [dt.datetime(int(year) , 6, 30) for year in ann.year.values]
+
+		# ========== Introduced better memory handling and chunking practice ==========
+		ANdata.append(pd.Series(
+			annv.values, index= pd.to_datetime(tm)))
+		tDelta = pd.Timestamp.now() - t1
 	
 
 	# ========== COnvert to DF ==========
 	dfc = pd.DataFrame(VIdata, index=SiteInfo.sn)
 	dfm = pd.DataFrame(MNdata, index=SiteInfo.sn)
 	dfa = pd.DataFrame(ANdata, index=SiteInfo.sn)
+	print("\n Total time taken to fetch values: %s" % (str(pd.Timestamp.now() - t0)))
 	return dfc, dfm, dfa
 
 

@@ -84,6 +84,12 @@ def main():
 				ipdb.set_trace()
 			sceneMoasic(sensor, product, year, daynum, SiteInfo=SiteInfo)
 		time1 = pd.Timestamp.now()
+		
+		subp.call(
+			"cdo -b F32 -mergetime ./data/veg/MODIS/%s/processed/%s_A%d*_merged.nc ./data/veg/MODIS/%s/processed/%s_A%d_complete.nc" % 
+			(sensor, product, year, sensor, product, year),
+			shell=True
+		)
 		print("\n\n %d is complete. it took %s \n\n" % (year, str(time1-time0)))
 		# ipdb.set_trace()
 	ipdb.set_trace()
