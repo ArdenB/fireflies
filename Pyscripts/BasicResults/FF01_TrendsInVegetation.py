@@ -38,6 +38,7 @@ import xarray as xr
 from numba import jit
 import bottleneck as bn
 import scipy as sp
+import glob
 from scipy import stats
 import statsmodels.stats.multitest as smsM
 
@@ -63,17 +64,16 @@ print("xarray version : ", xr.__version__)
 def main():
 	# =========== Create the summary of the datasets to be analyised ==========
 	data= OrderedDict()
+	# data["MODISaqua"] = ({
+	# 	'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
+	# 	'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"]
+	# 	})
 	data["GIMMS31v11"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
 		})
-	# data["tas"] = ({
-	# 	'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_OptimalAccumulllatedtmean_1960to2017_GIMMS.nc",
-	# 	'var':"tmean", "gridres":"GIMMS", "region":"Global", "Periods":["OptimalAccumulated"]
-	# 	})
-
+	
 	for dt in data:
-
 		# ========== FIt a theilsen slope estimation ==========
 		trendmapper(dt, 
 				data[dt]["fname"], data[dt]["var"], "scipyols", 
@@ -99,7 +99,18 @@ def trendmapper(
 	"""
 	
 	# ========== open the dataset and pull the values
-	ds       = xr.open_dataset(fname)
+	if type(fname) == str:
+		ds       = xr.open_dataset(fname)
+		global_attrs = GlobalAttributes(ds, var)
+	else:
+		dsmf = xr.open_mfdataset(fname)
+		global_attrs = GlobalAttributes(dsmf, var)
+
+		ds   = dsmf.groupby("time.year").max(dim="time")
+		tm = [dt.datetime(int(year) , 6, 30) for year in ds.year]
+		ds["time"] = pd.to_datetime(tm)
+		warn.warn(" i need to save it out and relaod everything")
+		ipdb.set_trace()
 	yr_start = pd.to_datetime(ds.time.min().values).year 
 	endyr   = pd.to_datetime(ds.time.max().values).year 
 	# ipdb.set_trace()
@@ -117,7 +128,6 @@ def trendmapper(
 		results     = []
 
 		# ========== Create the global attributes ==========
-		global_attrs = GlobalAttributes(ds, var)
 		dst = ds[var]
 
 		# ========== Calculate the trend ==========
@@ -143,58 +153,65 @@ def trendmapper(
 			print(e)
 			warn.warn(" \n something went wrong with the save, going interactive")
 			ipdb.set_trace()
-	ipdb.set_trace()
 	
+	# if plot:
+	# 	Plot_Trend(ds_trend, kys)
 
 
 		# get the value
-def plot_Trend():
-	# ========== Build all the plots ==========
+#==============================================================================
+def Slope_plots(ds_trend, kys):
+	pass
+	
 
-	if not plot:
-		return True
+
+def Plot_Trend(ds_trend, kys):
+	"""
+	Function to build global trend maps
+	"""
+	# ========== Build all the plots ==========
 	# +++++ Plot number +++++
 	pn = 1
+	ipdb.set_trace()
 
-	for styp in range(0, len(start_years)):
-		for num in range(0, len(kys)):
-			# ========== create the colormap ==========
-			cmap, vmin, vmax = cbvals(var, kys[num])
-			if any ([cm is None for cm in [cmap, vmin, vmax]]):
-				warn.warn("no colorbar exists for %s, skipping" % (kys[num]))
-				ipdb.set_trace()
-				# continue
+	for num in range(0, len(kys)):
+		# ========== create the colormap ==========
+		cmap, vmin, vmax = cbvals(var, kys[num])
+		if any ([cm is None for cm in [cmap, vmin, vmax]]):
+			warn.warn("no colorbar exists for %s, skipping" % (kys[num]))
+			ipdb.set_trace()
+			# continue
 
-			print(styp, num)
-			ax = plt.subplot(len(start_years),len(kys), pn, projection=ccrs.PlateCarree())
-			ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-			ax.add_feature(cpf.RIVERS, zorder=104)
-			# add lat long linse
-			gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
-				linewidth=1, color='gray', alpha=0.5, linestyle='--')
-			gl.xlabels_top = False
-			gl.ylabels_right = False
-			if num == 0:
-				gl.xlabels_bottom = False
+		# print(styp, num)
+		ax = plt.subplot(len(start_years),len(kys), pn, projection=ccrs.PlateCarree())
+		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+		ax.add_feature(cpf.RIVERS, zorder=104)
+		# add lat long linse
+		gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+			linewidth=1, color='gray', alpha=0.5, linestyle='--')
+		gl.xlabels_top = False
+		gl.ylabels_right = False
+		if num == 0:
+			gl.xlabels_bottom = False
 
-			if not ((pn-1) % len(start_years)):
-				gl.ylabels_left = False
+		if not ((pn-1) % len(start_years)):
+			gl.ylabels_left = False
 
-			gl.xformatter = LONGITUDE_FORMATTER
-			gl.yformatter = LATITUDE_FORMATTER
+		gl.xformatter = LONGITUDE_FORMATTER
+		gl.yformatter = LATITUDE_FORMATTER
 
 
-			# ========== Make the map ==========
-			# ipdb.set_trace()
-			ds_trend[kys[num]].isel(time=styp).plot(ax=ax, transform=ccrs.PlateCarree(),
-				cmap=cmap, vmin=vmin, vmax=vmax, cbar_kwargs={
-				"extend":"both"})#,  "pad":0.0075,"fraction":0.125, "shrink":0.74}) #"fraction":0.05,
-			pn += 1
-			# ax.set_title=seasons[num]
-			# for vas, cl in zip(RFinfo.RF17.unique().tolist(), ['yx', "r*","k."]):
-			# ax.plot(RFinfo.lon.values, RFinfo.lat.values, 
-			# 	"kx", markersize=4, transform=ccrs.PlateCarree())
+		# ========== Make the map ==========
+		# ipdb.set_trace()
+		ds_trend[kys[num]].isel(time=styp).plot(ax=ax, transform=ccrs.PlateCarree(),
+			cmap=cmap, vmin=vmin, vmax=vmax, cbar_kwargs={
+			"extend":"both"})#,  "pad":0.0075,"fraction":0.125, "shrink":0.74}) #"fraction":0.05,
+		pn += 1
+		# ax.set_title=seasons[num]
+		# for vas, cl in zip(RFinfo.RF17.unique().tolist(), ['yx', "r*","k."]):
+		# ax.plot(RFinfo.lon.values, RFinfo.lat.values, 
+		# 	"kx", markersize=4, transform=ccrs.PlateCarree())
 
 
 	
@@ -209,7 +226,7 @@ def plot_Trend():
 	# fig.set_size_inches(len(start_years)*3, len(kys)*6)
 	fig.set_size_inches(41, 20)   
 	# plt.tight_layout()
-	plt.savefig("./%s_Testplotv2.png" % var)
+	# plt.savefig("./%s_Testplotv2.png" % var)
 	# plt.colose
 	# ipdb.set_trace()
 	# plt.savefig("./Testplot.pdf")
@@ -530,7 +547,7 @@ def alongaxFAST(array, myfunc, lineflick=10000):
 	for line in range(0, array2.shape[1]):
 		if (line % lineflick == 0):
 			string = ("\rRegression climate: line: %d of %d" % 
-						(line, array2.shape[0]))
+						(line, array2.shape[1]))
 			if line > 0:
 				# TIME PER LINEFLICK
 				lfx = (pd.Timestamp.now()-t0)/line

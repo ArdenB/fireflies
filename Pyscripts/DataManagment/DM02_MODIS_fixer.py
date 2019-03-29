@@ -114,7 +114,7 @@ def main():
 			"nccopy -d7 -s %s %s" %
 			(fnstage1, fnstage2), shell=True
 			)
-		# ipdb.set_trace()
+
 		if ncfiletest(fnstage2, fail=True):
 			os.remove(fnstage1)
 

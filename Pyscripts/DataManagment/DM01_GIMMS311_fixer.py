@@ -74,11 +74,48 @@ def main():
 	# 		" ./data/veg/GIMMS31g/GIMMS31v1/timecorrected/".join(filelist), outfile),
 	# 	shell=True
 	# 	)
+	fpath =  "./data/veg/GIMMS31g/GIMMS31v1/timecorrected/"
+	fname = "ndvi3g_geo_v1_1_1981to2017_mergetime_compressed.nc"
+	AnnualMax(fpath, fname)
 	ipdb.set_trace()
 
 
 
 #==============================================================================
+def AnnualMax(fpath, fname):
+	ds = xr.open_dataset(fpath+fname, chunks={'time':12})
+	years = np.arange(1982, 2018)
+	values = []
+
+	# for year in years:
+	# 	print(year)
+		# values.append(bn.nanmax(ds.ndvi.sel(time=slice("%d-01-01" % int(year), "%d-12-13" % int(year))), axis=0))
+
+
+	# annual = ds.ndvi.groupby("time.year").max(dim='time')
+	dates = ANdatefixer(years)
+	ky        = 'ndvi'
+	long_name = "normalized_difference_vegetation_index"
+	fill_val        = -1.0
+	ndvi = ds.ndvi.sel(time=slice("1982-01-01", "2017-12-31")).groupby("time.year").max(dim="time")
+	# ipdb.set_trace()
+	layers   = OrderedDict()
+	encoding = OrderedDict()
+	# ========== Recode the values  ==========
+	layers['ndvi'], encoding['ndvi'] = DAbuilder(ndvi.values, ds, dates, ky, long_name, fill_val)
+	# ========== Create the global attributes ==========
+	fnout = "ndvi3g_geo_v1_1_1982to2017_annualmax.nc"
+	global_attrs = GlobalAttributes(ds, fnout)
+
+	ds_out = xr.Dataset(layers, attrs= global_attrs)
+	print("Starting write of data")
+	ds_out.to_netcdf(fpath+fnout, 
+		format         = 'NETCDF4', 
+		encoding       = encoding,
+		unlimited_dims = ["time"])
+	ipdb.set_trace()
+	pass
+
 def NDVIfilefix(force=False):
 	"""
 	Goal of the script:
@@ -255,8 +292,12 @@ def DAbuilder(Val, ds, dates, ky, long_name, fill_val):
 	"""
 	
 	# ========== get the lat and lon ==========
-	lat       = ds.lat.values
-	lon       = ds.lon.values
+	try:
+		lat = ds.lat.values
+		lon = ds.lon.values
+	except AttributeError:
+		lat = ds.latitude.values
+		lon = ds.longitude.values
 
 	# ========== Create the xr DA ==========
 	try:
@@ -318,6 +359,36 @@ def datefixer(ds):
 		tm, calendar=dates["calendar"], units=dates["units"])
 
 	return dates
+
+def ANdatefixer(years):
+	"""
+	Opens a netcdf file and fixes the data, then save a new file and returns
+	the save file name
+	args:
+		ds: xarray dataset
+			dataset of the xarray values
+	return
+		time: array
+			array of new datetime objects
+	"""
+
+
+	# ========== create the new dates ==========
+	# year = ds.Year
+
+	# +++++ set up the list of dates +++++
+	dates = OrderedDict()
+	tm = [dt.datetime(int(year) , 6, 30) for year in years]
+	dates["time"] = pd.to_datetime(tm)
+
+	dates["calendar"] = 'standard'
+	dates["units"]    = 'days since 1900-01-01 00:00'
+	
+	dates["CFTime"]   = date2num(
+		tm, calendar=dates["calendar"], units=dates["units"])
+
+	return dates
+
 
 def GlobalAttributes(ds, fnout):
 	"""
