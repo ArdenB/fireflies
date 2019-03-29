@@ -76,15 +76,16 @@ def main():
 
 		# ========== FIt a theilsen slope estimation ==========
 		trendmapper(dt, 
+				data[dt]["fname"], data[dt]["var"], "scipyols", 
+				data[dt]["gridres"], data[dt]["region"])
+		trendmapper(dt, 
 				data[dt]["fname"], data[dt]["var"], "theilsen", 
-				period, data[dt]["gridres"], data[dt]["region"],
-				st_yrs, plot = plot)
+				data[dt]["gridres"], data[dt]["region"])#, plot = plot)
 
 #==============================================================================
 
 def trendmapper(
-	dataset, fname, var, method, period, gridres, region, 
-	start_years, fdpath="", force = False, plot=True):
+	dataset, fname, var, method, gridres, region, fdpath="", force = False, plot=True):
 	"""
 	Master function for trend finder
 	args:
@@ -97,12 +98,15 @@ def trendmapper(
 
 	"""
 	
-	ds = xr.open_dataset(fname)
-	ipdb.set_trace()
+	# ========== open the dataset and pull the values
+	ds       = xr.open_dataset(fname)
+	yr_start = pd.to_datetime(ds.time.min().values).year 
+	endyr   = pd.to_datetime(ds.time.max().values).year 
+	# ipdb.set_trace()
 
 	# ========== Create the outfile name ==========
 	fout = './results/netcdf/%s_%s_%s_%sto%d_%s%s.nc' % (
-		dataset, period, var, method, endyr,region, gridres)
+		dataset,  var, method, yr_start, endyr,region, gridres)
 
 	# ========== Check if the file already exists ==========
 	if all([os.path.isfile(fout), not force]):
@@ -125,7 +129,7 @@ def trendmapper(
 			results.append(trends)
 
 
-		layers, encoding = dsmaker(ds, var, results, kys, start_years, method)
+		layers, encoding = dsmaker(ds, var, results, kys, method)
 		ds_trend = xr.Dataset(layers, attrs= global_attrs)
 
 
@@ -139,7 +143,12 @@ def trendmapper(
 			print(e)
 			warn.warn(" \n something went wrong with the save, going interactive")
 			ipdb.set_trace()
+	ipdb.set_trace()
 	
+
+
+		# get the value
+def plot_Trend():
 	# ========== Build all the plots ==========
 
 	if not plot:
@@ -209,9 +218,7 @@ def trendmapper(
 
 	ipdb.set_trace()
 
-
-		# get the value
-
+	pass
 #==============================================================================
 # ========================= Netcdf Creation Functions =========================
 #==============================================================================
@@ -261,7 +268,7 @@ def GlobalAttributes(ds, var):
 
 	return attr
 
-def dsmaker(ds, var, results, keys, start_years, method):
+def dsmaker(ds, var, results, keys, method):
 	"""
 	Build a summary of relevant paramters
 	args
@@ -273,9 +280,10 @@ def dsmaker(ds, var, results, keys, start_years, method):
 		ds 	xarray dataset
 	"""
 	# sys.exit()
-	# date = [dt.datetime(ds['time.year'].max() , 12, 31)]
+	tm = [dt.datetime(ds['time.year'].max() , 12, 31)]
 	times = OrderedDict()
-	tm    = [dt.datetime(yr , 12, 31) for yr in start_years]
+	# tm    = [dt.datetime(yr , 12, 31) for yr in start_years]
+	# tm    = [date]
 	times["time"] = pd.to_datetime(tm)
 
 	times["calendar"] = 'standard'
@@ -298,8 +306,8 @@ def dsmaker(ds, var, results, keys, start_years, method):
 	layers   = OrderedDict()
 	encoding = OrderedDict()
 	# ========== loop over the keys ==========
-	try:
-		for pos in range(0, len(keys)): 
+	for pos in range(0, len(keys)): 
+		try:
 			# ipdb.set_trace()
 			if type(results[0]) == np.ndarray:
 				Val = results[pos][np.newaxis,:, :]
@@ -330,11 +338,11 @@ def dsmaker(ds, var, results, keys, start_years, method):
 				'zlib':True,
 				'complevel':5})
 		
-		return layers, encoding
-	except Exception as e:
-		warn.warn("Code failed with: \n %s \n Going Interactive" % e)
-		ipdb.set_trace()
-		raise e
+		except Exception as e:
+			warn.warn("Code failed with: \n %s \n Going Interactive" % e)
+			ipdb.set_trace()
+			raise e
+	return layers, encoding
 
 #===============================================================================
 # ============================= Internal Functions =============================
@@ -435,8 +443,16 @@ def cbvals(var, ky):
 def _fitvals(dvt, method="polyfit"):
 	"""
 	Takes the ds[var] and performs some form of regression on it
+	args 
+		dvt: xarray data array
+			the values to be regressed
+		method: str
+			the regression approach to take
 	"""
+	# ========== Get the values ==========
 	vals  = dvt.values 
+
+	# ========== Convert the time into years ==========
 	try:
 		years = pd.to_datetime(dvt.time.values).year
 		t0 = pd.Timestamp.now()
@@ -450,10 +466,12 @@ def _fitvals(dvt, method="polyfit"):
 		print("testing with %s from %d to %d starting at: %s" % (
 			method, pd.to_datetime(dvt.year.values).year.min(), 
 			pd.to_datetime(dvt.year.values).year.max(), str(t0)))
+	
+	# ========== Reshape the datainto two dims  ==========
 	vals2 = vals.reshape(len(years), -1)
 
 
-
+	# ========== pass the results to the specific regression function  ==========
 	if method=="polyfit":
 		# Do a first-degree polyfit
 		vals2[np.isnan(vals2)] = 0
@@ -461,6 +479,7 @@ def _fitvals(dvt, method="polyfit"):
 		regressions[regressions== 0] = np.NAN
 		trends = [regressions[0,:].reshape(vals.shape[1], vals.shape[2])]
 		kys = ["slope"]
+
 	elif method == "theilsen":
 		regressions = alongaxFAST(vals2, scipyTheilSen)
 		trds = regressions.reshape(4, vals.shape[1], vals.shape[2])
@@ -468,6 +487,7 @@ def _fitvals(dvt, method="polyfit"):
 		for n in range(0, trds.shape[0]):
 			trends.append(trds[n, :, :])
 		kys = ["slope", "intercept", "rho", "pvalue"]
+
 	elif method == "scipyols":
 		# regressions = alongax(vals2, scipyols)
 		regressions = alongaxFAST(vals2, scipyols)
@@ -501,13 +521,25 @@ def alongaxFAST(array, myfunc, lineflick=10000):
 	ana = ~bn.anynan(array, axis=0)
 	array2 = array[:, ana]
 
-	# build a holder
+	# ========== build a holder ==========
 	vals = np.zeros((4, array2.shape[1]))
+
+	# ========== get the starting time ==========
+	t0 = pd.Timestamp.now()
 
 	for line in range(0, array2.shape[1]):
 		if (line % lineflick == 0):
-			string = ("\rcalculating regression for line: %d of %d" % 
-						(line, array2.shape[1]))
+			string = ("\rRegression climate: line: %d of %d" % 
+						(line, array2.shape[0]))
+			if line > 0:
+				# TIME PER LINEFLICK
+				lfx = (pd.Timestamp.now()-t0)/line
+				lft = str((lfx*lineflick))
+				trm = str(((array2.shape[1]-line)*(lfx)))
+
+				string += (" t/%d lines: %s. ~eta: %s" % (
+					lineflick,lft, trm) )
+
 			sys.stdout.write(string)
 			sys.stdout.flush()
 

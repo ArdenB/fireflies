@@ -66,7 +66,8 @@ print("xarray version : ", xr.__version__)
 #==============================================================================
 def main():
 	# ========== loop over each sensor ==========
-	sensor = "aqua"
+	# sensor = "aqua"
+	sensor = "terra"
 	cf.pymkdir("./data/veg/MODIS/%s/processed/" % sensor)
 	
 	SiteInfo = Field_data(year = 2017)
@@ -75,28 +76,79 @@ def main():
 
 	# ========== loop over each year ==========
 	for year in range(2000, 2020):
+		print(year)
 		time0 = pd.Timestamp.now()
-		# ========== loop over each day ==========
-		for daynum in range(1, 367):
-			if sensor == 'aqua':
-				product = "MYD13Q1"
-			else:
-				ipdb.set_trace()
-			sceneMoasic(sensor, product, year, daynum, SiteInfo=SiteInfo)
-		time1 = pd.Timestamp.now()
+		if sensor == 'aqua':
+			product = "MYD13Q1"
+		elif sensor == "terra":
+			product = "MOD13Q1"
+		else:
+			ipdb.set_trace()
+		# ========== the stage one file name ==========
+		fnstage1 =  "./data/veg/MODIS/%s/processed/%s_A%d_complete.nc" % (sensor, product, year)
+		fnstage2 =  "./data/veg/MODIS/%s/processed/%s_A%d_final.nc" % (sensor, product, year)
 		
+		if (os.path.isfile(fnstage2)) and (ncfiletest(fnstage2)):
+			continue
+		elif (not os.path.isfile(fnstage1)) or (not ncfiletest(fnstage1)):
+			# ========== loop over each day ==========
+			for daynum in range(1, 367):
+				sceneMoasic(sensor, product, year, daynum, SiteInfo=SiteInfo)
+			
+			subp.call(
+				"cdo -b F32 -setvrange,-0.3,1.0 -setmissval,-3 -mergetime ./data/veg/MODIS/%s/processed/%s_A%d*_merged.nc %s" % 
+				(sensor, product, year, fnstage1), shell=True
+			)
+		
+
+		# ========== compress the complete file ==========
+		if ncfiletest(fnstage1, fail=True):
+			print("Removing Interum files")
+			for ifile in glob.glob("./data/veg/MODIS/%s/processed/%s_A%d*_merged.nc" % (sensor, product, year)):
+				os.remove(ifile)
+		# create the second file name
+		time1 = pd.Timestamp.now()
+		print("Start NC Compression %s" % str(time1))
+		# ipdb.set_trace()
 		subp.call(
-			"cdo -b F32 -mergetime ./data/veg/MODIS/%s/processed/%s_A%d*_merged.nc ./data/veg/MODIS/%s/processed/%s_A%d_complete.nc" % 
-			(sensor, product, year, sensor, product, year),
-			shell=True
-		)
-		print("\n\n %d is complete. it took %s \n\n" % (year, str(time1-time0)))
+			"nccopy -d7 -s %s %s" %
+			(fnstage1, fnstage2), shell=True
+			)
+		# ipdb.set_trace()
+		if ncfiletest(fnstage2, fail=True):
+			os.remove(fnstage1)
+
+		time2 = pd.Timestamp.now()
+		print("\n\n %d is complete. it took %s \n\n" % (year, str(time2-time0)))
 		# ipdb.set_trace()
 	ipdb.set_trace()
 
 	pass
 
 #==============================================================================
+
+def ncfiletest(path, fail=False):
+	"""
+	args:
+		path: str
+			Path to be checked
+		fail: bool
+			raise exception on fail
+	"""
+	try:
+		dst = xr.open_dataset(path)
+		if (bn.nanmax(dst.ndvi.isel(time=1)) > 1.0) or bn.allnan(dst.ndvi.isel(time=1)):
+			warn.warn("Invalid values in the file. will raise value error")
+			ipdb.set_trace()
+			raise ValueError
+		return True
+	except Exception as e:
+		warn.warn("File: %s failed to open. with %s" % (path, str(e)))
+		if fail:
+			raise e
+		else:
+			return False
+
 def sceneMoasic(sensor, product, year, daynum, force=False, SiteInfo=None):
 	"""
 	Uses the year and day number to look for files
@@ -133,12 +185,13 @@ def sceneMoasic(sensor, product, year, daynum, force=False, SiteInfo=None):
 	
 
 	# ========== enlarge the grids ==========
+	# ipdb.set_trace()
 	subp.call(
-		" cdo -b F32 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[0], fO1),
+		" cdo -b F64 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[0], fO1),
 		shell=True
 	)
 	subp.call(
-		" cdo -b F32 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[1], fO2),
+		" cdo -b F64 -enlargegrid,./data/veg/MODIS/%s/tmp/grid  %s %s" % (sensor, fnames[1], fO2),
 		shell=True
 	)
 
