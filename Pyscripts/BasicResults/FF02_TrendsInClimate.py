@@ -63,39 +63,29 @@ def main():
 	# =========== Create the summary of the datasets to be analyised ==========
 	data= OrderedDict()
 
-	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"]
+
+	data["Terrraclim_ppt"] = ({
+		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_stacked_ppt_1977to2017_ppt_yearsum_20window.nc",
+		'var':"ppt", "gridres":"terraclimate", "region":"Global", "Periods":["AnnualMax"]
 		})
-	data["MODISaqua"] = ({
-		'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
-		'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"]
-		})
-	data["GIMMS31v10"] = ({
-		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
-		})
-	data["GIMMS31v11"] = ({
-		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
+	data["Terrraclim_tmean"] = ({
+		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_stacked_tmean_1977to2017_annualmean_20yearwindow.nc",
+		'var':"tmean", "gridres":"terraclimate", "region":"Global", "Periods":["AnnualMax"]
 		})
 
+	fname = "./data/cli/1.TERRACLIMATE/TerraClimate_stacked_ppt_1977to2017_ppt_yearsum_20window_trend2.nc"
+	Plot_Trend(xr.open_dataset(fname), ["slope"], "Terrraclim_ppt", "ppt", "polyfit", "Terraclimate", "Global")
+	fname = "./data/cli/1.TERRACLIMATE/TerraClimate_stacked_tmean_1977to2017_annualmean_20yearwindow_slope.nc"
+	Plot_Trend(xr.open_dataset(fname), ["slope"], "Terrraclim_tmean", "tmean", "polyfit", "Terraclimate", "Global")
+	for method in ["polyfit", "scipyols", "theilsen"]:
+		for dt in data:
+			print (dt, method)
+			# ========== FIt a theilsen slope estimation ==========
+			trendmapper(dt, 
+					data[dt]["fname"], data[dt]["var"], method, 
+					data[dt]["gridres"], data[dt]["region"])
+		
 
-	for dt in data:
-		print (dt)
-		# ========== FIt a theilsen slope estimation ==========
-		trendmapper(dt, 
-				data[dt]["fname"], data[dt]["var"], "polyfit", 
-				data[dt]["gridres"], data[dt]["region"])
-		ipdb.set_trace()
-		trendmapper(dt, 
-				data[dt]["fname"], data[dt]["var"], "scipyols", 
-				data[dt]["gridres"], data[dt]["region"])
-		trendmapper(dt, 
-				data[dt]["fname"], data[dt]["var"], "theilsen", 
-				data[dt]["gridres"], data[dt]["region"])#, plot = plot)
-
-#==============================================================================
 
 def trendmapper(
 	dataset, fname, var, method, gridres, region, fdpath="", force = False, plot=True):
@@ -168,7 +158,6 @@ def trendmapper(
 				)
 			# Open the saved dataset
 			ds = xr.open_dataset(fouts)
-			global_attrs = GlobalAttributes(ds, var)
 			# remove the interum files
 			for fles in cleanup:
 				os.remove(fles)
@@ -179,7 +168,6 @@ def trendmapper(
 		# warn.warn(" i need to save it out and reload everything")
 		# ipdb.set_trace()
 
-	global_attrs = GlobalAttributes(ds, var)
 	yr_start = pd.to_datetime(ds.time.min().values).year 
 	endyr   = pd.to_datetime(ds.time.max().values).year 
 	# ipdb.set_trace()
@@ -200,14 +188,12 @@ def trendmapper(
 		dst = ds[var]
 		if dataset == "GIMMS31v10":
 			dst /= 10000.0
-			# dst = dst.where([dst>=0])
-			# ipdb.set_trace()
 
 		# ========== Calculate the trend ==========
-		if (dst.nbytes * 1e-9) <  8:
+		if (dst.nbytes * 1e-9) <  16:
 			trends, kys = _fitvals(dst, method=method)
 		else:
-			trends, kys = _multifitvals(dst, method=method, sections=40.0)
+			trends, kys = _multifitvals(dst, method=method)
 		# Correct for multiple comparisons
 		if "pvalue" in kys:
 			trends, kys = MultipleComparisons(trends, kys, aplha = 0.10)
@@ -246,7 +232,7 @@ def Plot_Trend(ds_trend, kys, dataset, var, method, gridres, region):
 	pn = 1
 
 	# ========== create the colormap ==========
-	cmap, vmin, vmax = cbvals("slope")
+	cmap, vmin, vmax = cbvals(var, "slope")
 	# plt.figure(1, dpi=600)
 	ax = plt.subplot(projection=ccrs.PlateCarree())
 	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
@@ -288,20 +274,60 @@ def Plot_Trend(ds_trend, kys, dataset, var, method, gridres, region):
 
 	gl.xformatter = LONGITUDE_FORMATTER
 	gl.yformatter = LATITUDE_FORMATTER
+	try:
 
-	ds_trend.slope.sel({'latitude':slice(56, 49), "longitude":slice(103, 123)}).plot(
-		transform=ccrs.PlateCarree(), ax=ax, 
-		cmap=cmap, vmin=vmin, vmax=vmax)
+		ds_trend.slope.sel({'latitude':slice(56, 49), "longitude":slice(103, 123)}).plot(
+			transform=ccrs.PlateCarree(), ax=ax, 
+			cmap=cmap, vmin=vmin, vmax=vmax)
+	except ValueError:
+		ds_trend.slope.sel({'lat':slice(56, 49), "lon":slice(103, 123)}).plot(
+			transform=ccrs.PlateCarree(), ax=ax, 
+			cmap=cmap, vmin=vmin, vmax=vmax)
 	plt.savefig("./plots/Meeting/%s_%s_%s_slope_StudyArea.png" % (dataset, method, var))#, dp1=400)
 	plt.savefig("./plots/Meeting/%s_%s_%s_slope_StudyArea.pdf" % (dataset, method, var))#, dp1=400)
 	plt.show()
 
 	ipdb.set_trace()
 
-	pass
-#==============================================================================
-# ========================= Netcdf Creation Functions =========================
-#==============================================================================
+def cbvals(var, ky):
+
+	"""Function to store all the colorbar infomation i need """
+	cmap = None
+	vmin = None
+	vmax = None
+	if ky == "slope":
+		if var == "tmean":
+			vmax =  0.07
+			vmin = -0.07
+			cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_20.mpl_colors)
+		elif var =="ppt":
+			vmin = -5.0
+			vmax =  5.0
+			cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_20_r.mpl_colors)
+	elif ky == "pvalue":
+		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20.hex_colors)
+		vmin = 0.0
+		vmax = 1.0
+	elif ky == "rsquared":
+		cmap = mpc.ListedColormap(palettable.matplotlib.Viridis_20.hex_colors)
+		vmin = 0.0
+		vmax = 1.0
+		# cmap =  
+	elif ky == "intercept":
+		cmap = mpc.ListedColormap(palettable.cmocean.sequential.Ice_20_r.mpl_colors)
+		if var == "tmean":
+			# vmax =  0.07
+			# vmin = -0.07
+			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_20.mpl_colors)
+			# ipdb.set_trace()
+			pass
+		elif var =="ppt":
+			vmin = 0
+			vmax = 1000
+			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_20_r.mpl_colors)
+
+	return cmap, vmin, vmax
+
 
 def GlobalAttributes(ds, var):
 	"""
@@ -424,10 +450,6 @@ def dsmaker(ds, var, results, keys, method):
 			raise e
 	return layers, encoding
 
-#===============================================================================
-# ============================= Internal Functions =============================
-#===============================================================================
-
 def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_by"):
 	"""
 	Takes the results of an existing trend detection aproach and modifies them to
@@ -481,51 +503,6 @@ def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_by"):
 		kys.append(nm)
 	return trends, kys
 
-def cbvals(ky):
-
-	"""Function to store all the colorbar infomation i need """
-	cmap = None
-	vmin = None
-	vmax = None
-	if ky == "slope":
-		vmin = -0.006
-		vmax =  0.006
-		cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.PRGn_9.mpl_colors)
-	elif ky == "pvalue":
-		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20.hex_colors)
-		vmin = 0.0
-		vmax = 1.0
-	elif ky == "rsquared":
-		cmap = mpc.ListedColormap(palettable.matplotlib.Viridis_20.hex_colors)
-		vmin = 0.0
-		vmax = 1.0
-		# cmap =  
-
-	return cmap, vmin, vmax
-
-def _multifitvals(dst, method, sections=10.0):
-	"""Function for when i run into memory errors"""
-
-	# ========== Chunk the data ==========
-	partN = 0 
-	step  = (dst.shape[1])/sections
-	parts = []
-	try:
-		for index in range(0, int(dst.shape[1]+1), int(step) ):
-			print("starting part %d of %d" % (partN, sections))
-			trend, kys = _fitvals(dst[:, int(index):int(index+step), :], method=method)
-			parts.append(trend)
-			partN += 1
-			# ipdb.set_trace()
-	except Exception as e:
-		warn.warn(str(e))
-		warn.warn("something went wrong, going interactive")
-		# ipdb.set_trace()
-
-	pts = [pt[0] for pt in parts]
-	trends = [np.vstack(pts)] 
-	# ipdb.set_trace()
-	return trends, kys	
 
 def _fitvals(dvt, method="polyfit"):
 	"""
@@ -566,10 +543,11 @@ def _fitvals(dvt, method="polyfit"):
 		# Do a first-degree polyfit
 		vals2[np.isnan(vals2)] = 0
 		regressions = np.polyfit(years, vals2, 1)
+		ipdb.set_trace()
 		regressions[regressions== 0] = np.NAN
 		trends = [regressions[0,:].reshape(vals.shape[1], vals.shape[2])]
 		kys = ["slope"]
-		# ipdb.set_trace()
+		ipdb.set_trace()
 
 	elif method == "theilsen":
 		regressions = alongaxFAST(vals2, scipyTheilSen)
@@ -696,6 +674,8 @@ def scipyols(array):
 		# warn.warn("unhandeled Error has occured")
 		# ipdb.set_trace()
 		return np.array([np.NAN, np.NAN, np.NAN, np.NAN])
+
+
 
 if __name__ == '__main__':
 	main()
