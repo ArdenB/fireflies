@@ -68,23 +68,15 @@ def main():
 	mat         = 40.0    # how long before a forest reaches maturity
 	germ        = 10.0    # how long before a burnt site can germinate
 	# burnfrac  = 0.10    # how much burns
-	burnfrac    = BurntAreaFraction(year=2016)
+	burnfrac    = BurntAreaFraction(year=2016)*2.0
 	
-	nburnfrac   = 0.0     # how much burns in other years
-	# nburnfrac = BurntAreaFraction(year=2018)/2.0     # how much burns in other years
+	# nburnfrac   = 0.0     # how much burns in other years
+	nburnfrac = BurntAreaFraction(year=2018)/4.0     # how much burns in other years
 	# nburnfrac = np.mean([BurntAreaFraction(year=int(yr)) for yr in [2015, 2017, 2018]])     # how much burns in other years
 
-	firefreqL   = [25, 20, 15, 10, 5, 4, 1]       # how often the fires happen
+	firefreqL   = [25, 20, 15, 11, 5, 4, 1]       # how often the fires happen
 	years       = 200     # number of years to loop over
-	RFfrac      = 0.05    # The fraction that will fail to recuit after a fire
-
-
-	# ========== Make an array ==========
-	array   = np.zeros(arraysize)
-	rucfail = np.ones( arraysize)
-
-	# ========== Make the entire array mature forest ==========
-	array[:] = mat
+	RFfrac      = 0.01    # The fraction that will fail to recuit after a fire
 
 	# ========== Create empty lists to hold the variables ==========
 	obsMA = OrderedDict() 
@@ -93,7 +85,17 @@ def main():
 
 	# ========== Loop over the fire frequency list ==========
 	for firefreq in firefreqL:
+		
 		print("Testing with a %d year fire frequency" % firefreq)
+		
+		# ========== Make an array ==========
+		array   = np.zeros(arraysize)
+		rucfail = np.ones( arraysize)
+
+		# ========== Make the entire array mature forest ==========
+		array[:] = mat
+
+		# ========== Create the empty arrays ==========
 		ymean  = []
 		fmat   = []
 		fgerm  = []
@@ -121,14 +123,14 @@ def main():
 		obsGF["FF_%dyr" % firefreq] = fgerm
 	
 	obs = OrderedDict()
-	obs["MeanAge"]             = obsMA
-	obs["MatureFraction"]      = obsMF
-	obs["GerminatingFraction"] = obsGF
-	ipdb.set_trace()
-	# df = pd.DataFrame(obs)
-	# df.MeanAge.plot()
-	# df.MatureFraction.plot()
-	df.plot(subplots=True)
+	obs["MeanAge"]             = pd.DataFrame(obsMA)
+	obs["MatureFraction"]      = pd.DataFrame(obsMF)
+	obs["GerminatingFraction"] = pd.DataFrame(obsGF)
+	for kys in obs.keys(): 
+		print(kys)   
+		# plt.figure(kys)
+		obs[kys].plot(title=kys)
+	
 	plt.show()
 
 	# ipdb.set_trace()
