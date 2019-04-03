@@ -35,7 +35,7 @@ import warnings as warn
 from scipy import stats
 import xarray as xr
 from numba import jit
-# import bottleneck as bn
+import bottleneck as bn
 import scipy as sp
 import glob
 
@@ -49,9 +49,9 @@ import matplotlib.colors as mpc
 import matplotlib as mpl
 import palettable 
 import seaborn as sns
-# import cartopy.crs as ccrs
-# import cartopy.feature as cpf
-# from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+import cartopy.crs as ccrs
+import cartopy.feature as cpf
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 # Import debugging packages 
 import ipdb
 
@@ -64,45 +64,68 @@ print("xarray version : ", xr.__version__)
 def main():
 	
 	# ========== Set up the params ==========
-	arraysize = 10000 # size of the area to test
-	mat       = 50.0  # how long before a forest reaches maturity
-	germ      = 20.0  # how long before a burnt site can germinate
-	burnfrac  = 0.050  # how much burns
-	firefreq  = 5    # how often the fires happen
-	years     = 100   # number of years to loop over
+	arraysize   = 10000   # size of the area to test
+	mat         = 40.0    # how long before a forest reaches maturity
+	germ        = 10.0    # how long before a burnt site can germinate
+	# burnfrac  = 0.10    # how much burns
+	burnfrac    = BurntAreaFraction(year=2016)
+	
+	nburnfrac   = 0.0     # how much burns in other years
+	# nburnfrac = BurntAreaFraction(year=2018)/2.0     # how much burns in other years
+	# nburnfrac = np.mean([BurntAreaFraction(year=int(yr)) for yr in [2015, 2017, 2018]])     # how much burns in other years
+
+	firefreqL   = [25, 20, 15, 10, 5, 4, 1]       # how often the fires happen
+	years       = 200     # number of years to loop over
+	RFfrac      = 0.05    # The fraction that will fail to recuit after a fire
 
 
 	# ========== Make an array ==========
-	array = np.zeros(arraysize)
+	array   = np.zeros(arraysize)
+	rucfail = np.ones( arraysize)
 
 	# ========== Make the entire array mature forest ==========
 	array[:] = mat
 
 	# ========== Create empty lists to hold the variables ==========
-	ymean = []
-	fmat  = []
-	fgerm = []
-	# ========== start the loop ==========
-	for year in range(0, years):
-		# Loop over every year in case i want to add major fire events
-		# print(year)
-		if year % firefreq == 0: 
-			# FIre year
-			array = firetime(array, mat, germ, burnfrac)
-		else:
-			# non fire year
-			array = firetime(array, mat, germ, 0.0)
-		# Mean years
-		ymean.append(np.mean(array))
-		# Fraction of mature forest
-		fmat.append(np.sum(array==mat)/float(arraysize))
-		# Fraction of germinating forest
-		fgerm.append(np.sum(array>germ)/float(arraysize))
+	obsMA = OrderedDict() 
+	obsMF = OrderedDict() 
+	obsGF = OrderedDict() 
+
+	# ========== Loop over the fire frequency list ==========
+	for firefreq in firefreqL:
+		print("Testing with a %d year fire frequency" % firefreq)
+		ymean  = []
+		fmat   = []
+		fgerm  = []
+		rfhold = 0 #the left over fraction of RF
+		# ========== start the loop ==========
+		for year in range(0, years):
+			# Loop over every year in case i want to add major fire events
+			# print(year)
+			if year % firefreq == 0: 
+				# FIre year
+				array, rucfail, rfhold = firetime(array, mat, germ, burnfrac, rucfail, RFfrac, rfhold)
+			else:
+				# non fire year
+				array, rucfail, rfhold = firetime(array, mat, germ, nburnfrac, rucfail, RFfrac, rfhold)
+			# Mean years
+			ymean.append(np.mean(array))
+			# Fraction of mature forest\
+			fmat.append(np.sum(array>=mat)/float(arraysize))
+
+			# Fraction of germinating forest
+			fgerm.append(np.sum(array>germ)/float(arraysize))
+
+		obsMA["FF_%dyr" % firefreq] = ymean
+		obsMF["FF_%dyr" % firefreq] = fmat
+		obsGF["FF_%dyr" % firefreq] = fgerm
+	
 	obs = OrderedDict()
-	obs["MeanAge"]             = ymean
-	obs["MatureFraction"]      = fmat
-	obs["GerminatingFraction"] = fgerm
-	df = pd.DataFrame(obs)
+	obs["MeanAge"]             = obsMA
+	obs["MatureFraction"]      = obsMF
+	obs["GerminatingFraction"] = obsGF
+	ipdb.set_trace()
+	# df = pd.DataFrame(obs)
 	# df.MeanAge.plot()
 	# df.MatureFraction.plot()
 	df.plot(subplots=True)
@@ -112,7 +135,7 @@ def main():
 
 #==============================================================================
 
-def firetime(array, mat, germ, burnfrac):
+def firetime(array, mat_f, germ, burnfrac, rucfail, RFfrac, rfhold):
 	"""
 	takes in an array and modifies it based on the inputs
 	args:
@@ -124,21 +147,92 @@ def firetime(array, mat, germ, burnfrac):
 			years to reach germination point 
 		burnfrac: float
 			the percentage of the data that is burnt each year
+		rucfail: np array
+			Lay to hold info about rf. 1=Abundant, 2 = RF
+		RFfrac: float
+			Fraction of burnt are that fails to recuit
 	"""
+	# ========== Calculate the fraction to burn ==========
+	bf = array.shape[0]*burnfrac
+	
 	# ========== Find the mature part of the array ==========
-	mature = array == mat
-	# ipdb.set_trace()
+	# mature = array == mat
+	mat = np.max(array)
+	mature = array >= mat
+
+	while np.sum(mature) <= bf:
+		mat -=  1
+		mature = array >= mat
+
 	# ========== Add one year to non mature forests ========== 
-	array[~ mature] += 1.0
+	# array[~ mature] += 1.0
+	array += 1.0
 
 	# ========== Burn a fraction of the forest ==========
-	bf = array.shape[0]*burnfrac
-	array[np.logical_and(mature, (np.cumsum(mature)<bf))] = 0.0
+	burnloc = np.logical_and(mature, (np.cumsum(mature)<=bf))
+	array[burnloc] = 0.0
+
+	# ========== Add a recuitment failure adjustment ==========
+	rfloc  =  (bf * RFfrac) + rfhold # number of place that fail to recuit
+	if not (rfloc % 1) == 0:
+		rfhold = np.round(rfloc % 1, decimals=5)
+	else:
+		rfhold = 0
+	prevrf = np.shape(array)[0] - np.sum(rucfail) #areas that have already failed to recuit
+
+	# ========== include the RF ==========
+	rucfail[np.logical_and(burnloc, ((np.cumsum(burnloc)<= (prevrf +rfloc))))] = 0
+	array *= rucfail
 
 	# ========== Return the array ==========
-	return array
+	return array, rucfail, rfhold
 
 #==============================================================================
+
+def BurntAreaFraction(year = 2015):
+	# ========== Path to the dataset ==========
+	path = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/"
+	glb  = "*_%d*.nc" % year
+
+	# ========== Get a list of the files ==========
+	files = glob.glob(path+glb)  
+	if files == []:
+		warrn.warn("selected year has no burnt area to look at")
+		raise ValueError
+
+	# ========== Get a list of the files ==========
+	parts = []
+	time  = []
+	for fn in files:
+		dsp = xr.open_dataset(fn)
+		da = dsp.BA_DEKAD.sel({'lat':slice(55.5, 51.5), "lon":slice(107, 114)})
+		da = da.where(da <=1.0)
+		try:
+			tm = [dt.datetime(int( fn[-35:-31]), int(fn[-31:-29] ), int(fn[-29:-27]))]
+		except Exception as e:
+			ipdb.set_trace()
+			raise e
+		time.append(pd.to_datetime(tm))
+		BAvalues = da.values
+		
+		if not BAvalues.shape[0] == 1:
+			BAvalues = np.expand_dims(BAvalues, axis=0)
+
+		parts.append(BAvalues)
+	# ax = plt.subplot(projection=ccrs.PlateCarree())
+	# da.plot(ax=ax, transform=ccrs.PlateCarree())
+	# plt.show()
+	try:
+		burnt = np.sum(np.stack(parts, axis=0), axis=0)
+	except Exception as e:
+		ipdb.set_trace()
+		raise e
+	BAF = bn.nansum(burnt)/np.sum(~np.isnan(burnt)).astype(float)
+	print("the fraction of burnt area for %d is %f" % (year, BAF))
+	# plt.imshow(burnt);plt.show()
+	# ipdb.set_trace()
+	return BAF
+
 
 if __name__ == '__main__':
 	main()
