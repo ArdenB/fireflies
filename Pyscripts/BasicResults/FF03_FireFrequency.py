@@ -68,15 +68,15 @@ def main():
 	mat         = 40.0    # how long before a forest reaches maturity
 	germ        = 10.0    # how long before a burnt site can germinate
 	# burnfrac  = 0.10    # how much burns
-	burnfrac    = BurntAreaFraction(year=2016)*2.0
+	burnfrac    = BurntAreaFraction(year=2016)
 	
 	# nburnfrac   = 0.0     # how much burns in other years
-	nburnfrac = BurntAreaFraction(year=2018)/4.0     # how much burns in other years
+	nburnfrac = BurntAreaFraction(year=2018)/2.0     # how much burns in other years
 	# nburnfrac = np.mean([BurntAreaFraction(year=int(yr)) for yr in [2015, 2017, 2018]])     # how much burns in other years
 
 	firefreqL   = [25, 20, 15, 11, 5, 4, 1]       # how often the fires happen
 	years       = 200     # number of years to loop over
-	RFfrac      = 0.01    # The fraction that will fail to recuit after a fire
+	RFfrac      = 0.001   # The fraction that will fail to recuit after a fire
 
 	# ========== Create empty lists to hold the variables ==========
 	obsMA = OrderedDict() 
@@ -117,6 +117,8 @@ def main():
 
 			# Fraction of germinating forest
 			fgerm.append(np.sum(array>germ)/float(arraysize))
+			# if year>60 and firefreq == 1:
+			# 	ipdb.set_trace()
 
 		obsMA["FF_%dyr" % firefreq] = ymean
 		obsMF["FF_%dyr" % firefreq] = fmat
@@ -164,6 +166,10 @@ def firetime(array, mat_f, germ, burnfrac, rucfail, RFfrac, rfhold):
 
 	while np.sum(mature) <= bf:
 		mat -=  1
+		if mat == 0:
+			warn.warn("Have hit RF mat 0, going interactive")
+			mature = array > 0
+			break
 		mature = array >= mat
 
 	# ========== Add one year to non mature forests ========== 
