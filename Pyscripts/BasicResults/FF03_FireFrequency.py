@@ -74,19 +74,23 @@ def main():
 	# nburnfrac   = BurntAreaFraction(year=2018)/2.0     # how much burns in other years
 	# nburnfrac = np.mean([BurntAreaFraction(year=int(yr)) for yr in [2015, 2017, 2018]])     # how much burns in other years
 
-	firefreqL   = [25, 20, 15, 11, 5, 4, 1]       # how often the fires happen
+	firefreqL   = [25]#, 20, 15, 11, 5, 4, 1]       # how often the fires happen
 	years       = 200     # number of years to loop over
 	RFfrac      = 0.00 # The fraction that will fail to recuit after a fire
+	iterations  = 100
 
 	# ========== Create empty lists to hold the variables ==========
-	obsMA = OrderedDict() 
-	obsMF = OrderedDict() 
-	obsGF = OrderedDict() 
+		obsMA = OrderedDict() 
+		obsMF = OrderedDict() 
+		obsGF = OrderedDict() 
 
 	# ========== Loop over the fire frequency list ==========
 	for firefreq in firefreqL:
-		
 		print("Testing with a %d year fire frequency" % firefreq)
+		for it in iterations:
+			print("Iteration %d of %d" % (it, iterations))
+			ipdb.set_trace()
+			sys.exit()
 		
 		# ========== Make an array ==========
 		array   = np.zeros(arraysize)
