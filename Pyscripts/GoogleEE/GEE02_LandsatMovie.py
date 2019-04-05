@@ -82,10 +82,10 @@ def main():
 	site     = 4 #Site of interest
 
 	# ========== Get the cordinates ==========
-	row = SiteInfo.loc[site]
-	geom = ee.Geometry.Point([row.lon, row.lat])
-
-	bands = collection.filterBounds(geom).select(['B4', 'B3', 'B2'])
+	row   = SiteInfo.loc[site]
+	geom  = ee.Geometry.Point([row.lon, row.lat])
+	colec = collection.filterBounds(geom)
+	bands = colec.select(['B4', 'B3', 'B2'])
 
 	## Make 8 bit data
 	def convertBit(image):
@@ -95,7 +95,7 @@ def main():
 	print("Starting to create a video")
 	## Export video to Google Drive
 	out = batch.Export.video.toDrive(
-		outputVideo, description='Site%d_video_region_L8_time' % site, 
+		outputVideo, description='Site%d_video_region_L8_time_v2' % site, 
 		dimensions = 1080, framesPerSecond = 2, 
 		region=(
 			[113.05515483255078,51.77849751896069],

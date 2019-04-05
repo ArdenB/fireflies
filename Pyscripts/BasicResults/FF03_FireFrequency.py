@@ -68,15 +68,15 @@ def main():
 	mat         = 40.0    # how long before a forest reaches maturity
 	germ        = 10.0    # how long before a burnt site can germinate
 	# burnfrac  = 0.10    # how much burns
-	burnfrac    = BurntAreaFraction(year=2016)
+	burnfrac    = BurntAreaFraction(year=2016)/2
 	
-	# nburnfrac   = 0.0     # how much burns in other years
-	nburnfrac = BurntAreaFraction(year=2018)/2.0     # how much burns in other years
+	nburnfrac   = 0.0     # how much burns in other years
+	# nburnfrac   = BurntAreaFraction(year=2018)/2.0     # how much burns in other years
 	# nburnfrac = np.mean([BurntAreaFraction(year=int(yr)) for yr in [2015, 2017, 2018]])     # how much burns in other years
 
 	firefreqL   = [25, 20, 15, 11, 5, 4, 1]       # how often the fires happen
 	years       = 200     # number of years to loop over
-	RFfrac      = 0.001   # The fraction that will fail to recuit after a fire
+	RFfrac      = 0.00 # The fraction that will fail to recuit after a fire
 
 	# ========== Create empty lists to hold the variables ==========
 	obsMA = OrderedDict() 
@@ -237,8 +237,8 @@ def BurntAreaFraction(year = 2015):
 		raise e
 	BAF = bn.nansum(burnt)/np.sum(~np.isnan(burnt)).astype(float)
 	print("the fraction of burnt area for %d is %f" % (year, BAF))
-	# plt.imshow(burnt);plt.show()
 	# ipdb.set_trace()
+	# plt.imshow(burnt[0, :,:]);plt.show()
 	return BAF
 
 

@@ -7,7 +7,7 @@ Test out the google earth engine to see what i can do
 """
 #==============================================================================
 
-__title__ = "GEE test 1"
+__title__ = "GEE NDVI extraction"
 __author__ = "Arden Burrell"
 __version__ = "v1.0(04.04.2019)"
 __email__ = "arden.burrell@gmail.com"
@@ -30,14 +30,14 @@ sys.path.append(os.getcwd())
 # Import packages
 import numpy as np
 import pandas as pd
-import argparse
+# import argparse
 import datetime as dt
 from collections import OrderedDict
 import warnings as warn
-from scipy import stats
-import xarray as xr
-from numba import jit
-import bottleneck as bn
+# from scipy import stats
+# import xarray as xr
+# from numba import jit
+# import bottleneck as bn
 import scipy as sp
 import glob
 
@@ -51,9 +51,9 @@ import ee.mapclient
 
 # Import plotting and colorpackages
 import matplotlib.pyplot as plt
-import matplotlib.colors as mpc
-import matplotlib as mpl
-import palettable 
+# import matplotlib.colors as mpc
+# import matplotlib as mpl
+# import palettable 
 # import seaborn as sns
 # import cartopy.crs as ccrs
 # import cartopy.feature as cpf
@@ -63,7 +63,7 @@ import ipdb
 
 print("numpy version  : ", np.__version__)
 print("pandas version : ", pd.__version__)
-print("xarray version : ", xr.__version__)
+# print("xarray version : ", xr.__version__)
 
 #==============================================================================
 
@@ -76,16 +76,16 @@ def main():
 	# collection = ee.ImageCollection('LANDSAT/LC08/C01/T1_SR')
 	data = OrderedDict()
 	# landsat 8 NDVI
-	# data["LANDSAT8"] = ({
-	# 	"NDVI":ee.ImageCollection("LANDSAT/LC08/C01/T1_8DAY_NDVI").select("NDVI"),
-	# 	"start":2013, "end":2019, "gridres":"30m", "region":"global", "timestep":"8day",
-	# 	"resolution":30, "scalefactor":1.0
-	# 	})
-	# data["LANDSAT7"] = ({
-	# 	"NDVI":ee.ImageCollection("LANDSAT/LE07/C01/T1_8DAY_NDVI").select("NDVI"),
-	# 	"start":1999, "end":2018, "gridres":"30m", "region":"global", "timestep":"8day",
-	# 	"resolution":30, "scalefactor":1.0
-	# 	})
+	data["LANDSAT8"] = ({
+		"NDVI":ee.ImageCollection("LANDSAT/LC08/C01/T1_8DAY_NDVI").select("NDVI"),
+		"start":2013, "end":2019, "gridres":"30m", "region":"global", "timestep":"8day",
+		"resolution":30, "scalefactor":1.0
+		})
+	data["LANDSAT7"] = ({
+		"NDVI":ee.ImageCollection("LANDSAT/LE07/C01/T1_8DAY_NDVI").select("NDVI"),
+		"start":1999, "end":2018, "gridres":"30m", "region":"global", "timestep":"8day",
+		"resolution":30, "scalefactor":1.0
+		})
 	data["LANDSAT5"] = ({
 		"NDVI":ee.ImageCollection('LANDSAT/LT05/C01/T1_8DAY_NDVI').select("NDVI"),
 		"start":1994, "end":2012, "gridres":"60m", "region":"global", "timestep":"8day",
@@ -112,7 +112,7 @@ def main():
 
 	# ========== Load the Site Data ==========
 	syear = 2018
-	SiteInfo = Field_data()
+	SiteInfo = Field_data(year=syear)
 
 	# ========== Loop over the datasets ==========
 	for dsn in data:

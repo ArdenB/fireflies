@@ -369,8 +369,6 @@ def GlobalAttributes(ds, var):
 	# ++++++++++ Netcdf Summary infomation ++++++++++ 
 	attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
 	attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
-	
-
 
 	return attr
 
