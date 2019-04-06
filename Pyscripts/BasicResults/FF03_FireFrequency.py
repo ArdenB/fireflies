@@ -67,83 +67,138 @@ def main():
 	arraysize   = 10000   # size of the area to test
 	mat         = 40.0    # how long before a forest reaches maturity
 	germ        = 10.0    # how long before a burnt site can germinate
-	# burnfrac  = 0.10    # how much burns
-	burnfrac    = BurntAreaFraction(year=2016)/2
+	burnfrac    = 0.10    # how much burns
+	# burnfrac    = BurntAreaFraction(year=2016)/2
 	
-	nburnfrac   = 0.0     # how much burns in other years
+	# nburnfrac   = 0.0     # how much burns in other years
+	nburnfrac   = 0.02     # how much burns in other years
 	# nburnfrac   = BurntAreaFraction(year=2018)/2.0     # how much burns in other years
 	# nburnfrac = np.mean([BurntAreaFraction(year=int(yr)) for yr in [2015, 2017, 2018]])     # how much burns in other years
 
-	firefreqL   = [25]#, 20, 15, 11, 5, 4, 1]       # how often the fires happen
+	firefreqL   = [25, 20, 15, 11, 5, 4, 3, 2, 1]       # how often the fires happen
 	years       = 200     # number of years to loop over
-	RFfrac      = 0.00 # The fraction that will fail to recuit after a fire
+	RFfrac      = 0.04 # The fraction that will fail to recuit after a fire
 	iterations  = 100
 
 	# ========== Create empty lists to hold the variables ==========
-		obsMA = OrderedDict() 
-		obsMF = OrderedDict() 
-		obsGF = OrderedDict() 
+	obsMA = OrderedDict() 
+	obsMF = OrderedDict() 
+	obsGF = OrderedDict() 
+	obsSF = OrderedDict() 
+	obsMAstd = OrderedDict() 
+	obsMFstd = OrderedDict() 
+	obsGFstd = OrderedDict() 
+	obsSFstd = OrderedDict() 
 
 	# ========== Loop over the fire frequency list ==========
 	for firefreq in firefreqL:
 		print("Testing with a %d year fire frequency" % firefreq)
-		for it in iterations:
+	
+		# ************VECTORISE THIS LOOP *********
+		iymean  = []
+		ifmat   = []
+		ifgerm  = []
+		ifsap   = []
+
+		for it in np.arange(iterations):
 			print("Iteration %d of %d" % (it, iterations))
-			ipdb.set_trace()
-			sys.exit()
 		
-		# ========== Make an array ==========
-		array   = np.zeros(arraysize)
-		rucfail = np.ones( arraysize)
+			# ========== Make an array ==========
+			array   = np.zeros(  arraysize)
+			rucfail = np.ones(   arraysize)
+			index   = np.arange( arraysize)
 
-		# ========== Make the entire array mature forest ==========
-		array[:] = mat
+			# ========== Make the entire array mature forest ==========
+			array[:] = mat
 
-		# ========== Create the empty arrays ==========
-		ymean  = []
-		fmat   = []
-		fgerm  = []
-		rfhold = 0 #the left over fraction of RF
-		# ========== start the loop ==========
-		for year in range(0, years):
-			# Loop over every year in case i want to add major fire events
-			# print(year)
-			if year % firefreq == 0: 
-				# FIre year
-				array, rucfail, rfhold = firetime(array, mat, germ, burnfrac, rucfail, RFfrac, rfhold)
-			else:
-				# non fire year
-				array, rucfail, rfhold = firetime(array, mat, germ, nburnfrac, rucfail, RFfrac, rfhold)
-			# Mean years
-			ymean.append(np.mean(array))
-			# Fraction of mature forest\
-			fmat.append(np.sum(array>=mat)/float(arraysize))
+			# ========== Create the empty arrays ==========
+			ymean  = []
+			fmat   = []
+			fgerm  = []
+			fsap   = []
+			rfhold = 0 #the left over fraction of RF
+			# ========== start the loop ==========
 
-			# Fraction of germinating forest
-			fgerm.append(np.sum(array>germ)/float(arraysize))
-			# if year>60 and firefreq == 1:
-			# 	ipdb.set_trace()
+			# ************VECTORISE THIS LOOP *********
+			
+			for year in range(0, years):
+				# Loop over every year in case i want to add major fire events
+				# print(year)
+				if year % firefreq == 0: 
+					# FIre year
+					array, rucfail, rfhold = firetime(array, index, mat, germ, burnfrac, rucfail, RFfrac, rfhold)
+				else:
+					# non fire year
+					array, rucfail, rfhold = firetime(array, index, mat, germ, nburnfrac, rucfail, RFfrac, rfhold)
+				# Mean years
+				ymean.append(np.mean(array))
+				# Fraction of mature forest\
+				fmat.append(np.sum(array>=mat)/float(arraysize))
 
-		obsMA["FF_%dyr" % firefreq] = ymean
-		obsMF["FF_%dyr" % firefreq] = fmat
-		obsGF["FF_%dyr" % firefreq] = fgerm
+
+				# Fraction of germinating forest
+				fsap.append(np.sum(np.logical_and((array>germ), (array<mat)))/float(np.sum((array>germ))))
+
+				# Fraction of germinating forest
+				fgerm.append(np.sum(array>germ)/float(arraysize))
+				# if year>60 and firefreq == 1:
+			iymean.append(np.array(ymean))
+			ifmat.append  (np.array(fmat))
+			ifgerm.append  (np.array(fgerm))
+			ifsap .append  (np.array(fsap))
+			# ipdb.set_trace()
+
+		# warn.warn("The end of an iteration has been reached")
+		# for v in iymean: plt.plot(v)
+		# plt.show()
+		# for v in ifmat: plt.plot(v)
+		# plt.show()
+		# for v in ifgerm: plt.plot(v)
+		# plt.show()
+
+
+		# ipdb.set_trace()
+		FFfmean   = np.mean(np.vstack (iymean), axis=0)
+		FFSTD     = np.std( np.vstack (iymean), axis=0)
+		FFfmat    = np.mean(np.vstack (ifmat), axis=0)
+		FFmatSTD  = np.std( np.vstack (ifmat), axis=0)
+		FFfgerm   = np.mean(np.vstack (ifgerm), axis=0)
+		FFgermSTD = np.std( np.vstack (ifgerm), axis=0)
+		FFfsap    = np.mean(np.vstack (ifsap), axis=0)
+		FFsapSTD  = np.std( np.vstack (ifsap), axis=0)
+		
+		obsMA["FF_%dyr" % firefreq] = FFfmean
+		obsMF["FF_%dyr" % firefreq] = FFfmat
+		obsGF["FF_%dyr" % firefreq] = FFfgerm
+		obsSF["FF_%dyr" % firefreq] = FFfsap
+		obsMAstd["FF_%dyr" % firefreq] = FFSTD
+		obsMFstd["FF_%dyr" % firefreq] = FFmatSTD
+		obsGFstd["FF_%dyr" % firefreq] = FFgermSTD
+		obsSFstd["FF_%dyr" % firefreq] = FFsapSTD
 	
 	obs = OrderedDict()
 	obs["MeanAge"]             = pd.DataFrame(obsMA)
 	obs["MatureFraction"]      = pd.DataFrame(obsMF)
 	obs["GerminatingFraction"] = pd.DataFrame(obsGF)
+	obs["SaplingFraction"]     = pd.DataFrame(obsSF)
+	obsSTD = OrderedDict()
+	obsSTD["MeanAge"]             = pd.DataFrame(obsMAstd)
+	obsSTD["MatureFraction"]      = pd.DataFrame(obsMFstd)
+	obsSTD["GerminatingFraction"] = pd.DataFrame(obsGFstd)
+	obsSTD["SaplingFraction"]     = pd.DataFrame(obsSFstd)
 	for kys in obs.keys(): 
 		print(kys)   
 		# plt.figure(kys)
-		obs[kys].plot(title=kys)
+		obs[kys].plot(title=kys, yerr = obsSTD[kys] )
+		# sns.lineplot(obs[kys], title=kys, err_style="band", yerr = obsSTD[kys]*2 )
 	
 	plt.show()
 
 	# ipdb.set_trace()
 
 #==============================================================================
-
-def firetime(array, mat_f, germ, burnfrac, rucfail, RFfrac, rfhold):
+@jit
+def firetime(array, index, mat, germ, burnfrac, rucfail, RFfrac, rfhold):
 	"""
 	takes in an array and modifies it based on the inputs
 	args:
@@ -160,40 +215,72 @@ def firetime(array, mat_f, germ, burnfrac, rucfail, RFfrac, rfhold):
 		RFfrac: float
 			Fraction of burnt are that fails to recuit
 	"""
+	# ipdb.set_trace()
 	# ========== Calculate the fraction to burn ==========
-	bf = array.shape[0]*burnfrac
+	bf = np.round_(array.shape[0]*burnfrac)
 	
 	# ========== Find the mature part of the array ==========
-	# mature = array == mat
-	mat = np.max(array)
-	mature = array >= mat
+	# mat = np.max(array)
+	# Find the indexs of the mature plants
+	mature = index[array >= mat]
 
-	while np.sum(mature) <= bf:
-		mat -=  1
-		if mat == 0:
-			warn.warn("Have hit RF mat 0, going interactive")
-			mature = array > 0
-			break
-		mature = array >= mat
+	if mature.shape[0] >= bf:
+		# ========== Find a random subset of that to burn ==========
+		burn = np.random.choice(mature, int(bf))
+	else:
+		# ========== Find the saplings and burn them ==========
+		sap  = index[np.logical_and((array < mat), (array>=germ))] # find the locations of saplings
+		bfs  = bf - mature.shape[0] # burn the mature then the saplings
+		if sap.shape[0] <= bfs:
+			seed  = index[array<germ]
+			bfseed = bfs-sap.shape[0]
+			burn = np.hstack([mature, sap, np.random.choice(seed, int(bfseed))])
+			# warn.warn("this has not been implemented yet")
+			# ipdb.set_trace()
+			# raise ValueError("to be tested and implemented")
+		else:
+			burn = np.hstack([mature, np.random.choice(sap, int(bfs))])
+			# warn.warn("this feature requires Testing")
+			# ipdb.set_trace()
+
+	# while np.sum(mature) <= bf:
+	# 	mat -=  1
+	# 	if mat == 0:
+	# 		warn.warn("Have hit RF mat 0, going interactive")
+	# 		mature = array > 0
+	# 		break
+	# 	mature = array >= mat
 
 	# ========== Add one year to non mature forests ========== 
-	# array[~ mature] += 1.0
+	# array[burn] += 1.0
 	array += 1.0
 
 	# ========== Burn a fraction of the forest ==========
-	burnloc = np.logical_and(mature, (np.cumsum(mature)<=bf))
-	array[burnloc] = 0.0
+	# burnloc = np.logical_and(mature, (np.cumsum(mature)<=bf))
+	# array[burnloc] = 0.0
+	array[burn] = 0.0
 
 	# ========== Add a recuitment failure adjustment ==========
-	rfloc  =  (bf * RFfrac) + rfhold # number of place that fail to recuit
+	rfloc  =  (bf * RFfrac) + rfhold # number of place that fail to recuite 
+	# add the left over here to the next year
 	if not (rfloc % 1) == 0:
-		rfhold = np.round(rfloc % 1, decimals=5)
+		# hold the left over
+		rfhold = np.round_(rfloc % 1, decimals=5)
 	else:
+		# zero out the leftover
 		rfhold = 0
-	prevrf = np.shape(array)[0] - np.sum(rucfail) #areas that have already failed to recuit
+
+	# ========== Check if some areas need to fail to recuite ==========
+	# This will be upgraded soon to support delayed germination etc # 
+	if np.floor(rfloc) > 0:
+		# +++++ some rf occured +++++
+		pfrf = np.random.choice(burn, int(np.floor(rfloc))) #post fire RF
+		rucfail[pfrf] = 0	
+
+	# prevrf = np.shape(array)[0] - np.sum(rucfail) #areas that have already failed to recuit
 
 	# ========== include the RF ==========
-	rucfail[np.logical_and(burnloc, ((np.cumsum(burnloc)<= (prevrf +rfloc))))] = 0
+	# rucfail[np.logical_and(burnloc, ((np.cumsum(burnloc)<= (prevrf +rfloc))))] = 0
 	array *= rucfail
 
 	# ========== Return the array ==========
