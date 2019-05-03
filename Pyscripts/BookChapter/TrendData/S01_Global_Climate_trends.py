@@ -65,13 +65,13 @@ print("xarray version : ", xr.__version__)
 def main():
 	# =========== Create the summary of the datasets to be analyised ==========
 	data= OrderedDict()
-	data["pre"] = ({
-		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_stacked_ppt_1958to2017_GIMMSremapbil_yearsum.nc",
-		'var':"ppt", "gridres":"GIMMS", "region":"Global", "Periods":["Annual"]
-		})
 	data["tas"] = ({
 		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_stacked_tmean_1958to2017_GIMMSremapbil_yearmean.nc",
 		'var':"tmean", "gridres":"GIMMS", "region":"Global", "Periods":["Annual"]
+		})
+	data["pre"] = ({
+		'fname':"./data/cli/1.TERRACLIMATE/TerraClimate_stacked_ppt_1958to2017_GIMMSremapbil_yearsum.nc",
+		'var':"ppt", "gridres":"GIMMS", "region":"Global", "Periods":["Annual"]
 		})
 	# ========== loop over each dataset ==========
 
@@ -101,20 +101,20 @@ def main():
 				yr_start=1982, yr_end=2017, force=False, plot=plot)
 
 			# ========== Perform the uncorrected trend detection ==========
-			trendmapper(
-				data[dt]["fname"], data[dt]["var"], "polyfit", 
-				period, data[dt]["gridres"], data[dt]["region"],
-				st_yrs, plot = plot)#, force=True)
-			trendmapper(
-				data[dt]["fname"], data[dt]["var"], "scipyols", 
-				period, data[dt]["gridres"], data[dt]["region"],
-				st_yrs, plot = plot)#, force=True)
-			trendmapper(
-				data[dt]["fname"], data[dt]["var"], "theilsen", 
-				period, data[dt]["gridres"], data[dt]["region"],
-				st_yrs, plot = plot)#, force=True)
+			# trendmapper(
+			# 	data[dt]["fname"], data[dt]["var"], "polyfit", 
+			# 	period, data[dt]["gridres"], data[dt]["region"],
+			# 	st_yrs, plot = plot)#, force=True)
+			# trendmapper(
+			# 	data[dt]["fname"], data[dt]["var"], "scipyols", 
+			# 	period, data[dt]["gridres"], data[dt]["region"],
+			# 	st_yrs, plot = plot)#, force=True)
+			# trendmapper(
+			# 	data[dt]["fname"], data[dt]["var"], "theilsen", 
+			# 	period, data[dt]["gridres"], data[dt]["region"],
+			# 	st_yrs, plot = plot)#, force=True)
 
-			sys.exit()
+			# sys.exit()
 
 	 # Reshape to an array with as many rows as years and as many columns as there are pixels
 	
@@ -192,8 +192,6 @@ def plotmaker():
 	# plt.coloes
 
 	ipdb.set_trace()
-
-
 
 def RollingWindow(
 	fname, var, method, window, period, gridres, region, 
@@ -274,6 +272,7 @@ def RollingWindow(
 				encoding       = encoding,
 				unlimited_dims = ["time"])
 			print(".nc file created")
+			ipdb.set_trace()
 		except Exception as e:
 			print(e)
 			warn.warn(" \n something went wrong with the save, going interactive")
@@ -569,6 +568,7 @@ def cbvals(var, ky):
 
 	return cmap, vmin, vmax
 
+@jit
 def _fitvals(dvt, method="polyfit"):
 	"""
 	Takes the ds[var] and performs some form of regression on it
@@ -620,7 +620,24 @@ def _fitvals(dvt, method="polyfit"):
 	# ipdb.set_trace()
 	return trends, kys
 
-def alongaxFAST(array, myfunc, lineflick=10000):
+@jit
+def _lnflick(line, line_max, t0, lineflick=100000):
+				if (line % lineflick == 0):
+					string = ("\rAcum climate: line: %d of %d" % 
+								(line, line_max))
+					if line > 0:
+						# TIME PER LINEFLICK
+						lfx = (pd.Timestamp.now()-t0)/line
+						lft = str((lfx*lineflick))
+						trm = str(((line_max-line)*(lfx)))
+
+						string += (" t/%d lines: %s. ~t remaining: %s" % (
+							lineflick,lft, trm) )
+
+					sys.stdout.write(string)
+					sys.stdout.flush()
+@jit
+def alongaxFAST(array, myfunc, t0=pd.Timestamp.now(), lineflick=10000):
 	""" Fastest wave i've yet found to loop over an entire netcdf file
 	array 2d numpy array
 	myfunc function i want to apply
@@ -642,9 +659,10 @@ def alongaxFAST(array, myfunc, lineflick=10000):
 	vals = np.zeros((4, array2.shape[1]))
 
 	for line in range(0, array2.shape[1]):
-		if (line % lineflick == 0):
-			string = ("\rcalculating regression for line: %d of %d" % 
-						(line, array2.shape[1]))
+		_lnflick(line, array2.shape[1], t0, lineflick=lineflick)
+		# if (line % lineflick == 0):
+		# 	string = ("\rcalculating regression for line: %d of %d" % 
+		# 				(line, array2.shape[1]))
 			sys.stdout.write(string)
 			sys.stdout.flush()
 
@@ -654,6 +672,7 @@ def alongaxFAST(array, myfunc, lineflick=10000):
 	res[:, ana] = vals
 	return res
 
+@jit
 def scipyTheilSen(array):
 	"""
 	Function for rapid TheilSen slop estimation with time. 
@@ -683,7 +702,7 @@ def scipyTheilSen(array):
 		ipdb.set_trace()
 		return np.array([np.NAN, np.NAN, np.NAN, np.NAN])
 
-# @jit
+@jit
 def scipyols(array):
 	"""
 	Function for rapid OLS with time. the regression is done with 
