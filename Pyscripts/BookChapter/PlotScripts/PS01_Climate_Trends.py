@@ -115,16 +115,22 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	mapdet.cmap  = cmap # Colormap set later
 	mapdet.cmin  = vmin # the min of the colormap
 	mapdet.cmax  = vmax # the max of the colormap
-	mapdet.dpi   = 100 
+	mapdet.dpi   = 500 
+	mapdet.save  = True#False
 	mapdet.ticks = ticks
 	# mapdet.cblabel  = "Trend in %s (%s)" % (dsinfo["param"], dsinfo["units"]) 
 	mapdet.cblabel  = "%s" % (dsinfo["units"]) 
 	mapdet.plotpath = "./plots/bookchapter/firstdraft/"
-	mapdet.fname    = "%s%s_%s_trend_%dmw_FDR_%s" %(
+
+	mapdet.fname    = "%s%s_%s_%s_%s_%dyrMW_%sFDR" %(
 		mapdet.plotpath, dsinfo["source"], dsinfo["param"],
+		dsinfo["test"], mapdet.var,
 		dsinfo["window"], dsinfo["FDRmethod"])
+	if dst == "tmean":
+		mapdet.set_x  = 2.25 
+		mapdet.extend = "max"
+
 	cf.pymkdir(mapdet.plotpath)
-	ipdb.set_trace()
 	warn.warn("Polar projection needs work")
 	# mapdet.projection = ccrs.NorthPolarStereo()
 
@@ -132,13 +138,14 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	fname, plotinfo = pf.mapmaker(ds, mapdet)
 	
 	# ========== Make metadata infomation ========== 
-	maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
-		__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
-	gitinfo = pf.gitmetadata()
-	infomation = [maininfo, plotinfo, fname, gitinfo]
-	cf.writemetadata(fname, infomation)
+	if not (fname is None):
+		maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
+			__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+		gitinfo = pf.gitmetadata()
+		infomation = [maininfo, plotinfo, fname, gitinfo]
+		cf.writemetadata(fname, infomation)
 
-	ipdb.set_trace()
+	# ipdb.set_trace()
 
 def Polar_maker():
 	"""
@@ -168,6 +175,11 @@ def results():
 	Function to return the infomation about the results
 	"""
 	res = OrderedDict()
+	res["tmean"] = ({
+		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_tmean_theilsento2017_GlobalGIMMS.nc",
+		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+		"window":20, "grid":"GIMMS", "param":"MeanAnnualTemperature", 
+		"units":r"$^{o}$C yr$^{-1}$"})
 	res["ppt"] = ({
 		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_ppt_theilsento2017_GlobalGIMMS.nc",
 		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
@@ -185,9 +197,11 @@ def cbvals(var, ky):
 	ticks = None
 	if ky == "slope":
 		if var == "tmean":
-			vmax =  0.07
-			vmin = -0.07
-			cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_10.mpl_colors)
+			vmax =  0.06
+			vmin =  0.00
+			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_10.mpl_colors)
+			cmap = mpc.ListedColormap(palettable.colorbrewer.sequential.OrRd_6.mpl_colors)
+			ticks = ticks = np.arange(vmin, vmax+0.1, 0.02)
 		elif var =="ppt":
 			vmin = -4.0
 			vmax =  4.0

@@ -250,16 +250,21 @@ def mapmaker(ds, mapdet):
 	# ========== Save the plot ==========
 	if mapdet.save:
 		# Make a pdf version
+		print("Starting the figure save process at" , pd.Timestamp.now())
+		print("At high DPI or on my work desktop this can be very slow")
 		plt.savefig(mapdet.fname+".pdf", dpi=fig.dpi)
 		plt.savefig(mapdet.fname+".eps", dpi=fig.dpi)
 		plt.savefig(mapdet.fname+".png", dpi=fig.dpi)
 
 		plotinfo = "PLOT INFO: Plot of %s made using %s:v.%s" % (
 			mapdet.var, __title__, __version__)
-	plt.show()
+		plt.show()
+		return mapdet.fname+".pdf", plotinfo
+	else:
+		plt.show()
+		ipdb.set_trace()
+		return None, None
 
-	return mapdet.fname+".pdf", plotinfo
-	# ipdb.set_trace()
 	sys.exit()
 
 	# if not (mapdet.crop is None):
