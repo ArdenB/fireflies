@@ -514,7 +514,7 @@ def dsmaker(ds, var, results, keys, start_years, method):
 # ============================= Internal Functions =============================
 #===============================================================================
 
-def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_by"):
+def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_bh"):
 	"""
 	Takes the results of an existing trend detection aproach and modifies them to
 	account for multiple comparisons.  

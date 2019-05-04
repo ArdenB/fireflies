@@ -568,7 +568,7 @@ def cbvals(var, ky):
 
 	return cmap, vmin, vmax
 
-@jit
+# @jit
 def _fitvals(dvt, method="polyfit"):
 	"""
 	Takes the ds[var] and performs some form of regression on it
@@ -620,23 +620,26 @@ def _fitvals(dvt, method="polyfit"):
 	# ipdb.set_trace()
 	return trends, kys
 
-@jit
+# @jit
 def _lnflick(line, line_max, t0, lineflick=100000):
-				if (line % lineflick == 0):
-					string = ("\rAcum climate: line: %d of %d" % 
-								(line, line_max))
-					if line > 0:
-						# TIME PER LINEFLICK
-						lfx = (pd.Timestamp.now()-t0)/line
-						lft = str((lfx*lineflick))
-						trm = str(((line_max-line)*(lfx)))
+	if (line % lineflick == 0):
+		string = ("\rLine: %d of %d" % 
+					(line, line_max))
+		if line > 0:
+			# TIME PER LINEFLICK
+			lfx = (pd.Timestamp.now()-t0)/line
+			lft = str((lfx*lineflick))
+			trm = str(((line_max-line)*(lfx)))
+			string += (" t/%d lines: %s. ETA: %s" % (
+				lineflick,lft, trm) )
+			
+		sys.stdout.write(string)
+		sys.stdout.flush()
+	else:
+		pass
 
-						string += (" t/%d lines: %s. ~t remaining: %s" % (
-							lineflick,lft, trm) )
 
-					sys.stdout.write(string)
-					sys.stdout.flush()
-@jit
+# @jit
 def alongaxFAST(array, myfunc, t0=pd.Timestamp.now(), lineflick=10000):
 	""" Fastest wave i've yet found to loop over an entire netcdf file
 	array 2d numpy array
@@ -660,19 +663,13 @@ def alongaxFAST(array, myfunc, t0=pd.Timestamp.now(), lineflick=10000):
 
 	for line in range(0, array2.shape[1]):
 		_lnflick(line, array2.shape[1], t0, lineflick=lineflick)
-		# if (line % lineflick == 0):
-		# 	string = ("\rcalculating regression for line: %d of %d" % 
-		# 				(line, array2.shape[1]))
-			sys.stdout.write(string)
-			sys.stdout.flush()
-
 		out = myfunc(array2[:, line])		
 		# vals.append(out)
 		vals[:, line] = out
 	res[:, ana] = vals
 	return res
 
-@jit
+# @jit
 def scipyTheilSen(array):
 	"""
 	Function for rapid TheilSen slop estimation with time. 
@@ -702,7 +699,7 @@ def scipyTheilSen(array):
 		ipdb.set_trace()
 		return np.array([np.NAN, np.NAN, np.NAN, np.NAN])
 
-@jit
+# @jit
 def scipyols(array):
 	"""
 	Function for rapid OLS with time. the regression is done with 
