@@ -47,6 +47,7 @@ class mapclass(object):
 		self.sigmask    = None  # used for passing the column of significance maskis around
 		self.sighatch   = False # used for passing the column of significance maskis around
 		self.projection = ccrs.PlateCarree()
+		self.sigbox     = 10    # The size of the box used to create the hatching
 		self.cmap     = None  # Colormap set later
 		self.cmin     = None  # the min of the colormap
 		self.cmax     = None  # the max of the colormap
