@@ -84,13 +84,13 @@ def main():
 	for dt in data:
 		print (dt)
 		# ========== FIt a theilsen slope estimation ==========
-		trendmapper(dt, 
-				data[dt]["fname"], data[dt]["var"], "polyfit", 
-				data[dt]["gridres"], data[dt]["region"])
-		ipdb.set_trace()
-		trendmapper(dt, 
-				data[dt]["fname"], data[dt]["var"], "scipyols", 
-				data[dt]["gridres"], data[dt]["region"])
+		# trendmapper(dt, 
+		# 		data[dt]["fname"], data[dt]["var"], "polyfit", 
+		# 		data[dt]["gridres"], data[dt]["region"])
+		# ipdb.set_trace()
+		# trendmapper(dt, 
+		# 		data[dt]["fname"], data[dt]["var"], "scipyols", 
+		# 		data[dt]["gridres"], data[dt]["region"])
 		trendmapper(dt, 
 				data[dt]["fname"], data[dt]["var"], "theilsen", 
 				data[dt]["gridres"], data[dt]["region"])#, plot = plot)
