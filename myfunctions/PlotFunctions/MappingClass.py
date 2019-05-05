@@ -48,6 +48,8 @@ class mapclass(object):
 		self.sighatch   = False # used for passing the column of significance maskis around
 		self.projection = ccrs.PlateCarree()
 		self.sigbox     = 10    # The size of the box used to create the hatching
+		self.sigfrac    = 0.6   # The fraction of pixels that are significant to get stippling
+
 		self.cmap     = None  # Colormap set later
 		self.cmin     = None  # the min of the colormap
 		self.cmax     = None  # the max of the colormap

@@ -63,6 +63,10 @@ def main():
 	# =========== Create the summary of the datasets to be analyised ==========
 	data= OrderedDict()
 
+	data["GIMMS31v11"] = ({
+		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
+		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
 		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"]
@@ -73,10 +77,6 @@ def main():
 		})
 	data["GIMMS31v10"] = ({
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
-		})
-	data["GIMMS31v11"] = ({
-		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
 		})
 

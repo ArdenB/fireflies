@@ -74,16 +74,12 @@ def main():
 		"./data/other/ForestExtent/BorealForestMask_%s.nc"%(resinfo[dst]["grid"]))
 		
 		# ========== Build the map ==========
-		xr_mapmaker(dst, ds, mask, resinfo[dst])
-		# ax = plt.subplot( projection=ccrs.PlateCarree())
-		# ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-		# ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-		# ax.add_feature(cpf.RIVERS, zorder=104)
-		# ds["slope"].isel(time=0).plot(ax=ax, transform=ccrs.PlateCarree(),
-		# 	cmap=cmap, vmin=vmin, vmax=vmax, cbar_kwargs={
-		# 	"extend":"both"})
-		# ipdb.set_trace()
+		# xr_mapmaker(dst, ds, mask, resinfo[dst])
 
+		# ========== Get the stats ==========
+		statsmaker(dst, ds, mask, resinfo[dst])
+
+#==============================================================================
 
 def xr_mapmaker(dst, ds, mask, dsinfo):
 	"""
@@ -103,10 +99,11 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	mapdet = pf.mapclass("boreal")
 
 	# ========== add infomation to mapdet ==========
-	mapdet.var     = "slope" #the thing to be plotted
-	mapdet.mask    =  mask    # dataset to maks with
-	mapdet.masknm  = "BorealForest" # When the mask file is an xr dataset, the var name
-	mapdet.sigmask = "Significant" # used for passing the column of significance maskis around
+	mapdet.var      = "slope" #the thing to be plotted
+	mapdet.mask     =  mask    # dataset to maks with
+	mapdet.masknm   = "BorealForest" # When the mask file is an xr dataset, the var name
+	mapdet.sigmask  = "Significant" # used for passing the column of significance maskis around
+	mapdet.sighatch = True
 
 	# ========== Get the colorbar values ==========
 	cmap, vmin, vmax, ticks  = cbvals(dst, "slope")
@@ -115,9 +112,9 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	mapdet.cmap  = cmap # Colormap set later
 	mapdet.cmin  = vmin # the min of the colormap
 	mapdet.cmax  = vmax # the max of the colormap
-	mapdet.dpi   = 500 
-	mapdet.save  = True#False
 	mapdet.ticks = ticks
+	mapdet.dpi   = 500 
+	mapdet.save  = True
 	# mapdet.cblabel  = "Trend in %s (%s)" % (dsinfo["param"], dsinfo["units"]) 
 	mapdet.cblabel  = "%s" % (dsinfo["units"]) 
 	mapdet.plotpath = "./plots/bookchapter/firstdraft/"
@@ -146,6 +143,57 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 		cf.writemetadata(fname, infomation)
 
 	# ipdb.set_trace()
+
+def statsmaker(dst, ds, mask, dsinfo):
+	"""
+	Function for setting up the plots
+	args:
+		dst:	str 
+			name of the variable being mapped
+		ds:		xr DS
+			the dataset containg the result to be plotted
+		mask:	xr DS
+			the dataset with the mask
+		dsinfo:	dict
+			infomation about the dataset
+
+	"""
+	# ========== Get some info ==========
+	maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
+		__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+	gitinfo = pf.gitmetadata()
+
+	# ========== Build some stats ==========
+	stats = ["Stats for %s \n" % dst, maininfo, gitinfo, "\n"]
+	
+	# ========== mask the data to the boreal zone ==========
+	DA    = ds["slope"      ]* mask.BorealForest.values
+	DA_SM = ds['Significant']* mask.BorealForest.values
+	
+	# ========== add some findings ==========
+	stats.append("Mean +- SV change per year: %f +- %f (%s)"% (DA.mean(), DA.var(), dsinfo["units"]))
+	stats.append("Max : %f (%s)"% (DA.max(), dsinfo["units"]))
+	stats.append("Min : %f (%s)"% (DA.min(), dsinfo["units"]))
+
+	stats.append("fraction sig increasing:  %f \n"% (
+		np.logical_and((DA>0), (DA_SM==1)).sum()/ (~np.isnan(DA)).sum().astype(float)))
+	stats.append("fraction sig decreasing:  %f \n"% (
+		np.logical_and((DA<0), (DA_SM==1)).sum()/ (~np.isnan(DA)).sum().astype(float)))
+	stats.append("fraction no sig change:  %f \n"% (
+		(DA_SM==0).sum()/ (~np.isnan(DA)).sum().astype(float)))
+
+	# DA
+	# ========== save the info out ==========
+	outpath = "./plots/bookchapter/firstdraft/"
+	fname   = "%s%s_%s_%s_%s_%dyrMW_%sFDR_BasicStats" %(
+			outpath, dsinfo["source"], dsinfo["param"],
+			dsinfo["test"], "slope",
+			dsinfo["window"], dsinfo["FDRmethod"])
+	cf.writemetadata(fname, stats)
+	print(stats)
+	ipdb.set_trace()
+
+
 
 def Polar_maker():
 	"""

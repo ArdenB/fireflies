@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 import sys	
 import ipdb
+import xarray as xr
+import bottleneck as bn
 # import datetime as dt
 
 # Mapping packages
@@ -33,7 +35,7 @@ import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import xarray as xr
+
 
 import matplotlib.pyplot as plt
 import warnings as warn
@@ -42,8 +44,6 @@ import warnings as warn
 # 	from  .. import CoreFunctions as cf 	
 # elif sys.version.startswith("3.7"):
 # 	from  .. import CoreFunctions as cf 	
-
-#==============================================================================
 
 #==============================================================================
 def mapmaker(ds, mapdet):
@@ -74,24 +74,7 @@ def mapmaker(ds, mapdet):
 			DA *= ds[mapdet.sigmask] 
 		else:
 			# Use a hatching to denote significance
-			warn.warn("\n\n Hatching has not yet been implemented \n\n")
-			ipdb.set_trace()
-
-
-	# if QRB:
-	# 	image = cf.immkr(array, mapdet.column, ret=True, plot=False)
-	# else:
-	# 	image = array
-		# try:
-		# 	image *= mapdet.mask
-		
-		# except TypeError:
-		# 	warn.warn("\n\nThe masking seems to have failed, Trying to change the dtype\n\n")
-		# 	image = image.astype(float) * mapdet.mask.astype(float)
-		# except:
-		# 	warn.warn("\n\nThe masking seems to have failed, Going interactive\n\n")
-
-
+			dfhatch = _hatchmaker(ds, mapdet)
 
 	plt.rcParams.update({'figure.subplot.right' : 0.85 })
 	plt.rcParams.update({'figure.subplot.left' : 0.05 })
@@ -187,6 +170,14 @@ def mapmaker(ds, mapdet):
 		# cbar_kwargs={"extend":mapdet.extend},
 		add_colorbar=False) #cmap=cmap, vmin=vmin, vmax=vmax, 
 		# vmin=vmin, vmax=vmax, 
+
+	# ========== Add any hatching ==========
+	if (not mapdet.sigmask is None):
+		# ========== Check the method of significance masking ==========
+		if mapdet.sighatch:
+			ax.scatter(dfhatch["xlons"], dfhatch["ylats"] ,s=4, c='k', marker='X', 
+				facecolors='none', edgecolors="none",  
+				alpha=0.35, transform=ccrs.PlateCarree())
 	
 
 	# ========== Find the posistion of the ax ==========
@@ -250,162 +241,74 @@ def mapmaker(ds, mapdet):
 	# ========== Save the plot ==========
 	if mapdet.save:
 		# Make a pdf version
-		print("Starting the figure save process at" , pd.Timestamp.now())
-		print("At high DPI or on my work desktop this can be very slow")
+		print("\n Starting the figure save process at" , pd.Timestamp.now())
+		print("At high DPI or on linux this can be very slow \n")
 		plt.savefig(mapdet.fname+".pdf", dpi=fig.dpi)
 		plt.savefig(mapdet.fname+".eps", dpi=fig.dpi)
 		plt.savefig(mapdet.fname+".png", dpi=fig.dpi)
 
 		plotinfo = "PLOT INFO: Plot of %s made using %s:v.%s" % (
 			mapdet.var, __title__, __version__)
-		plt.show()
-		return mapdet.fname+".pdf", plotinfo
+		if mapdet.pshow:
+			plt.show()
+		fname =  mapdet.fname+".pdf"
 	else:
-		plt.show()
+		if mapdet.pshow:
+			plt.show()
+		warn.warn("mapdet.save = False has put Maker in dev mode to allow mods")
 		ipdb.set_trace()
-		return None, None
-
-	sys.exit()
-
-	# if not (mapdet.crop is None):
-	# 	y0 = np.min(np.where(mapdet.lats<=mapdet.crop[0]))
-	# 	x0 = np.min(np.where(mapdet.lons>=mapdet.crop[2]))
-	# 	# Doing a crop in only one axis
-	# 	try:
-	# 		y1 = np.min(np.where(mapdet.lats< mapdet.crop[1]))  
-	# 	except ValueError:
-	# 		y1 = -1
-	# 	try:
-	# 		x1 = np.min(np.where(mapdet.lons> mapdet.crop[3]))  
-	# 	except ValueError:
-	# 		x1 = -1
-		
-	# 	# Crop the image
-	# 	image = image[y0:y1, x0:x1]
-	# 	mapdet.bounds = [mapdet.crop[2], mapdet.crop[3], mapdet.crop[0], mapdet.crop[1]]
-	# 	mapdet.region = "Cropped"
-	# 	ax.set_extent(mapdet.bounds, crs=ccrs.PlateCarree())
-
-	# if mapdet.region == "GLOBAL":
-	# 	ax.set_global()
-	# # elif mapdet.region == "MONG":
-	# else:
-	# 	ax.set_extent(mapdet.bounds, crs=ccrs.PlateCarree())
-	
-	ipdb.set_trace()
-	# ========== plot the image ==========
-	# if mapdet.region == "MONG":
-	# 	origin="upper"
-	# else:
-	# origin="lower"
-	# im = ax.imshow(image, 
-	# 	extent=mapdet.bounds, 
-	# 	cmap=mapdet.cmap, 
-	# 	norm=mapdet.norm, 
-	# 	origin=origin
-	# 	) # added after australia looked lame
-
-	
-
-	if not mapdet.sigmask is None:
-		ipdb.set_trace()
-		# Calculate the lat and lon values
-		slats = mapdet.lats[mapdet.sigmask["yv"]]
-		slons = mapdet.lons[mapdet.sigmask["xv"]]
-
-		ax.scatter(
-			slons, slats,s=4, c='k', marker='X', 
-			facecolors='none', edgecolors="none",  
-			alpha=0.35, transform=ccrs.PlateCarree())
-
-		# ipdb.set_trace()
-		# plt.scatter(xvals, yvals, s=1, c='k', marker='.', alpha=0.5)
-
-
-	# divider = make_axes_locatable(ax)
-	# cbar_ax = divider.append_axes("right", size="5%", pad=0.05)
-
-	# im = ax.pcolormesh(image,  cmap=cmap, norm=mapdet.norm)
-	# old feature commands
-	# ax.add_feature(cpf.LAND, col="dimgrey")
-	# ax.add_feature(states_provinces, edgecolor='gray')
-	# ax.ocean(col='w')
-	# ax.coastlines(resolution='110m')
-
-	
-	# gl.xlabel_style = {'size': 15, 'color': 'gray'}
-	# gl.xlabel_style = {'color': 'red', 'weight': 'bold'}
-	
-	
-	# test = True
-	# if not test:
-	# 	cbar_ax.set_position(
-	# 		[posn.x0 + posn.width + 0.005, posn.y0, 0.025, posn.height]
-	# 		)
-	# else:
-	# 	# cbar_ax.set_position([posn.x0 + posn.width + 0.005, 0, 0.05, 1])
-	# 	ipdb.set_trace()
-
-
-
-	if mapdet.dpi is None:
-		dpi = fig.dpi
-	else:
-		dpi = mapdet.dpi
-	# ========== save the plot ==========
-	plt.draw()
-	if not (mapdet.plotpath is None):
-		if mapdet.ensemble:
-			# catch the different types of ensembles
-			if "diff" in mapdet.var:
-				# difference between two runs:
-				# Make a pdf version
-				fnm_pdf = "%s%d.%d.map_%s.pdf" % (
-					mapdet.plotpath, (mapdet.column-2), mapdet.paper,  mapdet.var)
-				plt.savefig(fnm_pdf, dpi=dpi)
-				
-				# make png version 
-				fname = "%s%d.%d.map_%s.png" % (
-						mapdet.plotpath, (mapdet.column-2), mapdet.paper,  mapdet.var)
-				plt.savefig(fname, dpi=dpi)
-				
-				plotinfo = "PLOT INFO: rundif: %dsub%d plot of %s made using %s:v.%s" % (
-					mapdet.run[0], mapdet.run[1], mapdet.var, __title__, __version__)
-			else:
-				# ===== Run Ensembles ===== 
-				# Make a pdf version
-				fnm_pdf = "%s%d.%s_ensemble_map_%s.pdf" % ( 
-					mapdet.plotpath, mapdet.paper,mapdet.desc, mapdet.var)
-
-				plt.savefig(fnm_pdf, dpi=dpi)
-				
-				# make png version 
-				fname = "%s%d.%s_ensemble_map_%s.png" % ( 
-					mapdet.plotpath, mapdet.paper,mapdet.desc, mapdet.var)
-				plt.savefig(fname, dpi=dpi)
-				
-				plotinfo = "PLOT INFO: Ensmble plot of %s made using %s:v.%s" % (
-					mapdet.var,  __title__, __version__)
-		else:
-			# Make a pdf version
-			fnm_pdf = "%s%d.%d_BasicFigs_%s.pdf" % (
-				mapdet.plotpath, (mapdet.column-2), mapdet.run, mapdet.var)
-			plt.savefig(fnm_pdf, dpi=fig.dpi)
-				
-			# make png version 
-			fname = "%s%d.%d_BasicFigs_%s.png" % (
-				mapdet.plotpath, (mapdet.column-2),mapdet.run, mapdet.var)
-			plt.savefig(fname, dpi=fig.dpi)
-			plotinfo = "PLOT INFO: Run:%d plot of %s made using %s:v.%s" % (
-				mapdet.run, mapdet.var, __title__, __version__)
-	else:
-		fname = None
-	if mapdet.pshow:
-		plt.show()
-	# ipdb.set_trace()
+		# Reset the the plt paramters to the defualts
+		fname    = None
+		plotinfo = None
 	plt.close()
-	# Reset the the plt paramters to the defualts
 	plt.rcParams.update(plt.rcParamsDefault)
-	# return the infomation
 	return plotinfo, fname
 
+
+#==============================================================================
+def _hatchmaker(ds, mapdet):
+	"""
+	Function takes the mapdet and dataset and build a significance hatching 
+	pandas dataframe with to columns. 
+	args:
+		ds:		xr DS
+			dataset containing results
+		mapdet:	
+			object of class pf.mapclass
+	returns
+		df:		pd.df
+			contains the lats and lons of the hatching
+	"""
+	# ========== Containers to hold the xvals ==========
+	lat_vals = []
+	lon_vals = []
+
+	# ========== Loop over each subset ==========
+	DA_SM = ds[mapdet.sigmask]
+	
+	# =========== Check for a datamask mask  ===========
+	if not (mapdet.mask is None):
+		DA_SM = DA_SM.where(mapdet.mask[mapdet.masknm].values == 1.0)
+
+	print("Starting hatching location calculation at:", pd.Timestamp.now())
+	# =========== loop over the lats and the lons  ===========
+	for yv in range(0, ds.latitude.shape[0],  mapdet.sigbox):
+
+		for xv in range(0, ds.longitude.shape[0],  mapdet.sigbox):
+			# ========== Pull out the Region to check ==========
+			box = DA_SM[dict(
+				latitude=slice(yv, yv+mapdet.sigbox), 
+				longitude=slice(xv, xv+mapdet.sigbox))]
+			nmb = bn.nansum(box)/float(mapdet.sigbox**2) # The number of valid values in the box
+			
+			# ========== add the lat and lon if significant ==========
+			if nmb >= mapdet.sigfrac:
+				lat_vals.append(np.median(box.latitude))
+				lon_vals.append(np.median(box.longitude))
+		# ========== Stop the looping once outside the bounds ==========
+		if not (mapdet.bounds is None):
+			if box.latitude.min() > mapdet.bounds[2]:
+				continue
+			elif box.latitude.max() < mapdet.bounds[3]:
+				break
+	return pd.DataFrame({"ylats":np.array(lat_vals), "xlons":np.array(lon_vals)})
