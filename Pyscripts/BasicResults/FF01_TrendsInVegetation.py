@@ -98,7 +98,7 @@ def main():
 #==============================================================================
 
 def trendmapper(
-	dataset, fname, var, method, gridres, region, fdpath="", force = False, plot=True):
+	dataset, fname, var, method, gridres, region, fdpath="", force = False, plot=False):
 	"""
 	Master function for trend finder
 	args:
