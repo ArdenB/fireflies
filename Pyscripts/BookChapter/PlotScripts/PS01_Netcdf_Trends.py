@@ -239,16 +239,16 @@ def results():
 	Function to return the infomation about the results
 	"""
 	res = OrderedDict()
-	res["tmean"] = ({
-		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_tmean_theilsento2017_GlobalGIMMS.nc",
-		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
-		"window":20, "grid":"GIMMS", "param":"MeanAnnualTemperature", 
-		"units":r"$^{o}$C yr$^{-1}$"})
 	res["ndvi"] = ({
 		"fname":"./results/netcdf/GIMMS31v11_ndvi_theilsen_1982to2017_GlobalGIMMS.nc",
 		"source":"GIMMS3gv11","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
 		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
 		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
+	res["tmean"] = ({
+		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_tmean_theilsento2017_GlobalGIMMS.nc",
+		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+		"window":20, "grid":"GIMMS", "param":"MeanAnnualTemperature", 
+		"units":r"$^{o}$C yr$^{-1}$"})
 	res["ppt"] = ({
 		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_ppt_theilsento2017_GlobalGIMMS.nc",
 		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",

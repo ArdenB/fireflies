@@ -216,6 +216,7 @@ def mapmaker(ds, mapdet):
 		cb.ax.set_yticklabels(mapdet.ticknm) 
 		for t in cb.ax.get_yticklabels():
 			t.set_fontsize(mapdet.fontsize)
+			t.set_x(mapdet.set_x)
 			if isinstance(mapdet.ticknm[0], float):
 				t.set_horizontalalignment('right')
 
