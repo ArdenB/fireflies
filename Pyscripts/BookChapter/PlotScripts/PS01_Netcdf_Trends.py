@@ -74,7 +74,7 @@ def main():
 		"./data/other/ForestExtent/BorealForestMask_%s.nc"%(resinfo[dst]["grid"]))
 		
 		# ========== Build the map ==========
-		# xr_mapmaker(dst, ds, mask, resinfo[dst])
+		xr_mapmaker(dst, ds, mask, resinfo[dst])
 
 		# ========== Get the stats ==========
 		statsmaker(dst, ds, mask, resinfo[dst])
@@ -126,7 +126,9 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	if dst == "tmean":
 		mapdet.set_x  = 2.25 
 		mapdet.extend = "max"
-
+	elif dst == "ndvi":
+		mapdet.set_x  = 2.25 
+		mapdet.ticknm = np.round(ticks * 10**2, decimals=1)
 	cf.pymkdir(mapdet.plotpath)
 	warn.warn("Polar projection needs work")
 	# mapdet.projection = ccrs.NorthPolarStereo()
@@ -223,6 +225,11 @@ def results():
 	Function to return the infomation about the results
 	"""
 	res = OrderedDict()
+	res["ndvi"] = ({
+		"fname":"./results/netcdf/GIMMS31v11_ndvi_theilsen_1982to2017_GlobalGIMMS.nc",
+		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
+		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
 	res["tmean"] = ({
 		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_tmean_theilsento2017_GlobalGIMMS.nc",
 		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
@@ -248,13 +255,20 @@ def cbvals(var, ky):
 			vmax =  0.06
 			vmin =  0.00
 			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_10.mpl_colors)
-			cmap = mpc.ListedColormap(palettable.colorbrewer.sequential.OrRd_6.mpl_colors)
+			# cmap = mpc.ListedColormap(palettable.colorbrewer.sequential.OrRd_6.mpl_colors)
+			cmap = palettable.colorbrewer.sequential.OrRd_4.mpl_colormap
 			ticks = ticks = np.arange(vmin, vmax+0.1, 0.02)
 		elif var =="ppt":
 			vmin = -4.0
 			vmax =  4.0
-			cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_8_r.mpl_colors)
+			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_8_r.mpl_colors)
+			cmap = palettable.cmocean.diverging.Curl_8_r.mpl_colormap
 			ticks = np.arange(vmin, vmax+1, 2.0)
+		elif var == "ndvi":
+			cmap = palettable.colorbrewer.diverging.PRGn_10.mpl_colormap
+			vmin    = -0.005#-0.1 	# the min of the colormap
+			vmax    =  0.005#0.1	# the max of the colormap
+			ticks   = np.arange(-0.005, 0.0051, 0.001)
 	elif ky == "pvalue":
 		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20.hex_colors)
 		vmin = 0.0

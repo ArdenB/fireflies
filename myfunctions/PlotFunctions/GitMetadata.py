@@ -39,12 +39,13 @@ def gitmetadata():
 	try:
 		# check the host
 		host = socket.gethostbyaddr(socket.gethostname())[0]
-		if host == 'arden-H97N-WIFI':
-			print('gitpython hangs for unknown reasons on this pc, skiping hash check')
-			git_hash = 'unknown(MintDesktop)'
-		else:
-			# Get the current git hash
-			git_hash = git.Repo(repo_dir).heads[0].commit # get the current head
+		git_hash = git.Repo(repo_dir).heads[0].commit # get the current head
+		# if host == 'arden-H97N-WIFI':
+		# 	print('gitpython hangs for unknown reasons on this pc, skiping hash check')
+		# 	# git_hash = 'unknown(MintDesktop)'
+		# else:
+		# 	# Get the current git hash
+		# 	git_hash = git.Repo(repo_dir).heads[0].commit # get the current head
 	except git.exc.InvalidGitRepositoryError:
 		print('To record the git hash, must run script from top of directory tree in git repo')
 		git_hash = 'unknown'
