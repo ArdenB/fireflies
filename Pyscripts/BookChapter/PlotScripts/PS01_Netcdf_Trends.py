@@ -127,7 +127,7 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 		mapdet.set_x  = 2.25 
 		mapdet.extend = "max"
 	elif dst == "ndvi":
-		mapdet.set_x  = 2.25 
+		# mapdet.set_x  = 2.25 
 		mapdet.ticknm = np.round(ticks * 10**2, decimals=1)
 
 		# ========== Check if i need to recalculate the FDR ==========
