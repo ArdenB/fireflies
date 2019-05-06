@@ -129,6 +129,15 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	elif dst == "ndvi":
 		mapdet.set_x  = 2.25 
 		mapdet.ticknm = np.round(ticks * 10**2, decimals=1)
+
+		# ========== Check if i need to recalculate the FDR ==========
+		if dsinfo["source"] == 'GIMMS3gv11':
+			# GIMMS3gv11was done using Benjamini/Yekutieli not BenjaminiHochberg
+			print("Recalculating the FDR using BenjaminiHochberg")
+			fdr = MultipleComparisons_DA(ds.pvalue.values, aplha = 0.10, MCmethod="fdr_bh")
+			for ky in fdr:
+				ds[ky][:] = fdr[ky]
+
 	cf.pymkdir(mapdet.plotpath)
 	warn.warn("Polar projection needs work")
 	# mapdet.projection = ccrs.NorthPolarStereo()
@@ -145,6 +154,8 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 		cf.writemetadata(fname, infomation)
 
 	# ipdb.set_trace()
+
+
 
 def statsmaker(dst, ds, mask, dsinfo):
 	"""
@@ -171,11 +182,15 @@ def statsmaker(dst, ds, mask, dsinfo):
 	# ========== mask the data to the boreal zone ==========
 	DA    = ds["slope"      ]* mask.BorealForest.values
 	DA_SM = ds['Significant']* mask.BorealForest.values
+	if dst == "ndvi":
+		units = r"NDVI$_{max}$ yr$^{-1}$"
+	else:
+		units = dsinfo["units"]
 	
 	# ========== add some findings ==========
-	stats.append("Mean +- SV change per year: %f +- %f (%s)"% (DA.mean(), DA.var(), dsinfo["units"]))
-	stats.append("Max : %f (%s)"% (DA.max(), dsinfo["units"]))
-	stats.append("Min : %f (%s)"% (DA.min(), dsinfo["units"]))
+	stats.append("Mean +- SV change per year: %f +- %f (%s)"% (DA.mean(), DA.var(), units))
+	stats.append("Max : %f (%s)"% (DA.max(), units))
+	stats.append("Min : %f (%s)"% (DA.min(), units))
 
 	stats.append("fraction sig increasing:  %f \n"% (
 		np.logical_and((DA>0), (DA_SM==1)).sum()/ (~np.isnan(DA)).sum().astype(float)))
@@ -194,7 +209,6 @@ def statsmaker(dst, ds, mask, dsinfo):
 	cf.writemetadata(fname, stats)
 	print(stats)
 	ipdb.set_trace()
-
 
 
 def Polar_maker():
@@ -225,16 +239,16 @@ def results():
 	Function to return the infomation about the results
 	"""
 	res = OrderedDict()
-	res["ndvi"] = ({
-		"fname":"./results/netcdf/GIMMS31v11_ndvi_theilsen_1982to2017_GlobalGIMMS.nc",
-		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
-		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
-		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
 	res["tmean"] = ({
 		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_tmean_theilsento2017_GlobalGIMMS.nc",
 		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
 		"window":20, "grid":"GIMMS", "param":"MeanAnnualTemperature", 
 		"units":r"$^{o}$C yr$^{-1}$"})
+	res["ndvi"] = ({
+		"fname":"./results/netcdf/GIMMS31v11_ndvi_theilsen_1982to2017_GlobalGIMMS.nc",
+		"source":"GIMMS3gv11","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
+		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
 	res["ppt"] = ({
 		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_ppt_theilsento2017_GlobalGIMMS.nc",
 		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
@@ -242,6 +256,60 @@ def results():
 		"units":r"mm yr$^{-1}$"})
 	return res
 
+def MultipleComparisons_DA(pvalue, aplha = 0.10, MCmethod="fdr_bh"):
+	"""
+	Takes the results of an existing trend detection aproach and modifies them to
+	account for multiple comparisons.  
+	args
+		pvalue: np array
+			array with the p values
+		kys: list 
+			list of what is in results
+		years:
+			years of accumulation 
+	return:
+		newtrends:	OrderedDict
+			contains the significance and pvalues in new ordered dictionary
+	"""
+	if MCmethod == "fdr_by":
+		print("Adjusting for multiple comparisons using Benjamini/Yekutieli")
+	elif MCmethod == "fdr_bh":
+		print("Adjusting for multiple comparisons using Benjamini/Hochberg")
+	else:
+		warn.warn("unknown MultipleComparisons method, Going Interactive")
+		ipdb.set_trace()
+
+
+
+	# ========== Locate the p values and reshape them into a 1d array ==========
+	# ++++++++++ Find the pvalues ++++++++++
+	# index      = kys.index("pvalue")
+	isnan      = np.isnan(pvalue)
+	
+	# ++++++++++ pull out the non nan pvalus ++++++++++
+	# pvalue1d = pvalue.flatten()
+	pvalue1d   = pvalue[~isnan]
+	# isnan1d  = isnan.flatten()
+	
+	# =========== Perform the MC correction ===========
+	pvalue_adj =  smsM.multipletests(pvalue1d, method=MCmethod, alpha=0.10)
+	newtrends  = OrderedDict()
+	# newkys     = []
+	# ++++++++++ reformat the data into array ++++++++++
+	MCR =  ["Significant", "pvalue_adj"]
+	for nm in MCR:
+		# make an empty array
+		re    = np.zeros(pvalue.shape)
+		re[:] = np.NAN
+		if nm == "Significant":
+			re[~isnan] = pvalue_adj[MCR.index(nm)].astype(int).astype(float)
+		else:
+			re[~isnan] = pvalue_adj[MCR.index(nm)]
+		
+		# +++++ add the significant and adjusted pvalues to trends+++++
+		newtrends[nm] = re
+		# newkys.append(nm)
+	return newtrends
 
 def cbvals(var, ky):
 
@@ -256,7 +324,7 @@ def cbvals(var, ky):
 			vmin =  0.00
 			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_10.mpl_colors)
 			# cmap = mpc.ListedColormap(palettable.colorbrewer.sequential.OrRd_6.mpl_colors)
-			cmap = palettable.colorbrewer.sequential.OrRd_4.mpl_colormap
+			cmap = palettable.colorbrewer.sequential.YlOrRd_9.mpl_colormap
 			ticks = ticks = np.arange(vmin, vmax+0.1, 0.02)
 		elif var =="ppt":
 			vmin = -4.0

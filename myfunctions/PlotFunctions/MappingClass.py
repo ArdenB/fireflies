@@ -49,6 +49,7 @@ class mapclass(object):
 		self.projection = ccrs.PlateCarree()
 		self.sigbox     = 10    # The size of the box used to create the hatching
 		self.sigfrac    = 0.6   # The fraction of pixels that are significant to get stippling
+		self.format     = [".pdf", ".png"]#".eps"
 
 		self.cmap     = None  # Colormap set later
 		self.cmin     = None  # the min of the colormap

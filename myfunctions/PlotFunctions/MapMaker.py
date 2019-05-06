@@ -216,14 +216,16 @@ def mapmaker(ds, mapdet):
 		cb.ax.set_yticklabels(mapdet.ticknm) 
 		for t in cb.ax.get_yticklabels():
 			t.set_fontsize(mapdet.fontsize)
+			if isinstance(mapdet.ticknm[0], float):
+				t.set_horizontalalignment('right')
+
 	else:
 		# Change the horrixontal allignment of cb ticks to right
 		for t in cb.ax.get_yticklabels():
 			t.set_horizontalalignment('right')   
-			# sx = 3.1
 			t.set_x(mapdet.set_x)
-			# t.set_x(3.0)
-			t.set_fontsize(16)
+			t.set_fontsize(mapdet.fontsize)
+			# t.set_fontsize(16)
 
 	# ========== Add a label to the colorbar ==========
 	if not (mapdet.cblabel is None):
@@ -243,9 +245,10 @@ def mapmaker(ds, mapdet):
 		# Make a pdf version
 		print("\n Starting the figure save process at" , pd.Timestamp.now())
 		print("At high DPI or on linux this can be very slow \n")
-		plt.savefig(mapdet.fname+".pdf", dpi=fig.dpi)
-		plt.savefig(mapdet.fname+".eps", dpi=fig.dpi)
-		plt.savefig(mapdet.fname+".png", dpi=fig.dpi)
+		for ext in mapdet.format:
+			plt.savefig(mapdet.fname+ext, dpi=fig.dpi)
+		# plt.savefig(mapdet.fname+".eps", dpi=fig.dpi)
+		# plt.savefig(mapdet.fname+".png", dpi=fig.dpi)
 
 		plotinfo = "PLOT INFO: Plot of %s made using %s:v.%s" % (
 			mapdet.var, __title__, __version__)
@@ -266,6 +269,7 @@ def mapmaker(ds, mapdet):
 
 
 #==============================================================================
+
 def _hatchmaker(ds, mapdet):
 	"""
 	Function takes the mapdet and dataset and build a significance hatching 
