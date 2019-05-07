@@ -81,7 +81,7 @@ def main():
 		
 
 		if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
-			Lcnks = 10
+			Lcnks = 5
 			nlats = ds.latitude.values.shape[0]
 			nlons = ds.longitude.values.shape[0]
 			dsc = ds.chunk({
@@ -109,7 +109,7 @@ def main():
 #==============================================================================
 # ============================ xarray nonparmetric ============================
 #==============================================================================
-# @jit(nogil=True)
+@jit(nogil=True)
 def scipyTheilSen(array, retpar):
 	"""
 	Function for rapid TheilSen slop estimation with time. 
@@ -133,7 +133,7 @@ def scipyTheilSen(array, retpar):
 		# change = (slope*array.shape[0])
 		return np.array([slope, intercept, rho, pval])
 
-	except Exception as e:
+	except:
 		# print(e)
 		# warn.warn("unhandeled Error has occured")
 		return np.array([np.NAN, np.NAN, np.NAN, np.NAN])
