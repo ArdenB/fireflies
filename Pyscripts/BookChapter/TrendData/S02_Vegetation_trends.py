@@ -43,6 +43,7 @@ import scipy as sp
 import glob
 from scipy import stats
 import statsmodels.stats.multitest as smsM
+import myfunctions.PlotFunctions as pf
 
 # Import plotting and colorpackages
 import matplotlib.pyplot as plt
@@ -71,24 +72,32 @@ def main():
 			ds = ds.drop(["crs", "time_bnds"])
 		# ========== check if the file uses the correct names ==========
 		try:
-			nlats = ds.latitude.values.shape[0]
+			nl = ds.latitude.values.shape[0]
 		except AttributeError:
 			# rename the lats and lons
 			ds    = ds.rename({"lat":"latitude", "lon":"longitude"})
-			nlats = ds.latitude.values.shape[0]
+			nl = ds.latitude.values.shape[0]
 		
+		mapdet = pf.mapclass("boreal")
+		dsc = ds.loc[dict(
+			longitude=slice(mapdet.bounds[0], mapdet.bounds[1]),
+			latitude=slice(mapdet.bounds[2], mapdet.bounds[3]))]
 		# ========== Set the number of chunks ==========
+		nlats = dsc.latitude.values.shape[0]
+		nlons = dsc.longitude.values.shape[0]
 		Lcnks = 10
+		# ipdb.set_trace()
 
 		if nlats%Lcnks == 0:
-			ds = ds.chunk({"latitude":int(nlats/Lcnks)})
+			dsc = dsc.chunk({"latitude":int(nlats/Lcnks)})
 		else:
 			warn.warn("chunk size is not good")
-			ipdb.set_trace()
+			dsc = dsc.chunk({"longitude":int(nlons/Lcnks)})
+		ipdb.set_trace()
 		
 
 		with ProgressBar():
-		        dsout = nonparmetric_correlation(ds, 'time').compute()
+		        dsout = nonparmetric_correlation(dsc, 'time').compute()
 		ipdb.set_trace()
 
 #==============================================================================
