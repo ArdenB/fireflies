@@ -67,44 +67,90 @@ def main():
 	data = datasets()
 	# ========== loop over the datasets ==========
 	for dsn in data:
+		# ========== Create the components ==========
+		var          = data[dsn]["var"]
+		method       = "TheilSen"
+		region       = data[dsn]["region"]
+		grid         = data[dsn]["gridres"]
 		# ========== open the dataset ==========
-		ds = xr.open_dataset(data[dsn]["fname"])#, chunks={"latitude":480})
-		if dsn == 'COPERN':
-			ds = ds.drop(["crs", "time_bnds"])
-		# ========== check if the file uses the correct names ==========
-		try:
-			nl = ds.latitude.values.shape[0]
-		except AttributeError:
-			# rename the lats and lons
-			ds    = ds.rename({"lat":"latitude", "lon":"longitude"})
-			nl = ds.latitude.values.shape[0]
-		
+		ds           = xr.open_dataset(data[dsn]["fname"])#, chunks={"latitude":480})
+		global_attrs = GlobalAttributes(ds, var)
 
-		if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
-			Lcnks = 5
-			nlats = ds.latitude.values.shape[0]
-			nlons = ds.longitude.values.shape[0]
-			dsc = ds.chunk({
-				"latitude":int(nlats/Lcnks), 
-				"longitude":int(nlons/Lcnks)})
-		else:
-			# ========== subset for smaller ram ==========
-			Lcnks = 40
-			mapdet = pf.mapclass("boreal")
-			dsc = ds.loc[dict(
-				longitude=slice(mapdet.bounds[0], mapdet.bounds[1]),
-				latitude=slice(mapdet.bounds[2], mapdet.bounds[3]))]
-			# ========== Set the number of chunks ==========
-			ipdb.set_trace()
-			nlats = dsc.latitude.values.shape[0]
-			nlons = dsc.longitude.values.shape[0]
-			dsc = dsc.chunk({
-				"latitude":int(nlats/Lcnks), 
-				"longitude":int(nlons/Lcnks)})
+		# ========== Make the filename ==========
+		fout = './results/netcdf/%s_%s_%s_%s_to%d_%s%s.nc' % (
+			dsn, var, method, 
+			pd.to_datetime(ds.time.values).year.min(),
+			pd.to_datetime(ds.time.values).year.max(), region, grid)
+		if not (os.path.isfile(fout)):
 
-		# ========== Calculates the amount of area 
-		with ProgressBar():
-			dsout = nonparmetric_correlation(dsc, 'time').compute()
+			if dsn == 'COPERN':
+				ds = ds.drop(["crs", "time_bnds"])
+			# ========== check if the file uses the correct names ==========
+			try:
+				nl = ds.latitude.values.shape[0]
+			except AttributeError:
+				# rename the lats and lons
+				ds    = ds.rename({"lat":"latitude", "lon":"longitude"})
+				nl = ds.latitude.values.shape[0]
+			
+
+			# if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
+			chunk = False
+			if chunk:
+				Lcnks = 5
+				nlats = ds.latitude.values.shape[0]
+				nlons = ds.longitude.values.shape[0]
+				dsc = ds.chunk({
+					"latitude":int(nlats/Lcnks), 
+					"longitude":int(nlons/Lcnks)})
+				with ProgressBar():	
+					dsout = nonparmetric_correlation(dsc, 'time').compute()
+			else:
+				dsc = ds
+				print("starting trend calculation at:", pd.Timestamp.now())
+				dsout = nonparmetric_correlation(dsc, 'time').compute()
+			# else:
+			# 	# ========== subset for smaller ram ==========
+			# 	Lcnks = 40
+			# 	mapdet = pf.mapclass("boreal")
+			# 	dsc = ds.loc[dict(
+			# 		longitude=slice(mapdet.bounds[0], mapdet.bounds[1]),
+			# 		latitude=slice(mapdet.bounds[2], mapdet.bounds[3]))]
+			# 	# ========== Set the number of chunks ==========
+			# 	ipdb.set_trace()
+			# 	nlats = dsc.latitude.values.shape[0]
+			# 	nlons = dsc.longitude.values.shape[0]
+			# 	dsc = dsc.chunk({
+			# 		"latitude":int(nlats/Lcnks), 
+			# 		"longitude":int(nlons/Lcnks)})
+
+			# ========== Calculates the amount of area ==========
+
+
+			# ========== Build a new dataarray ==========
+			trend = []
+			kys   = ["slope", "intercept", "rho", "pvalue"]
+			for num in range(0, 4):
+				trend.append(dsout[data[dsn]["var"]].isel(slope=num))
+
+			
+			trends, kys = MultipleComparisons(trends, kys, aplha = 0.10)
+			# ========== Build a new dataarray ==========
+			layers, encoding = dsmaker(ds, data[dsn]["var"], trends, kys, method)
+			ds_trend         = xr.Dataset(layers, attrs= global_attrs)
+
+
+			try:
+				print("Starting write of data")
+				ds_trend.to_netcdf(fout, 
+					format         = 'NETCDF4', 
+					encoding       = encoding,
+					unlimited_dims = ["time"])
+			except Exception as e:
+				print(e)
+				warn.warn(" \n something went wrong with the save, going interactive")
+				ipdb.set_trace()
+
 		ipdb.set_trace()
 
 #==============================================================================
@@ -157,6 +203,182 @@ def nonparmetric_correlation(array, dim='time' ):
 #==============================================================================
 # ========================== Other usefull functions ==========================
 #==============================================================================
+
+def GlobalAttributes(ds, var):
+	"""
+	Creates the global attributes for the netcdf file that is being written
+	these attributes come from :
+	https://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html
+	args
+		ds: xarray ds
+			Dataset containing the infomation im intepereting
+		var: str
+			name of the variable
+	returns:
+		attributes 	Ordered Dictionary cantaining the attribute infomation
+	"""
+	# ========== Create the ordered dictionary ==========
+	attr = OrderedDict()
+
+	# fetch the references for my publications
+	# pubs = puplications()
+	
+	# ========== Fill the Dictionary ==========
+
+	# ++++++++++ Highly recomended ++++++++++ 
+	attr["title"]               = "Trend in Climate (%s)" % (var)
+	attr["summary"]             = "Annual and season trends in %s" % var
+	attr["Conventions"]         = "CF-1.7"
+	
+	# ++++++++++ Data Provinance ++++++++++ 
+	attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s" % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
+	attr["history"]            += ds.history
+
+	attr["creator_name"]        = __author__
+	attr["creator_url"]         = "ardenburrell.com"
+	attr["creator_email"]       = __email__
+	attr["institution"]         = "University of Leicester"
+	attr["date_created"]        = str(pd.Timestamp.now())
+	
+	# ++++++++++ Netcdf Summary infomation ++++++++++ 
+	attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
+	attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
+	
+
+
+	return attr
+
+def dsmaker(ds, var, results, keys, method):
+	"""
+	Build a summary of relevant paramters
+	args
+		ds: xarray ds
+			Dataset containing the infomation im intepereting
+		var: str
+			name of the variable
+	return
+		ds 	xarray dataset
+	"""
+	# sys.exit()
+	tm = [dt.datetime(ds['time.year'].max() , 12, 31)]
+	times = OrderedDict()
+	# tm    = [dt.datetime(yr , 12, 31) for yr in start_years]
+	# tm    = [date]
+	times["time"] = pd.to_datetime(tm)
+
+	times["calendar"] = 'standard'
+	times["units"]    = 'days since 1900-01-01 00:00'
+	
+	times["CFTime"]   = date2num(
+		tm, calendar=times["calendar"], units=times["units"])
+
+	dates = times["CFTime"]
+
+	try:
+		lat = ds.lat.values
+		lon = ds.lon.values
+	except AttributeError:
+		lat = ds.latitude.values
+		lon = ds.longitude.values
+	# dates = [dt.datetime(yr , 12, 31) for yr in start_years]
+	# ipdb.set_trace()
+	# ========== Start making the netcdf ==========
+	layers   = OrderedDict()
+	encoding = OrderedDict()
+	# ========== loop over the keys ==========
+	for pos in range(0, len(keys)): 
+		try:
+			# ipdb.set_trace()
+			if type(results[0]) == np.ndarray:
+				Val = results[pos][np.newaxis,:, :]
+			else:
+				# multiple variables
+				Val = np.stack([res[pos] for res in results]) 
+			ky = keys[pos]
+
+			# build xarray dataset
+			DA=xr.DataArray(Val,
+				dims = ['time', 'latitude', 'longitude'], 
+				coords = {'time': dates,'latitude': lat, 'longitude': lon},
+				attrs = ({
+					'_FillValue':9.96921e+36,
+					'units'     :"1",
+					'standard_name':ky,
+					'long_name':"%s %s" % (method, ky)
+					}),
+			)
+
+			DA.longitude.attrs['units'] = 'degrees_east'
+			DA.latitude.attrs['units']  = 'degrees_north'
+			DA.time.attrs["calendar"]   = times["calendar"]
+			DA.time.attrs["units"]      = times["units"]
+			layers[ky] = DA
+			encoding[ky] = ({'shuffle':True, 
+				# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
+				'zlib':True,
+				'complevel':5})
+		
+		except Exception as e:
+			warn.warn("Code failed with: \n %s \n Going Interactive" % e)
+			ipdb.set_trace()
+			raise e
+	return layers, encoding
+
+def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_bh"):
+	"""
+	Takes the results of an existing trend detection aproach and modifies them to
+	account for multiple comparisons.  
+	args
+		trends: list
+			list of numpy arrays containing results of trend analysis
+		kys: list 
+			list of what is in results
+		years:
+			years of accumulation 
+	
+	"""
+	if MCmethod == "fdr_by":
+		print("Adjusting for multiple comparisons using Benjamini/Yekutieli")
+	elif MCmethod == "fdr_bh":
+		print("Adjusting for multiple comparisons using Benjamini/Hochberg")
+	else:
+		warn.warn("unknown MultipleComparisons method, Going Interactive")
+		ipdb.set_trace()
+
+
+
+	# ========== Locate the p values and reshape them into a 1d array ==========
+	# ++++++++++ Find the pvalues ++++++++++
+	index      = kys.index("pvalue")
+	pvalue     = trends[index]
+	isnan      = np.isnan(pvalue)
+	
+	# ++++++++++ pull out the non nan pvalus ++++++++++
+	# pvalue1d = pvalue.flatten()
+	pvalue1d   = pvalue[~isnan]
+	# isnan1d  = isnan.flatten()
+	
+	# =========== Perform the MC correction ===========
+	pvalue_adj =  smsM.multipletests(pvalue1d, method=MCmethod, alpha=0.10)
+	
+	# ++++++++++ reformat the data into array ++++++++++
+	MCR =  ["Significant", "pvalue_adj"]
+	for nm in MCR:
+		# make an empty array
+		re    = np.zeros(pvalue.shape)
+		re[:] = np.NAN
+		if nm == "Significant":
+			re[~isnan] = pvalue_adj[MCR.index(nm)].astype(int).astype(float)
+		else:
+			re[~isnan] = pvalue_adj[MCR.index(nm)]
+		
+		# +++++ add the significant and adjusted pvalues to trends+++++
+		trends.append(re)
+		kys.append(nm)
+	return trends, kys
+
+
 def datasets():
 	"""
 	Create the summary of the datasets to be analyised
@@ -167,7 +389,7 @@ def datasets():
 
 	data["GIMMS31v11"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"],
 		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",

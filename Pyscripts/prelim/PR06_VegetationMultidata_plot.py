@@ -85,8 +85,7 @@ def main():
 		NDVI[dataset] = sv
 	
 	ax = plt.subplot(xlim=(pd.to_datetime("1981-01-01"), pd.to_datetime("2019-04-04")))
-	for ds in NDVI:	
-		NDVI[ds].plot(sharex=True, sharey=True, ax=ax, label=ds)
+	for ds in NDVI:	NDVI[ds].plot(sharex=True, sharey=True, ax=ax, label=ds)
 	plt.legend()
 	# plt.savefig()
 	plt.show()
