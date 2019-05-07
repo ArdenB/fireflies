@@ -81,12 +81,16 @@ def main():
 		
 
 		if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
+			chunk = False
 			Lcnks = 5
 			nlats = ds.latitude.values.shape[0]
 			nlons = ds.longitude.values.shape[0]
-			dsc = ds.chunk({
-				"latitude":int(nlats/Lcnks), 
-				"longitude":int(nlons/Lcnks)})
+			if chunk:
+				dsc = ds.chunk({
+					"latitude":int(nlats/Lcnks), 
+					"longitude":int(nlons/Lcnks)})
+			else:
+				dsc = ds
 		else:
 			# ========== subset for smaller ram ==========
 			Lcnks = 40
