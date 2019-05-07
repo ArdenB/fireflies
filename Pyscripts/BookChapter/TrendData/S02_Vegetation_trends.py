@@ -97,7 +97,7 @@ def main():
 			# if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
 			chunk = data[dsn]["chunk"]
 			if chunk:
-				Lcnks = 5
+				Lcnks = 10
 				nlats = ds.latitude.values.shape[0]
 				nlons = ds.longitude.values.shape[0]
 				dsc = ds.chunk({
@@ -389,7 +389,7 @@ def datasets():
 
 	data["GIMMS31v11"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":False
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":True
 		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
