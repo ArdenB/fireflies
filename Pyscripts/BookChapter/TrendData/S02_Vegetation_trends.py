@@ -81,16 +81,12 @@ def main():
 		
 
 		if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
-			chunk = False
 			Lcnks = 5
 			nlats = ds.latitude.values.shape[0]
 			nlons = ds.longitude.values.shape[0]
-			if chunk:
-				dsc = ds.chunk({
-					"latitude":int(nlats/Lcnks), 
-					"longitude":int(nlons/Lcnks)})
-			else:
-				dsc = ds
+			dsc = ds.chunk({
+				"latitude":int(nlats/Lcnks), 
+				"longitude":int(nlons/Lcnks)})
 		else:
 			# ========== subset for smaller ram ==========
 			Lcnks = 40
@@ -99,6 +95,7 @@ def main():
 				longitude=slice(mapdet.bounds[0], mapdet.bounds[1]),
 				latitude=slice(mapdet.bounds[2], mapdet.bounds[3]))]
 			# ========== Set the number of chunks ==========
+			ipdb.set_trace()
 			nlats = dsc.latitude.values.shape[0]
 			nlons = dsc.longitude.values.shape[0]
 			dsc = dsc.chunk({
@@ -107,14 +104,14 @@ def main():
 
 		# ========== Calculates the amount of area 
 		with ProgressBar():
-		        dsout = nonparmetric_correlation(dsc, 'time').compute()
+			dsout = nonparmetric_correlation(dsc, 'time').compute()
 		ipdb.set_trace()
 
 #==============================================================================
 # ============================ xarray nonparmetric ============================
 #==============================================================================
-@jit(nogil=True)
-def scipyTheilSen(array, retpar):
+# @jit(nogil=True)
+def scipyTheilSen(array):
 	"""
 	Function for rapid TheilSen slop estimation with time. 
 	the regression is done with  an independent variable 
@@ -144,14 +141,16 @@ def scipyTheilSen(array, retpar):
 		# return np.NAN
 
 
-def nonparmetric_correlation(array, retpar, dim='time' ):
+def nonparmetric_correlation(array, dim='time' ):
     return xr.apply_ufunc(
         scipyTheilSen, array, 
         input_core_dims=[[dim]],
         vectorize=True,
         dask="allowed",#'parallelized',
-        output_dtypes=[float, float, float, float],
-        output_core_dims=[['slope'], ['intercept'], ['rho'], ['pvalue']]
+        # output_dtypes=[float, float, float, float],
+        output_dtypes=[float],
+        output_core_dims=[['slope']], #, ['intercept'], ['rho'], ['pvalue']
+        output_sizes=({"slope":4})
         )
 
 #==============================================================================
@@ -165,13 +164,13 @@ def datasets():
 
 	data= OrderedDict()
 
-	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"]
-		})
 	data["GIMMS31v11"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
+		})
+	data["COPERN"] = ({
+		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
+		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"]
 		})
 	data["MODISaqua"] = ({
 		'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
