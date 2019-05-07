@@ -95,7 +95,7 @@ def main():
 			
 
 			# if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
-			chunk = False
+			chunk = data[dsn]["chunk"]
 			if chunk:
 				Lcnks = 5
 				nlats = ds.latitude.values.shape[0]
@@ -389,19 +389,19 @@ def datasets():
 
 	data["GIMMS31v11"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"],
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":False
 		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"]
+		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"], "chunk":True
 		})
-	data["MODISaqua"] = ({
-		'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
-		'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"]
-		})
+	# data["MODISaqua"] = ({
+	# 	'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
+	# 	'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"], "chunk":True
+	# 	})
 	data["GIMMS31v10"] = ({
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":False
 		})
 	return data
 
