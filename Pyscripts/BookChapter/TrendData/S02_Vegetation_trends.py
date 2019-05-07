@@ -81,7 +81,7 @@ def main():
 		
 
 		if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
-			Lcnks = 20
+			Lcnks = 10
 			nlats = ds.latitude.values.shape[0]
 			nlons = ds.longitude.values.shape[0]
 			dsc = ds.chunk({
@@ -101,9 +101,7 @@ def main():
 				"latitude":int(nlats/Lcnks), 
 				"longitude":int(nlons/Lcnks)})
 
-		ipdb.set_trace()
-		
-
+		# ========== Calculates the amount of area 
 		with ProgressBar():
 		        dsout = nonparmetric_correlation(dsc, 'time').compute()
 		ipdb.set_trace()
