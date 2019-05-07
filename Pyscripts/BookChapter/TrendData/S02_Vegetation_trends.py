@@ -82,8 +82,8 @@ def main():
 
 		if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
 			Lcnks = 20
-			nlats - ds.latitude.values.shape[0]
-			nlons = dsc.longitude.values.shape[0]
+			nlats = ds.latitude.values.shape[0]
+			nlons = ds.longitude.values.shape[0]
 			dsc = ds.chunk({
 				"latitude":int(nlats/Lcnks), 
 				"longitude":int(nlons/Lcnks)})
