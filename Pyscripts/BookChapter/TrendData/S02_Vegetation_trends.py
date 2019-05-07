@@ -54,6 +54,7 @@ import seaborn as sns
 import cartopy.crs as ccrs
 import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+import socket
 # Import debugging packages 
 import ipdb
 
@@ -78,21 +79,28 @@ def main():
 			ds    = ds.rename({"lat":"latitude", "lon":"longitude"})
 			nl = ds.latitude.values.shape[0]
 		
-		mapdet = pf.mapclass("boreal")
-		dsc = ds.loc[dict(
-			longitude=slice(mapdet.bounds[0], mapdet.bounds[1]),
-			latitude=slice(mapdet.bounds[2], mapdet.bounds[3]))]
-		# ========== Set the number of chunks ==========
-		nlats = dsc.latitude.values.shape[0]
-		nlons = dsc.longitude.values.shape[0]
-		Lcnks = 10
-		# ipdb.set_trace()
 
-		if nlats%Lcnks == 0:
-			dsc = dsc.chunk({"latitude":int(nlats/Lcnks)})
+		if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
+			Lcnks = 20
+			nlats - ds.latitude.values.shape[0]
+			nlons = dsc.longitude.values.shape[0]
+			dsc = ds.chunk({
+				"latitude":int(nlats/Lcnks), 
+				"longitude":int(nlons/Lcnks)})
 		else:
-			warn.warn("chunk size is not good")
-			dsc = dsc.chunk({"longitude":int(nlons/Lcnks)})
+			# ========== subset for smaller ram ==========
+			Lcnks = 40
+			mapdet = pf.mapclass("boreal")
+			dsc = ds.loc[dict(
+				longitude=slice(mapdet.bounds[0], mapdet.bounds[1]),
+				latitude=slice(mapdet.bounds[2], mapdet.bounds[3]))]
+			# ========== Set the number of chunks ==========
+			nlats = dsc.latitude.values.shape[0]
+			nlons = dsc.longitude.values.shape[0]
+			dsc = dsc.chunk({
+				"latitude":int(nlats/Lcnks), 
+				"longitude":int(nlons/Lcnks)})
+
 		ipdb.set_trace()
 		
 
