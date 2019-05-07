@@ -124,8 +124,8 @@ def scipyTheilSen(array):
 		result 		np : slope, intercept
 	"""
 	try:
-		# if bn.allnan(array):
-		# 	return np.array([np.NAN, np.NAN, np.NAN, np.NAN])
+		if bn.allnan(array):
+			return np.array([np.NAN, np.NAN, np.NAN, np.NAN])
 
 		slope, intercept, _, _ = stats.mstats.theilslopes(
 			array, np.arange(array.shape[0]))
@@ -146,7 +146,8 @@ def nonparmetric_correlation(array, dim='time' ):
         scipyTheilSen, array, 
         input_core_dims=[[dim]],
         vectorize=True,
-        dask="allowed",#'parallelized',
+        # dask="allowed",
+        dask='parallelized',
         # output_dtypes=[float, float, float, float],
         output_dtypes=[float],
         output_core_dims=[['slope']], #, ['intercept'], ['rho'], ['pvalue']
