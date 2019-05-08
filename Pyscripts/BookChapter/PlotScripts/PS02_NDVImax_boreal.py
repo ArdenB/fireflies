@@ -70,6 +70,7 @@ def main():
 	data = datasets()
 	for region in ["global"]:
 		fname = fpath+ "%s_boreal_NDVImax.csv" % region
+		NDVIts = NDVIpuller(fname, data, region)
 
 	
 
@@ -103,22 +104,44 @@ def NDVIpuller(fname, data, region):
 
 		var = data[dsn]['var']
 
-		# ========== open the dataset ==========
+		# ========== open and modify the dataset ==========
 		ds = xr.open_dataset(data[dsn]["fname"])
 		if dsn == 'COPERN':
 			ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
-			ipdb.set_trace()
+		elif dsn == "GIMMS31v10":
+			ds = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
+			ds[var] = (ds[var].where(ds[var] < 0 )/10000.0)
 		# ========== open the mask dataset ==========
 		mask = xr.open_dataset(
 		"./data/other/ForestExtent/BorealForestMask_%s.nc"%(data[dsn]["gridres"]))
 
+		def _timefixer(time):
+			""" 
+			function to fix the dates of the netcdf files 
+			it changes the months so they are the same """
+			pdtime = pd.to_datetime(time)
+			year   = pdtime.year
+
+			# +++++ set up the list of dates +++++
+			dates = OrderedDict()
+			tm    = [dt.datetime(int(yr) , int(6), int(30)) for yr in year]
+			dates = pd.to_datetime(tm)
+			return dates
+
+		dates = _timefixer(ds[var].time.values)
+		try: 
+			ds.assign_coords(time=dates)
+		except:
+			warn.warn("Time setting did not work")
+			ipdb.set_trace()
+
 		# ========== multiple by the mask ==========
 		if (ds.nbytes * 1e-9) <  8:
+			# ========== mask the values ==========
 			ds[var] *= mask.BorealForest.values
-			try:
-				NDVI[dsn] = ds[data[dsn]['var']].mean(dim=["latitude", "longitude"])
-			except:
-				NDVI[dsn] = ds[data[dsn]['var']].mean(dim=["lat", "lon"])
+			# ========== Get the data ==========
+			NDVI[dsn] = ds[data[dsn]['var']].mean(dim=["latitude", "longitude"]).to_pandas()
+
 		else:
 			# ========== Build an empty array  ==========
 			tmeans    = np.zeros(ds.time.shape[0])
@@ -138,10 +161,12 @@ def NDVIpuller(fname, data, region):
 			# 	ds[var] *= mask.BorealForest.values
 				tmeans[int(num)] = bn.nanmean(DA.isel(time=num).values)
 			# 	DA = None
+			NDVI[dsn] = xr.DataArray(tmeans,dims = ['time'],coords = {'time': ds.time}).to_pandas()
 
-			NDVI[dsn] = xr.DataArray(tmeans,dims = ['time'],coords = {'time': ds.time})
-		if dsn == 'GIMMS31v10':
-			NDVI[dsn] /= 10000
+		# if dsn == 'GIMMS31v10':
+		# 	NDVI[dsn] /= 10000
+	ipdb.set_trace()
+	return NDVI
 #==============================================================================
 # ========================== Other usefull functions ==========================
 #==============================================================================
@@ -174,10 +199,6 @@ def datasets():
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"global", "Periods":["AnnualMax"]
 		})
-	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"COPERN", "region":"global", "Periods":["AnnualMax"]
-		})
 	data["MODISaqua"] = ({
 		'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
 		'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"]
@@ -185,6 +206,10 @@ def datasets():
 	data["GIMMS31v10"] = ({
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"global", "Periods":["AnnualMax"]
+		})
+	data["COPERN"] = ({
+		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
+		'var':"NDVI", "gridres":"COPERN", "region":"global", "Periods":["AnnualMax"]
 		})
 	return data
 
