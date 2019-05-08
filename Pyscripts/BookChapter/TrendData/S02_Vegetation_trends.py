@@ -83,6 +83,7 @@ def main():
 			pd.to_datetime(ds.time.values).year.max(), region, grid)
 		if not (os.path.isfile(fout)):
 			t0x = pd.Timestamp.now()
+			print(dsn, t0x)
 			if dsn == 'COPERN':
 				ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
 			elif dsn == "GIMMS31v10":
