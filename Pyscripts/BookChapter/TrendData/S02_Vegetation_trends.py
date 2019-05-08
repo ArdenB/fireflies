@@ -323,7 +323,7 @@ def dsmaker(ds, var, results, keys, method):
 			raise e
 	return layers, encoding
 
-def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_bh"):
+def MultipleComparisons(trends, kys, alpha = 0.10, MCmethod="fdr_bh"):
 	"""
 	Takes the results of an existing trend detection aproach and modifies them to
 	account for multiple comparisons.  
@@ -385,13 +385,13 @@ def datasets():
 
 	data= OrderedDict()
 
-	data["GIMMS31v11"] = ({
-		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":True
-		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
 		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"], "chunk":True
+		})
+	data["GIMMS31v11"] = ({
+		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":True
 		})
 	# data["MODISaqua"] = ({
 	# 	'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
