@@ -82,7 +82,7 @@ def main():
 			pd.to_datetime(ds.time.values).year.min(),
 			pd.to_datetime(ds.time.values).year.max(), region, grid)
 		if not (os.path.isfile(fout)):
-
+			t0x = pd.Timestamp.now()
 			if dsn == 'COPERN':
 				ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
 			elif dsn == "GIMMS31v10":
@@ -98,9 +98,8 @@ def main():
 			
 
 			# if ".ccrc.unsw.edu.au" in socket.gethostbyaddr(socket.gethostname())[0]:
-			chunk = data[dsn]["chunk"]
-			if chunk:
-				Lcnks = 10
+			if not (data[dsn]["chunk"] is None):
+				Lcnks = data[dsn]["chunk"]
 				nlats = ds.latitude.values.shape[0]
 				nlons = ds.longitude.values.shape[0]
 				dsc = ds.chunk({
@@ -153,7 +152,9 @@ def main():
 				warn.warn(" \n something went wrong with the save, going interactive")
 				ipdb.set_trace()
 
-		ipdb.set_trace()
+			t1d = t0x - pd.Timestamp.now()
+			print("time taken to do %s: " % dsn, t1d)
+		# ipdb.set_trace()
 
 #==============================================================================
 # ============================ xarray nonparmetric ============================
@@ -391,15 +392,15 @@ def datasets():
 
 	data["GIMMS31v11"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":True
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":None
 		})
 	data["GIMMS31v10"] = ({
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":False
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":40
 		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"], "chunk":True
+		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"], "chunk":None
 		})
 	# data["MODISaqua"] = ({
 	# 	'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
