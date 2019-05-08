@@ -175,17 +175,18 @@ def statsmaker(dst, ds, mask, dsinfo):
 	maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
 		__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
 	gitinfo = pf.gitmetadata()
-
-	# ========== Build some stats ==========
-	stats = ["Stats for %s \n" % dst, maininfo, gitinfo, "\n"]
-	
-	# ========== mask the data to the boreal zone ==========
-	DA    = ds["slope"      ]* mask.BorealForest.values
-	DA_SM = ds['Significant']* mask.BorealForest.values
 	if dst == "ndvi":
 		units = r"NDVI$_{max}$ yr$^{-1}$"
 	else:
 		units = dsinfo["units"]
+
+	# ========== Build some stats ==========
+	stats = ["Stats for %s \n" % dst, maininfo, gitinfo, "\n"]
+	stats.append("Non masked Global Mean +- SD change per year: %f +- %f (%s)"% (
+		ds["slope"].mean(), ds["slope"].std(), units))	
+	# ========== mask the data to the boreal zone ==========
+	DA    = ds["slope"      ]* mask.BorealForest.values
+	DA_SM = ds['Significant']* mask.BorealForest.values
 	
 	# ========== add some findings ==========
 	stats.append("Mean +- SV change per year: %f +- %f (%s)"% (DA.mean(), DA.var(), units))
