@@ -86,8 +86,8 @@ def main():
 			if dsn == 'COPERN':
 				ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
 			elif dsn == "GIMMS31v10":
-				ds = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
-				ds[var] = (ds[var].where(ds[var] < 0 )/10000.0)
+				ds      = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
+				ds[var] = (ds[var].where(ds[var] >= 0)/10000.0)
 			# ========== check if the file uses the correct names ==========
 			try:
 				nl = ds.latitude.values.shape[0]

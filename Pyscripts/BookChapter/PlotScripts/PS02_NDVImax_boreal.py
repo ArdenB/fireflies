@@ -110,7 +110,7 @@ def NDVIpuller(fname, data, region):
 			ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
 		elif dsn == "GIMMS31v10":
 			ds = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
-			ds[var] = (ds[var].where(ds[var] < 0 )/10000.0)
+			ds[var] = (ds[var].where(ds[var] >= 0)/10000.0)
 		# ========== open the mask dataset ==========
 		mask = xr.open_dataset(
 		"./data/other/ForestExtent/BorealForestMask_%s.nc"%(data[dsn]["gridres"]))
@@ -130,7 +130,7 @@ def NDVIpuller(fname, data, region):
 
 		dates = _timefixer(ds[var].time.values)
 		try: 
-			ds.assign_coords(time=dates)
+			ds["time"] = dates
 		except:
 			warn.warn("Time setting did not work")
 			ipdb.set_trace()
@@ -162,11 +162,17 @@ def NDVIpuller(fname, data, region):
 				tmeans[int(num)] = bn.nanmean(DA.isel(time=num).values)
 			# 	DA = None
 			NDVI[dsn] = xr.DataArray(tmeans,dims = ['time'],coords = {'time': ds.time}).to_pandas()
-
-		# if dsn == 'GIMMS31v10':
-		# 	NDVI[dsn] /= 10000
-	ipdb.set_trace()
-	return NDVI
+	# ========== Make metadata infomation ========== 
+	df = pd.DataFrame(NDVI)
+	if not (fname is None):
+		df.to_csv(fname)
+		maininfo = "Data Saved using %s (%s):%s by %s, %s" % (__title__, __file__, 
+			__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+		gitinfo = pf.gitmetadata()
+		infomation = [maininfo, fname, gitinfo]
+		cf.writemetadata(fname, infomation)
+	
+	return df
 #==============================================================================
 # ========================== Other usefull functions ==========================
 #==============================================================================
