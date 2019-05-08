@@ -126,21 +126,19 @@ def main():
 
 			# ========== Calculates the amount of area ==========
 
-
-			# ========== Build a new dataarray ==========
-			trend = []
-			kys   = ["slope", "intercept", "rho", "pvalue"]
-			for num in range(0, 4):
-				trend.append(dsout[data[dsn]["var"]].isel(slope=num))
-
-			
-			trends, kys = MultipleComparisons(trends, kys, aplha = 0.10)
-			# ========== Build a new dataarray ==========
-			layers, encoding = dsmaker(ds, data[dsn]["var"], trends, kys, method)
-			ds_trend         = xr.Dataset(layers, attrs= global_attrs)
-
-
 			try:
+				# ========== Pull out the individual arrays and start sorting ==========
+				trends = []
+				kys   = ["slope", "intercept", "rho", "pvalue"]
+				for num in range(0, 4):	
+					trends.append(dsout[data[dsn]["var"]].isel(slope=num).values)#rename(kys[num])
+
+				trends, kys = MultipleComparisons(trends, kys, aplha = 0.10)
+
+				# ========== Build a new dataarray ==========
+				layers, encoding = dsmaker(ds, data[dsn]["var"], trends, kys, method)
+				ds_trend         = xr.Dataset(layers, attrs= global_attrs)
+
 				print("Starting write of data")
 				ds_trend.to_netcdf(fout, 
 					format         = 'NETCDF4', 
@@ -360,7 +358,7 @@ def MultipleComparisons(trends, kys, aplha = 0.10, MCmethod="fdr_bh"):
 	# isnan1d  = isnan.flatten()
 	
 	# =========== Perform the MC correction ===========
-	pvalue_adj =  smsM.multipletests(pvalue1d, method=MCmethod, alpha=0.10)
+	pvalue_adj =  smsM.multipletests(pvalue1d, method=MCmethod, alpha=alpha)
 	
 	# ++++++++++ reformat the data into array ++++++++++
 	MCR =  ["Significant", "pvalue_adj"]
