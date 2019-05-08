@@ -69,10 +69,13 @@ def main():
 	# ========== get the datasets ==========
 	data = datasets()
 	for region in ["global"]:
-		fname = fpath+ "%s_boreal_NDVImax.csv" % region
-		NDVIts = NDVIpuller(fname, data, region)
+		fname = fpath+ "%s_boreal_NDVImax" % region
 
-	
+		# ========== get the NDVI data ==========
+		df    = NDVIpuller(fname, data, region, force=False)
+
+		# ========== plot the NDVI data ==========
+		plotter(fname, df, formats=[".png", ".pdf"], dpi=500)
 
 	ipdb.set_trace()
 
@@ -80,7 +83,32 @@ def main():
 #==============================================================================
 # ========================== The NDVI value function ==========================
 #==============================================================================
-def NDVIpuller(fname, data, region):
+
+def plotter(fname, df, formats=[".png", ".pdf"], dpi=500):
+	"""
+	Function to make line plots of NDVI max
+	args:
+		fname: 		str
+			place to save the plot
+	"""
+	# ========== Build a plot ==========
+	ax = plt.subplot()
+	df.plot(ax=ax)
+	# ========== Build a plot ==========
+	plt.xlabel('')
+	plt.ylabel(r"Mean Boreal NDVI$_{max}$", fontsize=13, weight='bold')
+	ax.grid(True, linestyle='--', linewidth=0.25, color='black', zorder=3)
+
+	# ========== Save the plot ==========
+	if not (formats is None): 
+		print("starting NDVI line plot save at:", pd.Timestamp.now())
+		# ========== loop over the formats ==========
+		for fmt in formats:
+			plt.savefig(fname+fmt, dpi=dpi)
+	plt.show()
+	ipdb.set_trace()
+
+def NDVIpuller(fname, data, region, force=False):
 	"""
 	takes the NDVI data and makes a saveable CSV file 
 	args:
@@ -91,88 +119,90 @@ def NDVIpuller(fname, data, region):
 	returns:
 		dataframe with relevant data
 	"""
+	if (not os.path.isfile(fname+"_data.csv")) or force:
+		NDVI = OrderedDict()
 
-	NDVI = OrderedDict()
+		for dsn in data:
+			print(dsn)
+			if not data[dsn]["region"] == region:
+				if region == "global":
+					continue
+				else:
+					ipdb.set_trace()
 
-	for dsn in data:
-		print(dsn)
-		if not data[dsn]["region"] == region:
-			if region == "global":
-				continue
-			else:
+			var = data[dsn]['var']
+
+			# ========== open and modify the dataset ==========
+			ds = xr.open_dataset(data[dsn]["fname"])
+			if dsn == 'COPERN':
+				ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
+			elif dsn == "GIMMS31v10":
+				ds = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
+				ds[var] = (ds[var].where(ds[var] >= 0)/10000.0)
+			# ========== open the mask dataset ==========
+			mask = xr.open_dataset(
+			"./data/other/ForestExtent/BorealForestMask_%s.nc"%(data[dsn]["gridres"]))
+
+			def _timefixer(time):
+				""" 
+				function to fix the dates of the netcdf files 
+				it changes the months so they are the same """
+				pdtime = pd.to_datetime(time)
+				year   = pdtime.year
+
+				# +++++ set up the list of dates +++++
+				dates = OrderedDict()
+				tm    = [dt.datetime(int(yr) , int(6), int(30)) for yr in year]
+				dates = pd.to_datetime(tm)
+				return dates
+
+			dates = _timefixer(ds[var].time.values)
+			try: 
+				ds["time"] = dates
+			except:
+				warn.warn("Time setting did not work")
 				ipdb.set_trace()
 
-		var = data[dsn]['var']
+			# ========== multiple by the mask ==========
+			if (ds.nbytes * 1e-9) <  8:
+				# ========== mask the values ==========
+				ds[var] *= mask.BorealForest.values
+				# ========== Get the data ==========
+				NDVI[dsn] = ds[data[dsn]['var']].mean(dim=["latitude", "longitude"]).to_pandas()
 
-		# ========== open and modify the dataset ==========
-		ds = xr.open_dataset(data[dsn]["fname"])
-		if dsn == 'COPERN':
-			ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
-		elif dsn == "GIMMS31v10":
-			ds = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
-			ds[var] = (ds[var].where(ds[var] >= 0)/10000.0)
-		# ========== open the mask dataset ==========
-		mask = xr.open_dataset(
-		"./data/other/ForestExtent/BorealForestMask_%s.nc"%(data[dsn]["gridres"]))
+			else:
+				# ========== Build an empty array  ==========
+				tmeans    = np.zeros(ds.time.shape[0])
+				tmeans[:] = np.NAN
+				t0 = pd.Timestamp.now()
+				# ========== chunk and mask the NDVI values ==========
+				ds = ds.chunk({"time":1})
+				DA = ds[var].where(mask.BorealForest.values == 1)
+				# NDVI[dsn] = DA.mean(dim=["latitude", "longitude"]).compute()
+				# ipdb.set_trace()
+				for num in range(0, ds.time.shape[0]):
+				# 	# print the line
+					_lnflick(num, ds.time.shape[0], t0, lineflick=1)
 
-		def _timefixer(time):
-			""" 
-			function to fix the dates of the netcdf files 
-			it changes the months so they are the same """
-			pdtime = pd.to_datetime(time)
-			year   = pdtime.year
-
-			# +++++ set up the list of dates +++++
-			dates = OrderedDict()
-			tm    = [dt.datetime(int(yr) , int(6), int(30)) for yr in year]
-			dates = pd.to_datetime(tm)
-			return dates
-
-		dates = _timefixer(ds[var].time.values)
-		try: 
-			ds["time"] = dates
-		except:
-			warn.warn("Time setting did not work")
-			ipdb.set_trace()
-
-		# ========== multiple by the mask ==========
-		if (ds.nbytes * 1e-9) <  8:
-			# ========== mask the values ==========
-			ds[var] *= mask.BorealForest.values
-			# ========== Get the data ==========
-			NDVI[dsn] = ds[data[dsn]['var']].mean(dim=["latitude", "longitude"]).to_pandas()
-
-		else:
-			# ========== Build an empty array  ==========
-			tmeans    = np.zeros(ds.time.shape[0])
-			tmeans[:] = np.NAN
-			t0 = pd.Timestamp.now()
-			# ========== chunk and mask the NDVI values ==========
-			ds = ds.chunk({"time":1})
-			DA = ds[var].where(mask.BorealForest.values == 1)
-			# NDVI[dsn] = DA.mean(dim=["latitude", "longitude"]).compute()
-			# ipdb.set_trace()
-			for num in range(0, ds.time.shape[0]):
-			# 	# print the line
-				_lnflick(num, ds.time.shape[0], t0, lineflick=1)
-
-			# 	# Get the Dataarray
-				# DA = ds[var].isel(time=num).values
-			# 	ds[var] *= mask.BorealForest.values
-				tmeans[int(num)] = bn.nanmean(DA.isel(time=num).values)
-			# 	DA = None
-			NDVI[dsn] = xr.DataArray(tmeans,dims = ['time'],coords = {'time': ds.time}).to_pandas()
-	# ========== Make metadata infomation ========== 
-	df = pd.DataFrame(NDVI)
-	if not (fname is None):
-		df.to_csv(fname)
-		maininfo = "Data Saved using %s (%s):%s by %s, %s" % (__title__, __file__, 
-			__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
-		gitinfo = pf.gitmetadata()
-		infomation = [maininfo, fname, gitinfo]
-		cf.writemetadata(fname, infomation)
-	
-	return df
+				# 	# Get the Dataarray
+					# DA = ds[var].isel(time=num).values
+				# 	ds[var] *= mask.BorealForest.values
+					tmeans[int(num)] = bn.nanmean(DA.isel(time=num).values)
+				# 	DA = None
+				NDVI[dsn] = xr.DataArray(tmeans,dims = ['time'],coords = {'time': ds.time}).to_pandas()
+		# ========== Make metadata infomation ========== 
+		df = pd.DataFrame(NDVI)
+		if not (fname is None):
+			df.to_csv(fname+"_data.csv")
+			maininfo = "Data Saved using %s (%s):%s by %s, %s" % (__title__, __file__, 
+				__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+			gitinfo = pf.gitmetadata()
+			infomation = [maininfo, fname, gitinfo]
+			cf.writemetadata(fname, infomation)
+		return df
+	else:
+		df = pd.read_csv(fname+"_data.csv", index_col="time", parse_dates=["time"])
+		return df
 #==============================================================================
 # ========================== Other usefull functions ==========================
 #==============================================================================
