@@ -51,17 +51,18 @@ class mapclass(object):
 		self.sigfrac    = 0.6   # The fraction of pixels that are significant to get stippling
 		self.format     = [".pdf", ".png"]#".eps"
 
-		self.cmap     = None  # Colormap set later
-		self.cmin     = None  # the min of the colormap
-		self.cmax     = None  # the max of the colormap
-		self.cZero    = None  # the zero point of the colormap
-		self.column   = None  # the column to be mapped
-		self.norm     = None
-		self.ticks    = None # The ticks on the colorbar
-		self.ticknm   = None # The tick names on the colorbar
-		self.cbounds  = None
-		self.save     = True # Save the plot 
-		self.fname    = None
+		self.cmap      = None  # Colormap set later
+		self.cmin      = None  # the min of the colormap
+		self.cmax      = None  # the max of the colormap
+		self.cZero     = None  # the zero point of the colormap
+		self.column    = None  # the column to be mapped
+		self.norm      = None
+		self.ticks     = None # The ticks on the colorbar
+		self.ticknm    = None # The tick names on the colorbar
+		self.tickalign = 'right'
+		self.cbounds   = None
+		self.save      = True # Save the plot 
+		self.fname     = None
 		# ========== Set the Histogram lables ==========
 		self.hist_x   = None  # X lable for the Histogram
 		self.hist_y   = None  # X lable for the Histogram

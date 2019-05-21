@@ -64,7 +64,10 @@ def mapmaker(ds, mapdet):
 
 	# =========== Check for a datamask mask  ===========
 	if not (mapdet.mask is None):
-		DA = DA.where(mapdet.mask[mapdet.masknm].values == 1.0)
+		try:
+			DA = DA.where(mapdet.mask[mapdet.masknm].values == 1.0)
+		except Exception as e:
+			DA *= np.squeeze(mapdet.mask[mapdet.masknm].values)
 
 	# =========== Check for a FDR significance mask  ===========
 	if (not mapdet.sigmask is None):
@@ -223,7 +226,7 @@ def mapmaker(ds, mapdet):
 	else:
 		# Change the horrixontal allignment of cb ticks to right
 		for t in cb.ax.get_yticklabels():
-			t.set_horizontalalignment('right')   
+			t.set_horizontalalignment(mapdet.tickalign)   
 			t.set_x(mapdet.set_x)
 			t.set_fontsize(mapdet.fontsize)
 			# t.set_fontsize(16)
