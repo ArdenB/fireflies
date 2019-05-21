@@ -72,7 +72,7 @@ def main():
 		fname = fpath+ "%s_boreal_NDVImax" % region
 
 		# ========== get the NDVI data ==========
-		df    = NDVIpuller(fname, data, region, force=False)
+		df    = NDVIpuller(fname, data, region, force=True)
 
 		# ========== plot the NDVI data ==========
 		plotter(fname, df, formats=[".png", ".pdf"], dpi=500)
@@ -136,7 +136,7 @@ def NDVIpuller(fname, data, region, force=False):
 			ds = xr.open_dataset(data[dsn]["fname"])
 			if dsn == 'COPERN':
 				ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
-			elif dsn == "GIMMS31v10":
+			elif dsn == "GIMMS3gv1.0":
 				ds = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
 				ds[var] = (ds[var].where(ds[var] >= 0)/10000.0)
 			# ========== open the mask dataset ==========
@@ -231,7 +231,7 @@ def datasets():
 
 	data= OrderedDict()
 
-	data["GIMMS31v11"] = ({
+	data["GIMMS3gv1.1"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"global", "Periods":["AnnualMax"]
 		})
@@ -239,13 +239,23 @@ def datasets():
 		'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
 		'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"]
 		})
-	data["GIMMS31v10"] = ({
+	data["GIMMS3gv1.0"] = ({
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"global", "Periods":["AnnualMax"]
 		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
 		'var':"NDVI", "gridres":"COPERN", "region":"global", "Periods":["AnnualMax"]
+		})
+	data["MOD13C1"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/terra/processed/MODIS_terra_MOD13C1_5kmCMG_anmax.nc",
+		'var':"ndvi", "gridres":"MODIS_CMG", "region":"Global", "Periods":["AnnualMax"], 
+		"start":2000, "end":2018
+		})
+	data["MYD13C1"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/aqua/5km/processed/MODIS_aqua_MYD13C1_5kmCMG_anmax.nc",
+		'var':"ndvi", "gridres":"MODIS_CMG", "region":"Global", "Periods":["AnnualMax"], 
+		"start":2002, "end":2018
 		})
 	return data
 

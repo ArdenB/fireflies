@@ -259,6 +259,16 @@ def datasets():
 		'var':"ndvi", "gridres":"250m", "region":"SIBERIA", "timestep":"16day", 
 		"start":2002, "end":2019
 		})
+	data["MODIS_CMG"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/terra/processed/MODIS_terra_MOD13C1_5kmCMG_anmax.nc",
+		'var':"ndvi", "gridres":"5km", "region":"Global", "timestep":"AnnualMax", 
+		"start":2000, "end":2018
+		})
+	# data["MYD13C1"] = ({
+	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/aqua/5km/processed/MODIS_aqua_MYD13C1_5kmCMG_anmax.nc",
+	# 	'var':"ndvi", "gridres":"5km", "region":"Global", "timestep":"AnnualMax", 
+	# 	"start":2000, "end":2018
+	# 	})
 	return data
 #==============================================================================
 

@@ -412,7 +412,7 @@ def GlobalAttributes(ds, fnout):
 	# ========== Fill the Dictionary ==========
 
 	# ++++++++++ Highly recomended ++++++++++ 
-	attr["FileName"]           = fnout
+	attr["FileName"]            = fnout
 	attr["title"]               = "NDVI"
 	attr["summary"]             = "Reprocessed GIMMS31v1.1 NDVI" 
 	attr["Conventions"]         = "CF-1.7"
