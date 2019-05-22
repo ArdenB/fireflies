@@ -240,6 +240,11 @@ def results():
 	Function to return the infomation about the results
 	"""
 	res = OrderedDict()
+	res["ndvi_aqua"] = ({
+		"fname":"./results/netcdf/MYD13C1_ndvi_TheilSen_2002_to2018_GlobalMODIS_CMG.nc",
+		"source":"MYD13C1","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+		"window":0, "grid":"MODIS_CMG", "param":"AnnualMaxNDVI", 
+		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
 	res["ndvi_terra"] = ({
 		"fname":"./results/netcdf/MOD13C1_ndvi_TheilSen_2000_to2018_GlobalMODIS_CMG.nc",
 		"source":"MOD13C1","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
