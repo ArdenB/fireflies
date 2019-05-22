@@ -126,7 +126,7 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	if dst == "tmean":
 		mapdet.set_x  = 2.25 
 		mapdet.extend = "max"
-	elif dst in ["ndvi", "ndvi_terra", "ndvi_aqua"]:
+	elif dst in ["ndvi", "ndvi_terra", "ndvi_aqua", "ndvi_v10"]:
 		# mapdet.set_x  = 2.25 
 		mapdet.ticknm = np.round(ticks * 10**2, decimals=1)
 
@@ -240,6 +240,11 @@ def results():
 	Function to return the infomation about the results
 	"""
 	res = OrderedDict()
+	res["ndvi_v10"] = ({
+		"fname":"./results/netcdf/GIMMS3gv1.0_ndvi_TheilSen_1982_to2015_GlobalGIMMS.nc",
+		"source":"GIMMS3gv1.0","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
+		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
 	res["ndvi_aqua"] = ({
 		"fname":"./results/netcdf/MYD13C1_ndvi_TheilSen_2002_to2018_GlobalMODIS_CMG.nc",
 		"source":"MYD13C1","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
@@ -251,7 +256,7 @@ def results():
 		"window":0, "grid":"MODIS_CMG", "param":"AnnualMaxNDVI", 
 		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
 	res["ndvi"] = ({
-		"fname":"./results/netcdf/GIMMS31v11_ndvi_theilsen_1982to2017_GlobalGIMMS.nc",
+		"fname":"./results/netcdf/GIMMS3gv1.1_ndvi_TheilSen_1982_to2017_GlobalGIMMS.nc",
 		"source":"GIMMS3gv1.1","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
 		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
 		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
@@ -343,7 +348,7 @@ def cbvals(var, ky):
 			# cmap = mpc.ListedColormap(palettable.cmocean.diverging.Curl_8_r.mpl_colors)
 			cmap = palettable.cmocean.diverging.Curl_8_r.mpl_colormap
 			ticks = np.arange(vmin, vmax+1, 2.0)
-		elif var in ["ndvi", "ndvi_terra", "ndvi_aqua"]:
+		elif var in ["ndvi", "ndvi_terra", "ndvi_aqua", "ndvi_v10"]:
 			cmap = palettable.colorbrewer.diverging.PRGn_10.mpl_colormap
 			vmin    = -0.005#-0.1 	# the min of the colormap
 			vmax    =  0.005#0.1	# the max of the colormap
