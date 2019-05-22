@@ -160,12 +160,13 @@ def main():
 
 			# ========== make sure the data can be loaded ==========
 			ds = xr.open_dataset(fn)
-			# ipdb.set_trace()
+			ipdb.set_trace()
 			# =========== cleanup the files ==========
 			for file in flist: 
 				os.remove(file)
 
 		# ============  remove the parts ===========
+		ipdb.set_trace()
 		shutil.rmtree(tmp)
 	# # ========== work out the date ==========
 	# pd.to_datetime("2000049", format='%Y%j') 

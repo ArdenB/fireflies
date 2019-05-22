@@ -68,7 +68,7 @@ def main():
 
 	# ========== get the datasets ==========
 	data = datasets()
-	for region in ["global"]:
+	for region in ["Global"]:
 		fname = fpath+ "%s_boreal_NDVImax" % region
 
 		# ========== get the NDVI data ==========
@@ -123,9 +123,10 @@ def NDVIpuller(fname, data, region, force=False):
 		NDVI = OrderedDict()
 
 		for dsn in data:
+			# ipdb.set_trace()
 			print(dsn)
 			if not data[dsn]["region"] == region:
-				if region == "global":
+				if region == "Global":
 					continue
 				else:
 					ipdb.set_trace()
@@ -233,19 +234,15 @@ def datasets():
 
 	data["GIMMS3gv1.1"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"global", "Periods":["AnnualMax"]
-		})
-	data["MODISaqua"] = ({
-		'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
-		'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"]
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
 		})
 	data["GIMMS3gv1.0"] = ({
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
-		'var':"ndvi", "gridres":"GIMMS", "region":"global", "Periods":["AnnualMax"]
+		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"]
 		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"COPERN", "region":"global", "Periods":["AnnualMax"]
+		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"]
 		})
 	data["MOD13C1"] = ({
 		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/terra/processed/MODIS_terra_MOD13C1_5kmCMG_anmax.nc",
@@ -257,6 +254,11 @@ def datasets():
 		'var':"ndvi", "gridres":"MODIS_CMG", "region":"Global", "Periods":["AnnualMax"], 
 		"start":2002, "end":2018
 		})
+	# ========== DO NOT REMOVE I MAY NEED THIS LATER =
+	# data["MODISaqua"] = ({
+	# 	'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
+	# 	'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"]
+	# 	})
 	return data
 
 

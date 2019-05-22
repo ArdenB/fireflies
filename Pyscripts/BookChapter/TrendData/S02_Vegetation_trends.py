@@ -399,10 +399,20 @@ def datasets():
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":40
 		})
-	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"], "chunk":None
+	data["MOD13C1"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/terra/processed/MODIS_terra_MOD13C1_5kmCMG_anmax.nc",
+		'var':"ndvi", "gridres":"MODIS_CMG", "region":"Global", "Periods":["AnnualMax"], 
+		"start":2000, "end":2018
 		})
+	data["MYD13C1"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/aqua/5km/processed/MODIS_aqua_MYD13C1_5kmCMG_anmax.nc",
+		'var':"ndvi", "gridres":"MODIS_CMG", "region":"Global", "Periods":["AnnualMax"], 
+		"start":2002, "end":2018
+		})
+	# data["COPERN"] = ({
+	# 	'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
+	# 	'var':"NDVI", "gridres":"COPERN", "region":"Global", "Periods":["AnnualMax"], "chunk":None
+	# 	})
 	# data["MODISaqua"] = ({
 	# 	'fname': sorted(glob.glob("./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc"))[1:],
 	# 	'var':"ndvi", "gridres":"MODIS", "region":"Siberia", "Periods":["All"], "chunk":True
