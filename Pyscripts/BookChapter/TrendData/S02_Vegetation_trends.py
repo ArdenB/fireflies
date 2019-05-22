@@ -86,7 +86,7 @@ def main():
 			print(dsn, t0x)
 			if dsn == 'COPERN':
 				ds = ds.drop(["crs", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
-			elif dsn == "GIMMS31v10":
+			elif dsn == "GIMMS3gv1.0":
 				ds      = ds.drop(["percentile", "time_bnds"]).rename({"lat":"latitude", "lon":"longitude"})
 				ds[var] = (ds[var].where(ds[var] >= 0)/10000.0)
 			# ========== check if the file uses the correct names ==========
@@ -391,23 +391,23 @@ def datasets():
 
 	data= OrderedDict()
 
-	data["GIMMS31v11"] = ({
+	data["GIMMS3gv1.1"] = ({
 		'fname':"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":None
 		})
-	data["GIMMS31v10"] = ({
+	data["GIMMS3gv1.0"] = ({
 		'fname':"./data/veg/GIMMS31g/3.GLOBAL.GIMMS31.1982_2015_AnnualMax.nc",
 		'var':"ndvi", "gridres":"GIMMS", "region":"Global", "Periods":["AnnualMax"], "chunk":40
 		})
 	data["MOD13C1"] = ({
 		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/terra/processed/MODIS_terra_MOD13C1_5kmCMG_anmax.nc",
 		'var':"ndvi", "gridres":"MODIS_CMG", "region":"Global", "Periods":["AnnualMax"], 
-		"start":2000, "end":2018
+		"start":2000, "end":2018, "chunk":None
 		})
 	data["MYD13C1"] = ({
 		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/aqua/5km/processed/MODIS_aqua_MYD13C1_5kmCMG_anmax.nc",
 		'var':"ndvi", "gridres":"MODIS_CMG", "region":"Global", "Periods":["AnnualMax"], 
-		"start":2002, "end":2018
+		"start":2002, "end":2018, "chunk":None
 		})
 	# data["COPERN"] = ({
 	# 	'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
