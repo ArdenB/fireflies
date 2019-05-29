@@ -94,12 +94,12 @@ def main():
 	ls8c = 'LANDSAT/LC8_L1T_TOA'
 	# ls8c = "LANDSAT/LC08/C01/T1_SR"
 	L5coll = ee.ImageCollection(
-		'LANDSAT/LT05/C01/T1_SR').filter(
+		"LANDSAT/LT05/C01/T1_TOA").filter(
 		ee.Filter.lt('CLOUD_COVER',25)).select(
 		['B3', 'B2', 'B1']).filterBounds(geom).select(['B3', 'B2', 'B1'])
 
 	L7coll = ee.ImageCollection(
-		'LANDSAT/LE07/C01/T1_SR').filter(
+		'LANDSAT/LE07/C01/T1_TOA').filter(
 		ee.Filter.lt('CLOUD_COVER',25)).select(
 		['B3', 'B2', 'B1']).filterBounds(geom).map(LS7fix)
 
