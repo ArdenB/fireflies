@@ -73,30 +73,58 @@ def main():
 	# ========== Initialize the Earth Engine object ==========
 	ee.Initialize()
 
-	# ========== Define the image collection ==========
-	collection = ee.ImageCollection("LANDSAT/LC08/C01/T1_SR")
-
 	# ========== Load the Site Data ==========
 	syear    = 2018
 	SiteInfo = Field_data()
 	site     = 4 #Site of interest
 
 	# ========== Get the cordinates ==========
-	row   = SiteInfo.loc[site]
-	geom  = ee.Geometry.Point([row.lon, row.lat])
-	colec = collection.filterBounds(geom)
-	bands = colec.select(['B4', 'B3', 'B2'])
+	row    = SiteInfo.loc[site]
+	geom   = ee.Geometry.Point([row.lon, row.lat])
+
+	# ========== Rename the LS8 bands to match landsat archive ==========
+	def renamebands(image):
+		return image.rename(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11'])
+	def LS7fix(image):
+		 filled1a = image.focal_mean(1, 'square', 'pixels', 2)
+		 return filled1a.blend(image)
+
+	# ========== Define the image collection ==========
+	# collection = ee.ImageCollection("LANDSAT/LC08/C01/T1_SR")
+	ls8c = 'LANDSAT/LC8_L1T_TOA'
+	# ls8c = "LANDSAT/LC08/C01/T1_SR"
+	L5coll = ee.ImageCollection(
+		'LANDSAT/LT05/C01/T1_SR').filter(
+		ee.Filter.lt('CLOUD_COVER',25)).select(
+		['B3', 'B2', 'B1']).filterBounds(geom).select(['B3', 'B2', 'B1'])
+
+	L7coll = ee.ImageCollection(
+		'LANDSAT/LE07/C01/T1_SR').filter(
+		ee.Filter.lt('CLOUD_COVER',25)).select(
+		['B3', 'B2', 'B1']).filterBounds(geom).map(LS7fix)
+
+	L8coll = ee.ImageCollection(
+		ls8c).filter(
+		ee.Filter.lt('CLOUD_COVER', 25)).map(
+		renamebands).filterBounds(geom).select(['B3', 'B2', 'B1'])
+
+	collection = ee.ImageCollection(L5coll.merge(L7coll.merge(L8coll)))
+	# ipdb.set_trace()
+
+	# bands  = clouds.select(['B4', 'B3', 'B2'])
+	# bands  = collection
+
 
 	## Make 8 bit data
 	def convertBit(image):
 	    return image.multiply(512).uint8()  
 	## Convert bands to output video  
-	outputVideo = bands.map(convertBit)
+	outputVideo = collection.map(convertBit)
 	print("Starting to create a video")
 	## Export video to Google Drive
 	out = batch.Export.video.toDrive(
-		outputVideo, description='Site%d_video_region_L8_time_v2' % site, 
-		dimensions = 1080, framesPerSecond = 2, 
+		outputVideo, description='Site%d_video_region_L8_time_v7' % site, 
+		dimensions = 1080, framesPerSecond = 1, 
 		region=(
 			[113.05515483255078,51.77849751896069],
 			[113.36036876077344,51.77849751896069],
@@ -105,7 +133,6 @@ def main():
 	## Process the image
 	process = batch.Task.start(out)
 	print("Process sent to cloud")
-	ipdb.set_trace()
 
 #==============================================================================
 
