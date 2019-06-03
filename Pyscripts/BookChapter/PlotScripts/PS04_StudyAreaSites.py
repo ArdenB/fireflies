@@ -127,7 +127,7 @@ def main():
 
 	# ========== Save the plot ==========
 	if not (formats is None): 
-		print("starting NDVI line plot save at:", pd.Timestamp.now())
+		print("starting plot save at:", pd.Timestamp.now())
 		# ========== loop over the formats ==========
 		for fmt in formats:
 			plt.savefig(fname+fmt, dpi=dpi)
@@ -137,9 +137,9 @@ def main():
 		maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
 			__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
 		gitinfo = pf.gitmetadata()
-		infomation = [maininfo, plotinfo, fname, gitinfo]
+		infomation = [maininfo, fname, gitinfo]
 		cf.writemetadata(fname, infomation)
-		
+
 	ipdb.set_trace()
 
 
