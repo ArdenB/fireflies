@@ -81,11 +81,16 @@ def main():
 	for dsn in data:
 		if dsn in ["MODISaqua", "MODISterra"]:
 			ds  = xr.open_mfdataset(data[dsn]["fname"])
+		elif dsn in ['COPERN_BA']:
+			ds = xr.open_dataset(data[dsn]["fname"], chunks={"lat":20})
+			ds = ds.sel({'lat':slice(80.0, 40.0), "lon":slice(-180, 180)})
+			# [-180.0, 180.0, 80.0, 40.0]
+			ipdb.set_trace()
 		else:
 			ds  = xr.open_dataset(data[dsn]["fname"])
 		# ========== Set up the filename and global attributes
-		fpath = "./data/other/ForestExtent/"
-		fnout = fpath+ "BorealForestMask_%s.nc" % dsn
+		fpath        = "./data/other/ForestExtent/"
+		fnout        = fpath + "BorealForestMask_%s.nc" % dsn
 		global_attrs = GlobalAttributes(ds, fnout, dsn)	
 		
 		# ========== Pull out the old lat and lons ==========
@@ -244,6 +249,12 @@ def GlobalAttributes(ds, fnout, dsn):
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	data["COPERN_BA"] = ({
+		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
+		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019
+		})
+	
 	data["GIMMS"] = ({
 		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1981to2017_mergetime_compressed.nc",
 		'var':"ndvi", "gridres":"8km", "region":"Global", "timestep":"16day", 
