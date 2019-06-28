@@ -80,7 +80,11 @@ def main():
 
 	# ========== Get the cordinates ==========
 	row    = SiteInfo.loc[site]
-	geom   = ee.Geometry.Point([row.lon, row.lat])
+
+	lon = (112.40420250574721 + 112.73241905848158)/2.0
+	lat = (51.22323236456422  + 51.359781270083886)/2.0
+	# geom   = ee.Geometry.Point([row.lon, row.lat])
+	geom   = ee.Geometry.Point([lon, lat])
 
 	# ========== Rename the LS8 bands to match landsat archive ==========
 	def renamebands(image):
@@ -91,25 +95,26 @@ def main():
 
 	# ========== Define the image collection ==========
 	# collection = ee.ImageCollection("LANDSAT/LC08/C01/T1_SR")
-	ls8c = 'LANDSAT/LC8_L1T_TOA'
-	# ls8c = "LANDSAT/LC08/C01/T1_SR"
+	# ls8c = 'LANDSAT/LC8_L1T_TOA'
+	dschoice  = "SR"#
+	# dschoice = "TOA"
+	ls8c = "LANDSAT/LC08/C01/T1_%s" % dschoice
 	L5coll = ee.ImageCollection(
-		"LANDSAT/LT05/C01/T1_TOA").filter(
-		ee.Filter.lt('CLOUD_COVER',25)).select(
+		"LANDSAT/LT05/C01/T1_%s" % dschoice).filter(
+		ee.Filter.lt('CLOUD_COVER',15)).select(
 		['B3', 'B2', 'B1']).filterBounds(geom).select(['B3', 'B2', 'B1'])
 
 	L7coll = ee.ImageCollection(
-		'LANDSAT/LE07/C01/T1_TOA').filter(
-		ee.Filter.lt('CLOUD_COVER',25)).select(
+		'LANDSAT/LE07/C01/T1_%s' % dschoice).filter(
+		ee.Filter.lt('CLOUD_COVER',15)).select(
 		['B3', 'B2', 'B1']).filterBounds(geom).map(LS7fix)
 
 	L8coll = ee.ImageCollection(
 		ls8c).filter(
-		ee.Filter.lt('CLOUD_COVER', 25)).map(
+		ee.Filter.lt('CLOUD_COVER', 15)).map(
 		renamebands).filterBounds(geom).select(['B3', 'B2', 'B1'])
 
 	collection = ee.ImageCollection(L5coll.merge(L7coll.merge(L8coll)))
-	# ipdb.set_trace()
 
 	# bands  = clouds.select(['B4', 'B3', 'B2'])
 	# bands  = collection
@@ -118,22 +123,40 @@ def main():
 	## Make 8 bit data
 	def convertBit(image):
 	    return image.multiply(512).uint8()  
+
+	def convertBitV2(image):
+		return image.multiply(0.0001).multiply(512).uint8()  
 	## Convert bands to output video  
-	outputVideo = collection.map(convertBit)
+	if dschoice == "TOA":
+		outputVideo = collection.map(convertBit)
+	else:
+		outputVideo = collection.map(convertBitV2)
 	print("Starting to create a video")
+	# ipdb.set_trace()
 	## Export video to Google Drive
+	# out = batch.Export.video.toDrive(
+	# 	outputVideo, description='Site%d_video_region_L8_time_v7' % site, 
+	# 	dimensions = 1080, framesPerSecond = 1, 
+	# 	region=(
+	# 		[113.05515483255078,51.77849751896069],
+	# 		[113.36036876077344,51.77849751896069],
+	# 		[113.36036876077344,51.91783838660782],
+	# 		[113.05515483255078,51.91783838660782]), maxFrames=10000)
+
+	# Export video to Google Drive
 	out = batch.Export.video.toDrive(
-		outputVideo, description='Site%d_video_region_L8_time_v7' % site, 
-		dimensions = 1080, framesPerSecond = 1, 
+		outputVideo, description='Site%d_video_region_L8_time_v8_%s' % (site, dschoice), 
+		dimensions = 1080, framesPerSecond = 3, 
 		region=(
-			[113.05515483255078,51.77849751896069],
-			[113.36036876077344,51.77849751896069],
-			[113.36036876077344,51.91783838660782],
-			[113.05515483255078,51.91783838660782]), maxFrames=10000)
+			[112.40420250574721,51.22323236456422],
+			[112.73241905848158,51.22323236456422],
+			[112.73241905848158,51.359781270083886],
+			[112.40420250574721,51.359781270083886]), maxFrames=10000)
 	## Process the image
 	process = batch.Task.start(out)
 	print("Process sent to cloud")
 
+	[112.40420250574721,51.22323236456422]
 #==============================================================================
 
 def Field_data(year = 2018):
