@@ -1,0 +1,38 @@
+site number,date,rcrtmnt,forestry,lat,lon,altitude (m),aspect (cat),aspect (deg),incline (deg),soil type,soil moisture,,estimated fire year
+46,25/07/2018,abundant,Petrovsk-Zabaikal'skoe,51.16418,108.94473,861,SW, 15°,70,loamy, wet,,2006
+90,07/08/2018,singular,Tunkinsky,51.71805,102.5954,736,SW,15,180,sandy loam, mesic,,
+53,30/07/2018,singular,Chorinsky,52.12389,109.89463,668,plain,NA,,light loamy, mesic,, more than 10 years ago
+45,25/07/2018,abundant,Petrovsk-Zabaikal'skoe,51.17889,109.00517,861,SW,10,250,light loam, mesic,,2005
+44,25/07/2018,poor,Petrovsk-Zabaikal'skoe,51.19152,109.03844,824,SW,10,220,sandy loam, mesic,,2005
+40,25/07/2018,abundant,Petrovsk-Zabaikal'skoe,51.23488,109.20568,787,SE,10,130,light loam, mesic,,2007
+83,07/08/2018,poor,Tunkinsky,51.71324,102.61162,745,S,15,180,sandy loam, mesic,, more than 10 years ago
+82,07/08/2018,singular,Tunkinsky,51.71999,102.62118,767,SW,10,210,sandy loamy, mesic,,burned twice
+69,05/08/2018,abundant,Tunkinsky,51.71518,101.62557,960,S,10,180,sandy loam, mesic,,
+43,25/07/2018,poor,Petrovsk-Zabaikal'skoe,51.20247,109.11646,838,SW,10,200,sandy loam, dry,,2003
+56,30/07/2018,singular,Chorinsky,52.08768,110.02025,875,SW,10,260,sandy loam, dry,,1999
+32,23/07/2018,abundant,Ingodinsky,50.96766,111.18082,1034,NW,3,330,medium loam, mesic,,2003
+33,23/07/2018,abundant,Ingodinsky,51.87807,102.44425,741,SE,5,150,light loam, mesic,,1996
+23,22/07/2018,singular,Tataurovskoye,51.55988,112.83063,803,SW,15,160,sandy loam, dry,,2000
+37,24/07/2018,singular,Chiloksky,51.23729,110.7123,871,SW,10,260,sandy loam, dry,,2000
+34,23/07/2018,abundant,Chimenskoe ,51.02709,110.72109,948,SE, 15-17,210,medium loam, mesic,,2000?
+20,21/07/2018,singular,Chitinskii,51.15607,113.57069,753,plain,NA,,sandy loam, dry,,2000 (03)  2015
+11,17/07/2018,poor,Ononsky  Tsasycheiskoe,50.49042,114.882,691,plain,NA,,sandy loam, dry,,2000
+39,24/07/2018,abundant,Chiloksky,51.39263,110.24619,831,plain,NA,,loam, wet,,2003
+12,17/07/2018,poor ,Ononsky  Tsasycheiskoe,50.47926,115.00664,683,SW,3,,sandy loam, dry,,2000  crown high-severity
+16,19/07/2018,abundant,Olenguiski,51.30747,113.59772,923,S,30,,medium loam, mesic,,2003
+17,19/07/2018,abundant,Olenguiski,51.31007,113.62353,892,SW,20,,light loam, mesic,,2003
+29,22/07/2018,abundant,Ingodinsky,51.09818,112.11646,833,S,5,200,sandy loam, dry,,2000  crown fire
+28,22/07/2018,abundant,Ingodinsky,51.0896,112.09769,870,NW, <5,320,sandy loam, mesic,,2000  crown fire
+73,06/08/2018,poor,Tunkinsky,51.76323,102.26656,834,S,10,180,sandy loam, dry,, more than 10 years ago
+7,15/08/2018,singular,Chitinsky,51.80830556,113.14175,727,W,5,,light loam, dry,,2000  2008  2017
+66,01/08/2018,no regeneration,Zaigraevskoe,51.91636,108.3247,726,SE,5,110,sandy loam, mesic,,2002 - crown fire  2017 - surface fire
+72,06/08/2018,abundant,Tunkinsky,51.76028,102.22508,827,SW,3,180,loamy, wet,,1996 crown fire
+58,02/08/2018,poor,Pribaikalskoe,52.16921,107.60446,537,SW,5,230,light loam, mesic,,2003
+64,01/08/2018,no regeneration,Zaigraevskoe,51.91676,108.33461,706,SE,5,100,sandy loam, mesic,,2002 -crown fire  2017-high-severity surface fire
+70,05/08/2018,abundant,Tunkinsky,51.71106,101.62588,936,S,5,180, loam, wet,,1996
+4,16/07/2018,singular,Chitinsky,51.80714,113.16473,800,SW,7,,sandy loam, mesic,,2000
+71,05/08/2018,poor,Tunkinsky,51.71022,101.63377,943,SW,8,220,light loamy, wet,, more than 10 years ago
+61,02/08/2018,abundant,Pribaikalskoe,52.17189,107.65391,565,SW,10,260,sandy loam, dry,,
+48,29/07/2018,abundant,Gorodskoe Ulan-Udinskoe,51.88002,107.626,831,SE, 15-20,120,sandy loam, mesic,,2003
+62,02/08/2018,abundant,Pribaikalskoe,52.17124,107.70193,560,SE,10,200,sandy loam, mesic,,
+77,06/08/2018,abundant,Tunkinsky,51.87807,102.44425,741,SE,5,150,loamy, wet,, more than 10 years ago
