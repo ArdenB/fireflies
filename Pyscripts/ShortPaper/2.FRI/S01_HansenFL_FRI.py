@@ -6,9 +6,9 @@ This script creates a boolean mask based on rules
 """
 #==============================================================================
 
-__title__ = "Hansen GFC FRI calculator"
+__title__ = "Boreal Forest Mask"
 __author__ = "Arden Burrell"
-__version__ = "v1.0(21.08.2019)"
+__version__ = "v1.0(19.08.2019)"
 __email__ = "arden.burrell@gmail.com"
 
 #==============================================================================
@@ -69,117 +69,176 @@ import myfunctions.corefunctions as cf
 
 def main():
 
-	# ========== Create the mask dates ==========
-	dates  = datefixer(2000, 1, 1)
+	force = False
+	# ========== Create the dates ==========
+	dates  = datefixer(2018, 12, 31)
 	data   = datasets()
-	nfval  = 0.0  # TC Value considered not forest
-	minTC  = 0.30 # Minimum Tree cover
-	maxNF  = 0.50 # Max fraction of non forest
-	force  = True
+	dsn    = "HansenGFC"
 
-	# ========== Loop over the datasets ==========
-	for dsn in data:
-		# ========== Set up the filename and global attributes =========
-		fpath        = "./data/other/ForestExtent/%s/" % dsn
-		cf.pymkdir(fpath)
+	# ========== select and analysis scale ==========
+	# For ~1km scale pixels
+	dsnRES    = "COPERN"
+	maskpath  = "./data/other/ForestExtent/%s/" % dsnRES
+	FRIwin    = 100
 
-		DAin, global_attrs = dsloader(data, dsn, dates)
+	# ========== Set up the filename and global attributes =========
+	fpath        = "./data/other/FRI/%s/" % dsn
+	cf.pymkdir(fpath)
 
-		# ========== Note, this is to be transformed into a loop ==========
-		# ========== open the forest cover file ==========
-		fparts = []
-		for LonM, LatM in list(itertools.product(range(100, 120, 10), range(60, 70, 10))):
+	# ========== Note, this is to be transformed into a loop ==========
+	fparts = []
+	for LonM, LatM in list(itertools.product(range(100, 120, 10), range(60, 70, 10))):
+		
+		# ========== Create the outfile name ==========
+		fnout        = fpath + "BorealForestLoss_%s_%03d_%02d.nc" % (dsn, LonM, LatM)
+		if os.path.isfile(fnout) and not force:
+			print("dataset for %s %03d %02d already exist. going to next chunk" % (dsn, LonM, LatM))
+			continue
+		
+		# ========== Open the Hansen Forest Loss ==========
+		BA, dsmask, global_attrs = ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn)
 
-			# ========== Create the outfile name ==========
-			fnout = fpath + "BorealForest_2000forestcover_%s_%03d_%02d.nc" % (dsn, LonM, LatM)
-			if os.path.isfile(fnout) and not force:
-				print("dataset for %s %03d %02d already exist. going to next chunk" % (dsn, LonM, LatM))
-				continue
-			# ========== lOAD THE Hansen Forest GFC ==========
-			fcda  = Forest2000(LonM, LatM, dates)
-			
-			# ========== subset the dataset in to match the forest cover ==========
-			DAin_sub = DAin.sel(dict(
-				latitude=slice(LatM , LatM-10), 
-				longitude=slice(LonM, LonM+10)))
-			# ========== calculate the scale factor ==========
-			rat = np.round(np.array(DAin.attrs["res"]) / np.array(fcda.attrs["res"]))
-			if np.unique(rat).shape[0] == 1:
-				# the scale factor between datasets
-				SF = int(rat[0])
-				RollF = int(SF/2 - 0.5)
-			else:
-				warn.warn("Lat and lon have different scale factors")
-				ipdb.set_trace()
-				sys.exit()
+		# ========== Determine Annual Forest loss fraction ==========
+		AFN = ForesLossCal(BA, dsmask, dates, data, dsn)
 
+		def _FRIcal(AFN, FRIwin, dsmask):
+			if AFN.chunks is None:
+				MW_AFN = (AFN.rolling(
+				 	{"longitude":FRIwin}, center = True, min_periods=25).mean().rolling(
+				 	{"latitude" :FRIwin}, center = True, min_periods=25).mean())
+				MW_AFN = MW_AFN.where(dsmask["ForestMask"]==1)
+				FRI    = (1/MW_AFN)
+				return FRI
+		ipdb.set_trace()
+		sys.exit()
 
-			# MW_FC = (fcda.rolling(
-			# 	{"longitude":SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean().rolling(
-			# 	{"latitude" :SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean())
-			# MW_NF = (NFda.rolling(
-			# 	{"longitude":SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean().rolling(
-			# 	{ "latitude":SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean())
+		# ========== calculate the mean forest cover ==========
+		# +++++ Moving window Smoothing +++++
 
-			def _TCcal(fcda, SF, dsn, DAin_sub, RollF, skip=False):
-				# +++++ Moving window Smoothing +++++
-				MW_lons  = fcda.rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
-				MW_lons  = tempNCmaker(dsn, MW_lons, "MW_lon", chunks={'longitude': 1000}, skip=skip)
-				MW_FC    = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+		# # +++++ Moving window Smoothing +++++
+		# MeanFC = MW_FC.reindex_like(DAin_sub, method="nearest")    
 
-				# ========== Reindex ==========
-				MeanFC = (MW_FC.reindex_like(DAin_sub, method="nearest") / 100.0).persist()
-				MeanFC = MeanFC.where(~(MeanFC<0.0), 0.0) 
-				MeanFC = MeanFC.where(~(MeanFC>1.0), 1.0) 
-				return MeanFC
+	
 
-			def _NFcal(fcda, nfval, SF, DAin_sub, dsn, RollF, skip=False):
-				
-				NFda       = (fcda<=nfval).astype(float)
-				# +++++ Get the number of non forested pixels +++++
+		# # ========== make the dataset ==========
+		# ds, encoding = dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout)
+		# delayed_obj = ds.to_netcdf(fnout, 
+		# 	format         = 'NETCDF4', 
+		# 	encoding       = encoding,
+		# 	unlimited_dims = ["time"],
+		# 	compute=False)
 
-				MW_NFlons = NFda.rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
-				MW_NFlons = tempNCmaker(dsn, MW_NFlons, "MW_NF_lon", chunks={'longitude': 1000}, skip=skip)
-				MW_NF     = MW_NFlons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+		# print("Starting write of data at", pd.Timestamp.now())
+		# with ProgressBar():
+		# 	results = delayed_obj.compute()
+		# # ipdb.set_trace()
+		# fparts.append(fnout)
 
-				# ========== Reindex ==========
-				NFfrac = (MW_NF.reindex_like(DAin_sub, method="nearest")).persist()
-				NFfrac = NFfrac.where(~(NFfrac<0.0), 0.0) 
-				NFfrac = NFfrac.where(~(NFfrac>1.0), 1.0) 
-
-				return NFfrac
-			
-			# ========== calculate the mean forest cover ==========
-			MeanFC = _TCcal(fcda, SF, dsn, DAin_sub, RollF, skip=False)
-
-			# ========== calculate the Non forest fraction ==========
-			NFfrac =  _NFcal(fcda, nfval, SF, DAin_sub, dsn, RollF, skip=False)
-			# ========== Determine if its a forest ==========
-			BFbool = (MeanFC>=minTC).astype(float) * (NFfrac<=maxNF).astype(float)
-
-			# ========== make the dataset ==========
-			ds, encoding = dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout)
-			delayed_obj = ds.to_netcdf(fnout, 
-				format         = 'NETCDF4', 
-				encoding       = encoding,
-				unlimited_dims = ["time"],
-				compute=False)
-
-			print("Starting write of data at", pd.Timestamp.now())
-			with ProgressBar():
-				results = delayed_obj.compute()
-
-			fparts.append(fnout)
-
-	ipdb.set_trace()
+		ipdb.set_trace()
 
 #==============================================================================
+
+def ForesLossCal(BA, dsmask, dates, data, dsn):
+	""" 
+	Function to calculate the forest loss at the grid scale of the mask
+	args:
+		BA: xr DA
+			Hansen Loss year for the region
+	returns:
+
+
+		SF: int
+			the number of pixels in a 
+	"""
+
+	# ========== calculate the grid scale factor ==========
+	rat = np.round(np.array(dsmask["NonForestFraction"].attrs["res"]) / np.array(BA.attrs["res"]))
+	if np.unique(rat).shape[0] == 1:
+		# the scale factor between datasets
+		SF    = int(rat[0])
+		RollF = int(SF/2 - 0.5) # the minus 0.5 is correct for rolling windows
+	else:
+		warn.warn("Lat and lon have different scale factors")
+		ipdb.set_trace()
+		sys.exit()
+
+	warn.warn("\n\n I still need to implement some form of boolean MODIS Active fire mask in order to get Fire only \n\n")
+	
+	# ========== Pull the Non Forest fraction from the mask ========== 
+	NF       = dsmask["NonForestFraction"]
+	
+	# ========== Convert forest loss to bool ==========
+	TC_loss  = (BA>0).astype(float)
+	# +++++ Get the number of non forested pixels +++++
+
+	MW_lons  = TC_loss.rolling({"longitude":SF}, center = True, min_periods=RollF).mean()
+	# Save out aa file so i can rechunk it  
+	MW_lons  = tempNCmaker(dsn, MW_lons, "MW_lon", chunks={'longitude': 1000}, skip=False)
+	MW_loss  = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+	MW_loss  = MW_loss.where(~(MW_loss<0), 0).chunk({'latitude':1000})
+
+	# ========== Reindex to the mask gird ===========
+	FL       = (MW_loss.reindex_like(NF, method="nearest")).values
+	FL[FL>1] = 1
+	OF       = (1.0 - NF).where((1.0 - NF)>0)   # Original Forest (circa 200), where to rm div by zero
+	# ========== calculate the fraction of original forest that was lost ==========
+	BF       = (FL / OF).rename("BurntFraction").persist()              # Burnt Fraction
+	BF       = BF.where(BF<=1, 1)
+
+	# ========== Convert to an Anuual Burnt area  ==========
+	yrs = 18.0 #2000-2018
+	ABF =  (BF/yrs).rename("AnnualBurntFraction") #Annual Burnt Fraction
+	return ABF
+	
+
+
+def ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn):
+	"""
+	Function takes a lon and a lat and them opens the appropiate 2000 forest 
+	cover data
+	args:
+		LonM: int
+			must be divisible by 10
+		LatM: int
+			must be divisible by 10
+	returns:
+		ds: xarray dataset
+			processed xr dataset 
+	"""
+	if LonM >= 0:
+		lon = "%03dE" % LonM
+	else:
+		lon = "%03dW" % abs(LonM)
+	if LatM >= 0:
+		lat = "%02dN" % LatM
+	else:
+		lon = "%02dS" % abs(LatM)
+	# ========== Create the path ==========
+	path = "./data/Forestloss/Lossyear/Hansen_GFC-2018-v1.6_lossyear_%s_%s.tif" % (lat, lon)
+	da = xr.open_rasterio(path)
+	da = da.rename({"band":"time", "x":"longitude", "y":"latitude"}) 
+	# da = da.chunk({'latitude': 4444})   
+	da = da.chunk({'latitude': 1000})   #, "longitude":4000
+	# da = da.chunk({'latitude': 1000, "longitude":4000})   #
+
+	da["time"] = dates["CFTime"]
+
+	# ========== Open the forest Mask file for the output grid ==========
+	maskfn = maskpath + "BorealForest_2000forestcover_%s_%03d_%02d.nc" % (dsnRES, LonM, LatM)
+	dsmask = xr.open_dataset(maskfn) 
+	dsmask["time"] = dates["CFTime"]
+	# for var in ["ForestMask","TreeCover","NonForestFraction"]:
+	# 	dsmask[var]["time"] = dates["CFTime"]
+	global_attrs = GlobalAttributes(dsmask, dsn)
+	
+	return da, dsmask, global_attrs
+#==============================================================================
 def tempNCmaker(dsn, da, vname, chunks={'longitude': 1000}, skip=False):
-	ftemp        = "./data/other/tmp/" 
+	ftemp        = "./data/other/FRI/%s/tmp/" % dsn
 	cf.pymkdir(ftemp)
 	
 	dstemp   =  xr.Dataset({"temp":da}) 
-	fntmp    = ftemp +"temp_file_%s_%s.nc"  % (vname, dsn)
+	fntmp    = ftemp +"temp_file_%s.nc"  % vname
 	encoding =  ({"temp":{'shuffle':True,'zlib':True,'complevel':5}})
 
 	if not skip:
@@ -189,12 +248,15 @@ def tempNCmaker(dsn, da, vname, chunks={'longitude': 1000}, skip=False):
 			unlimited_dims = ["time"],
 			compute=False)
 
-		print("Starting write of %s temp data at" % vname, pd.Timestamp.now())
+		print("Starting write of data at", pd.Timestamp.now())
 		with ProgressBar():
 			results = delayed_obj.compute()
 	dsout = xr.open_dataset(fntmp, chunks=chunks) 
 	return dsout["temp"]
-
+#==============================================================================
+#==============================================================================
+#==============================================================================
+#==============================================================================
 def dsloader(data, dsn, dates):
 	"""Function to load and process data"""
 
@@ -214,38 +276,29 @@ def dsloader(data, dsn, dates):
 
 
 	else:
-		# ========== Load the dataset =========
 		if data[dsn]["chunks"] is None:
 			DS           = xr.open_dataset(data[dsn]["fname"])
+			
 			DAin         = DS[data[dsn]["var"]]
-		else:
-			DS           = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
-			# Pull out the chunks 
-			if 'time' in data[dsn]["chunks"].keys():
-				DAin         = DS[data[dsn]["var"]].isel({'time':0})
-			else:
-				warn.warn("This has not been implemented yet")
+			DAin["time"] = dates["CFTime"]
+			if not data[dsn]["rename"] is None:
+				DAin    = DAin.rename(data[dsn]["rename"])
+			
+			global_attrs = GlobalAttributes(DS, dsn)
+			try:
+				len(DAin.attrs["res"])
+			except KeyError:
+				DAin.attrs["res"] = ([
+					abs(np.unique(np.diff(DAin.longitude.values))[0]),
+					abs(np.unique(np.diff(DAin.latitude.values))[0]) ])
+			except:
+				print("Unknown error")
 				ipdb.set_trace()
 				sys.exit()
-
-		if not data[dsn]["rename"] is None:
-			DAin    = DAin.rename(data[dsn]["rename"])
-		try:
-			DAin["time"] = dates["CFTime"]
-		except ValueError:
-			DAin["time"] = np.squeeze(dates["CFTime"])
-		global_attrs = GlobalAttributes(DS, dsn)
-		
-		try:
-			len(DAin.attrs["res"])
-		except KeyError:
-			DAin.attrs["res"] = ([
-				abs(np.unique(np.diff(DAin.longitude.values))[0]),
-				abs(np.unique(np.diff(DAin.latitude.values))[0]) ])
-		except Exception as e:
-			print("Unknown error", str(e))
+		else:
+			warn.warn("This has not been implemented yet")
 			ipdb.set_trace()
-			raise e
+			sys.exit()
 	return DAin, global_attrs
 
 def dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout):
@@ -290,10 +343,10 @@ def attrs_fixer(origda, da, vname, sname, dates):
 	da.attrs['units'     ]	="1",
 	da.attrs['standard_name']	="BF%s" % sname, 
 	da.attrs['long_name'	]	="BorealForest%s" %vname,
-	# if sname == "TC":
-	# 	da.attrs['valid_range']	= [-1, 100.0]	
-	# else:
-	da.attrs['valid_range']	= [0.0, 1.0]
+	if sname == "TC":
+		da.attrs['valid_range']	= [-1, 100.0]	
+	else:
+		da.attrs['valid_range']	= [0.0, 1.0]
 	da.longitude.attrs['units'] = 'degrees_east'
 	da.latitude.attrs['units']  = 'degrees_north'
 	da.time.attrs["calendar"]   = dates["calendar"]
@@ -330,7 +383,7 @@ def datefixer(year, month, day):
 
 #==============================================================================
 
-def GlobalAttributes(ds, dsn, fname=""):
+def GlobalAttributes(ds, dsn):
 	"""
 	Creates the global attributes for the netcdf file that is being written
 	these attributes come from :
@@ -355,16 +408,14 @@ def GlobalAttributes(ds, dsn, fname=""):
 	# ========== Fill the Dictionary ==========
 
 	# ++++++++++ Highly recomended ++++++++++ 
-	attr["FileName"]            = fname
-	attr["title"]               = "BorealForest2000forestcover"
-	attr["summary"]             = ('''
-		Boreal Forest Mask For %s Data. 
-		''' % (dsn))
+	attr["FileName"]            = ""
+	attr["title"]               = "FRI"
+	attr["summary"]             = "BorealForestLossandFRI_%sData" % (dsn)
 	attr["Conventions"]         = "CF-1.7"
 	
 	# ++++++++++ Data Provinance ++++++++++ 
-	attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s. Maks built using data from %s" % (
-		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__, "https://glad.umd.edu/projects/gfm/boreal/data.html")
+	attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s. FRI caluculated using %s data" % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__, dsn)
 	
 	if not ds is None:
 		attr["history"]            += ds.history
@@ -379,53 +430,12 @@ def GlobalAttributes(ds, dsn, fname=""):
 	# attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
 	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
 	return attr
-
+# @jit
 #==============================================================================
-def Forest2000(LonM, LatM, dates):
-	"""
-	Function takes a lon and a lat and them opens the appropiate 2000 forest 
-	cover data
-	args:
-		LonM: int
-			must be divisible by 10
-		LatM: int
-			must be divisible by 10
-	returns:
-		ds: xarray dataset
-			processed xr dataset 
-	"""
-	if LonM >= 0:
-		lon = "%03dE" % LonM
-	else:
-		lon = "%03dW" % abs(LonM)
-	if LatM >= 0:
-		lat = "%02dN" % LatM
-	else:
-		lon = "%02dS" % abs(LatM)
-	# ========== Create the path ==========
-	path = "./data/Forestloss/2000Forestcover/Hansen_GFC-2018-v1.6_treecover2000_%s_%s.tif" % (lat, lon)
-
-
-	da = xr.open_rasterio(path)
-	da = da.rename({"band":"time", "x":"longitude", "y":"latitude"}) 
-	# da = da.chunk({'latitude': 4444})   
-	# {'latitude': 1000}
-	da = da.chunk({'latitude': 1000})   #, "longitude":1000
-
-	da["time"] = dates["CFTime"]
-	
-	return da
-
 
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
-		"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
 	data["COPERN_BA"] = ({
 		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
 		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
@@ -437,6 +447,18 @@ def datasets():
 		"fname":"./data/BurntArea/20010101-ESACCI-L3S_FIRE-BA-MODIS-AREA_4-fv5.1-JD.tif",
 		'var':"BurntArea", "gridres":"250m", "region":"Asia", "timestep":"Monthly", 
 		"start":2001, "end":2018, "rasterio":True, "chunks":{'latitude': 1000},
+		"rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
+	data["COPERN"] = ({
+		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
+		'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
+		"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
+		})
+	data["HansenGFC"] = ({
+		'fname':"./data/Forestloss/Lossyear/Hansen_GFC-2018-v1.6_lossyear_*_*.tif",
+		'var':"lossyear", "gridres":"25m", "region":"Global", "timestep":"Annual",
+		"start":2000, "end":2018,"rasterio":False, "chunks":{'latitude': 1000},
 		"rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
 	# data["MODISaqua"] = ({
@@ -451,31 +473,7 @@ def datasets():
 		# })
 	return data
 
-# ======= DO NOT DELETE THESE YET< THE INDEXING APPROACH MAK BE GREAT FOR LANDSAT MOVIE ++++++++++++
-def Isforest(tp, FC, maxNF = 0.40, minCC = 0.3):
 
-	
-	# ===== Mean canapy cover ==========
-	fcM = FC.mean().compute()
-	ipdb.set_trace()
-	sys.exit()
-	# ===== Fraction of non forest ==========
-	fcB =  (FC == 0).sum().compute()/np.prod(FC.shape).astype(float)
-	if (fcM >= minCC) and (fcB <= maxNF):
-		return 1
-	else:
-		return 0 	
-
-def lonforest(BAlon, fcLon, lonres, latres):
-	"""
-	Function to loop over each row 
-	"""
-	array = np.zeros(BAlon.latitude.shape[0])
-	for ilat in range(0, BAlon.latitude.shape[0]):
-		tp = BAlon.isel(latitude=ilat)
-		FC = 	fcLon.sel(dict(	latitude=slice(tp.latitude.values+latres, tp.latitude.values-latres)))
-		array[ilat] = Isforest(tp, FC, maxNF = 0.40, minCC = 0.3)
-	return array
 	
 #==============================================================================
 if __name__ == '__main__':
