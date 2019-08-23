@@ -171,6 +171,7 @@ def main():
 
 			fparts.append(fnout)
 
+	warn.warn("I need to implement something to clean up the temp files here")
 	ipdb.set_trace()
 
 #==============================================================================

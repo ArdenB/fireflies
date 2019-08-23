@@ -79,7 +79,8 @@ def main():
 	# For ~1km scale pixels
 	dsnRES    = "COPERN"
 	maskpath  = "./data/other/ForestExtent/%s/" % dsnRES
-	FRIwin    = 100
+	FRIwin    = 2 #in decimal segrees
+	BPT       = 0.4
 
 	# ========== Set up the filename and global attributes =========
 	fpath        = "./data/other/FRI/%s/" % dsn
@@ -96,10 +97,12 @@ def main():
 			continue
 		
 		# ========== Open the Hansen Forest Loss ==========
-		BA, dsmask, global_attrs = ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn)
+		BA, BFC, dsmask, global_attrs = ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn)
+
 
 		# ========== Determine Annual Forest loss fraction ==========
-		AFN = ForesLossCal(BA, dsmask, dates, data, dsn)
+		AnnualForestLoss(BA, BFC, dsmask, global_attrs, FRIwin, dsn)
+		# AFN = ForesLossCal(BA, dsmask, dates, data, dsn, BPT)
 
 		def _FRIcal(AFN, FRIwin, dsmask):
 			if AFN.chunks is None:
@@ -137,18 +140,66 @@ def main():
 		ipdb.set_trace()
 
 #==============================================================================
+def AnnualForestLoss(BA, BFC, dsmask, global_attrs, FRIwin, dsn):
+	""" 
+	Function to work out how much or the forest burnt in a given yeat
+	"""
+	# ========== Calculate scale factors ==========
+	rat = np.round(FRIwin / np.array(BFC.attrs["res"]) )
+	if np.unique(rat).shape[0] == 1:
+		# the scale factor between datasets
+		SF    = int(rat[0])
+		RollF = int(SF/2 - 0.5) # the minus 0.5 is correct for rolling windows
+	else:
+		warn.warn("Lat and lon have different scale factors")
+		ipdb.set_trace()
+		sys.exit()
 
-def ForesLossCal(BA, dsmask, dates, data, dsn):
+	# ========== Workout if its a forest in 2000 ==========
+	FstThres = 0.30
+	IsForest = (BFC >= FstThres)
+
+	# ========== Pull the Non Forest fraction from the mask ========== 
+	NF       = dsmask["NonForestFraction"]
+
+	# ========== Create an active fire detection layer ==========
+	warn.warn("\n\n I still need to implement some form of boolean MODIS Active fire mask in order to get Fire only \n\n")
+	
+	# ========== Loop over each year ==========
+	for yr in range(1, 19):
+		
+		# ========== Convert the BA into a boolean value ==========
+		BA_yr = (BA==yr).astype(float)
+		BA_yr =  BA_yr.where(IsForest) # Nan mask non forests
+
+		# ########################## SKIP FOR TESTING ONLY ##############
+		skip = False
+
+		# ========== Start the rolling ==========
+		MW_lons  = BA_yr.rolling({"longitude":SF}, center = True, min_periods=RollF).mean()
+		# Save out aa file so i can rechunk it  
+		print("Startung 20%02d Moving window tempfile at:" % yr, pd.Timestamp.now())
+		MW_lons  = tempNCmaker(dsn, MW_lons, "MW_lon_%d" % yr, chunks={'longitude': 1000}, skip=skip)
+		MW_loss  = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+		MW_loss  = MW_loss.where(~(MW_loss<0), 0).chunk({'latitude':1000})
+
+		# ========== Reindex to the mask gird ===========
+		FL       = MW_loss.reindex_like(NF, method="nearest").compute()
+		ipdb.set_trace()
+		sys.exit()
+
+def ForesLossCal(BA, dsmask, dates, data, dsn, BPT):
 	""" 
 	Function to calculate the forest loss at the grid scale of the mask
 	args:
 		BA: xr DA
 			Hansen Loss year for the region
+
+		BPT: float
+			the percent of the small scale pixels that need to burn for an area to count as having burnt
+
 	returns:
 
-
-		SF: int
-			the number of pixels in a 
 	"""
 
 	# ========== calculate the grid scale factor ==========
@@ -156,7 +207,7 @@ def ForesLossCal(BA, dsmask, dates, data, dsn):
 	if np.unique(rat).shape[0] == 1:
 		# the scale factor between datasets
 		SF    = int(rat[0])
-		RollF = int(SF/2 - 0.5) # the minus 0.5 is correct for rolling windows
+		RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
 	else:
 		warn.warn("Lat and lon have different scale factors")
 		ipdb.set_trace()
@@ -184,6 +235,7 @@ def ForesLossCal(BA, dsmask, dates, data, dsn):
 	# ========== calculate the fraction of original forest that was lost ==========
 	BF       = (FL / OF).rename("BurntFraction").persist()              # Burnt Fraction
 	BF       = BF.where(BF<=1, 1)
+	ipdb.set_trace()
 
 	# ========== Convert to an Anuual Burnt area  ==========
 	yrs = 18.0 #2000-2018
@@ -223,6 +275,13 @@ def ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn):
 
 	da["time"] = dates["CFTime"]
 
+	# ========== Create the path ==========
+	tpath = "./data/Forestloss/2000Forestcover/Hansen_GFC-2018-v1.6_treecover2000_%s_%s.tif" % (lat, lon)
+	daFC = xr.open_rasterio(tpath)
+	daFC = daFC.rename({"band":"time", "x":"longitude", "y":"latitude"}) 
+	daFC = daFC.chunk({'latitude': 1000})   #, "longitude":1000
+	daFC["time"] = dates["CFTime"]
+
 	# ========== Open the forest Mask file for the output grid ==========
 	maskfn = maskpath + "BorealForest_2000forestcover_%s_%03d_%02d.nc" % (dsnRES, LonM, LatM)
 	dsmask = xr.open_dataset(maskfn) 
@@ -231,7 +290,7 @@ def ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn):
 	# 	dsmask[var]["time"] = dates["CFTime"]
 	global_attrs = GlobalAttributes(dsmask, dsn)
 	
-	return da, dsmask, global_attrs
+	return da, daFC, dsmask, global_attrs
 #==============================================================================
 def tempNCmaker(dsn, da, vname, chunks={'longitude': 1000}, skip=False):
 	ftemp        = "./data/other/FRI/%s/tmp/" % dsn
@@ -473,6 +532,34 @@ def datasets():
 		# })
 	return data
 
+# def _annualtester(BA, dsmask, dates, data, dsn, BPT):
+# 	""" 
+# 	Test function to calculate the fraction that burns each year
+# 	args:
+
+# 	returns:
+
+# 	"""
+# 	outp  = OrderedDict()
+# 	for yr in range(1, 19):
+		
+# 		BE      = (BA == yr) # Burn Event1
+# 		BFpix   = (dsmask["ForestMask"].sum().values/1120**2) * 40000**2  
+		
+# 		BFyr    = BE.sum().values
+# 		AnnFrac = BFyr/((40000**2)-BFpix)
+# 		AnFRI   = (1/AnnFrac)
+# 		outp["%d" %  (2000+yr)] = ({"FunrFrac":AnnFrac, "AnFRI":AnFRI})
+# 		# outp["FunrFrac"] = AnnFrac
+# 		# outp["FunrFrac"] = AnFRI
+# 		# print(yr, AnnFrac, AnFRI)
+
+# 	ipdb.set_trace()
+# 	pass
+
+# _annualtester(BA, dsmask, dates, data, dsn, BPT)
+# ipdb.set_trace()
+# sys.exit()
 
 	
 #==============================================================================
