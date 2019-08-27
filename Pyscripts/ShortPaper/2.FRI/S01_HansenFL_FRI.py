@@ -68,36 +68,178 @@ import myfunctions.corefunctions as cf
 
 
 def main():
+	# sys.exit()
 
 	force = False
 	# ========== Create the dates ==========
 	dates  = datefixer(2018, 12, 31)
 	data   = datasets()
 	dsn    = "HansenGFC"
+	tcf    = 0.0  
+	region = "SIBERIA"
 
 	# ========== select and analysis scale ==========
-	# For ~1km scale pixels
-	dsnRES    = "COPERN"
-	maskpath  = "./data/other/ForestExtent/%s/" % dsnRES
-	FRIwin    = 2 #in decimal segrees
+	mwbox     = [1, 2, 5 10] #in decimal degrees
 	BPT       = 0.4
 
 	# ========== Set up the filename and global attributes =========
-	fpath        = "./data/other/FRI/%s/" % dsn
+	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
+	pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
+	fpath        = "%s/FRI/" %  ppath
 	cf.pymkdir(fpath)
+
+	# ========== Setup the paths ==========
+	def _Hansenfile(ppath, pptex, ft):
+		dpath  = "%s/%s/" % (ppath, pptex[ft])
+		datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
+		# fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
+		return xr.open_dataset(datafn, chunks={'latitude': 100})
+
+	# ========== get the datatsets ==========
+	ds_tc = _Hansenfile(ppath, pptex, "treecover2000")
+	ds_ly = _Hansenfile(ppath, pptex, "lossyear")
+	ds_dm = _Hansenfile(ppath, pptex, "datamask")
+
+	# ========== Load in a test dataset and fix the time ==========
+	ds_test = xr.open_dataset("./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc").isel(time=-1)
+	ds_test["time"] = ds_tc["time"] 
+	
+	# ========== subset the dataset in to match the forest cover ==========
+	ds_testSUB = ds_test.sel(dict(
+		latitude =slice(ds_tc.latitude.max().values,  ds_tc.latitude.min().values), 
+		longitude=slice(ds_tc.longitude.min().values, ds_tc.longitude.max().values)))
+
+	# ========== Test of the incoming values ==========
+	# with ProgressBar():
+	# 	test_tc = ds_tc.reindex_like(ds_testSUB, method="nearest").compute()
+	# with ProgressBar():
+	# 	test_dm = ds_dm.reindex_like(ds_testSUB, method="nearest").compute()    
+	# with ProgressBar():
+	# 	test_ly = ds_ly.reindex_like(ds_testSUB, method="nearest").compute()
+
+	def TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf,ds_testSUB=None):
+		"""
+		function us applied to the hansen forest loss products 
+		"""
+		
+
+		# ========== Create the outfile name ==========
+		fnout        = "%sHansen_GFC-2018-v1.6_FRI_%ddegMW_%s.nc" % (fpath, mwb, region)
+		if os.path.isfile(fnout) and not force:
+			print("dataset for %d deg already exist. going to next window" % (mwb))
+			return xr.open_dataset(fnout, chunks={'longitude': 1000}) 
+
+		# ========== Calculate scale factors ==========
+		rat = np.round(mwb / np.array(ds_tc["treecover2000"].attrs["res"]) )
+		if np.unique(rat).shape[0] == 1:
+			# the scale factor between datasets
+			SF    = int(rat[0])
+			RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
+		else:
+			warn.warn("Lat and lon have different scale factors")
+			ipdb.set_trace()
+			sys.exit()
+		
+		# ========== Calculate the amount of forest that was lost ==========
+		ba_ly = ds_ly > 0
+
+		# ========== implement the masks ==========
+		ba_ly = ba_ly.where((ds_tc >  tcf).rename({"treecover2000":"lossyear"}))  # mask out the non forest
+		ba_ly = ba_ly.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
+		warn.warn("\n\n I still need to implement some form of boolean MODIS Active fire mask in order to get Fire only \n\n")
+
+		# ========== Perform the moving windows ==========
+		MW_lons  = ba_ly.rolling({"longitude":SF}, center = True, min_periods=RollF).mean()
+		# Save out aa file so i can rechunk it  
+		MW_lons  =  tempNCmaker(
+			MW_lons, fpath+"tmp/", 
+			"Hansen_GFC-2018-v1.6_boolloss_MWtmp_lon_%s_%ddegMW.nc" % (region, mwb), 
+			"lossyear", chunks={'longitude': 1000}, skip=True)
+		
+		with ProgressBar():
+			test_mw1 = MW_lons.reindex_like(ds_testSUB, method="nearest").compute()
+
+		MW_loss  = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+		MW_loss  = MW_loss.where(~(MW_loss<0), 0)
+		# MW_loss  = MW_loss.where((ds_tc >  tcf).rename({"treecover2000":"lossyear"}))  # mask out the non forest
+		# MW_loss  = MW_loss.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
+		
+		# ========== Fix all the metadata ==========
+		MW_loss.attrs                      = ds_ly.attrs
+		MW_loss["lossyear"].attrs          = ds_ly["lossyear"].attrs
+		MW_loss["lossyear"].latitude.attrs = ds_ly["lossyear"].latitude.attrs
+		MW_loss["lossyear"].longitude.attrs = ds_ly["lossyear"].longitude.attrs
+		MW_loss["lossyear"].time.attrs     = ds_ly["lossyear"].time.attrs
+
+		# ========== Save it out ==========
+		encoding =  ({"lossyear":{'shuffle':True,'zlib':True,'complevel':5}})
+		delayed_obj = ds.to_netcdf(fnout, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
+
+		ipdb.set_trace()
+		print("Starting write of data at", pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
+
+		MW_loss = xr.open_dataset(fnout, chunks={'longitude': 1000}) 
+
+		# ========== implemented for testing ==========
+		with ProgressBar():
+			test_mw2 = MW_loss.reindex_like(ds_testSUB, method="nearest").compute()
+
+		ipdb.set_trace()
+		return MW_loss
+	
+	for mwb in  mwbox:
+		ds = TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf,ds_testSUB=None)
+
+	ipdb.set_trace()
+
+
+		# ========== Save the results out ==========
+
+	warn.warn('''
+		This script did not work as planned, trying a new approach. Until its implelmted 
+		this script is obsolete ''')
+	sys.exit()
 
 	# ========== Note, this is to be transformed into a loop ==========
 	fparts = []
 	for LonM, LatM in list(itertools.product(range(100, 120, 10), range(60, 70, 10))):
 		
-		# ========== Create the outfile name ==========
-		fnout        = fpath + "BorealForestLoss_%s_%03d_%02d.nc" % (dsn, LonM, LatM)
-		if os.path.isfile(fnout) and not force:
-			print("dataset for %s %03d %02d already exist. going to next chunk" % (dsn, LonM, LatM))
-			continue
 		
 		# ========== Open the Hansen Forest Loss ==========
 		BA, BFC, dsmask, global_attrs = ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn)
+
+
+		def _annualtester(BA, dsmask, dates, data, dsn, BPT):
+			""" 
+			Test function to calculate the fraction that burns each year
+			args:
+
+			returns:
+
+			"""
+			outp  = OrderedDict()
+			for yr in range(1, 19):
+				
+				BE      = (BA == yr) # Burn Event1
+				BFpix   = (dsmask["ForestMask"].sum().values/1120**2) * 40000**2  
+				
+				BFyr    = BE.sum().values
+				AnnFrac = BFyr/((40000**2)-BFpix)
+				AnFRI   = (1/AnnFrac)
+				outp["%d" %  (2000+yr)] = ({"FunrFrac":AnnFrac, "AnFRI":AnFRI})
+				# outp["FunrFrac"] = AnnFrac
+				# outp["FunrFrac"] = AnFRI
+				print(yr, AnnFrac, AnFRI)
+
+			ipdb.set_trace()
+		_annualtester(BA, dsmask, dates, data, dsn, BPT)
+		ipdb.set_trace()
 
 
 		# ========== Determine Annual Forest loss fraction ==========
@@ -138,6 +280,31 @@ def main():
 		# fparts.append(fnout)
 
 		ipdb.set_trace()
+
+
+#==============================================================================
+
+def tempNCmaker(ds, tmppath, tmpname, vname, chunks={'longitude': 1000}, skip=False):
+
+	""" Function to save out a tempary netcdf """
+	cf.pymkdir(tmppath)
+	
+	fntmp    = tmppath + tmpname
+	encoding =  ({vname:{'shuffle':True,'zlib':True,'complevel':5}})
+
+	if skip and os.path.isfile(fntmp):
+		delayed_obj = ds.to_netcdf(fntmp, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
+
+		print("Starting write of temp data at", pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
+	dsout = xr.open_dataset(fntmp, chunks=chunks) 
+	return dsout
+#==============================================================================
 
 #==============================================================================
 def AnnualForestLoss(BA, BFC, dsmask, global_attrs, FRIwin, dsn):
@@ -242,8 +409,6 @@ def ForesLossCal(BA, dsmask, dates, data, dsn, BPT):
 	ABF =  (BF/yrs).rename("AnnualBurntFraction") #Annual Burnt Fraction
 	return ABF
 	
-
-
 def ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn):
 	"""
 	Function takes a lon and a lat and them opens the appropiate 2000 forest 
@@ -291,28 +456,7 @@ def ForestDataloader(LonM, LatM, dates, maskpath, dsnRES, dsn):
 	global_attrs = GlobalAttributes(dsmask, dsn)
 	
 	return da, daFC, dsmask, global_attrs
-#==============================================================================
-def tempNCmaker(dsn, da, vname, chunks={'longitude': 1000}, skip=False):
-	ftemp        = "./data/other/FRI/%s/tmp/" % dsn
-	cf.pymkdir(ftemp)
-	
-	dstemp   =  xr.Dataset({"temp":da}) 
-	fntmp    = ftemp +"temp_file_%s.nc"  % vname
-	encoding =  ({"temp":{'shuffle':True,'zlib':True,'complevel':5}})
 
-	if not skip:
-		delayed_obj = dstemp.to_netcdf(fntmp, 
-			format         = 'NETCDF4', 
-			encoding       = encoding,
-			unlimited_dims = ["time"],
-			compute=False)
-
-		print("Starting write of data at", pd.Timestamp.now())
-		with ProgressBar():
-			results = delayed_obj.compute()
-	dsout = xr.open_dataset(fntmp, chunks=chunks) 
-	return dsout["temp"]
-#==============================================================================
 #==============================================================================
 #==============================================================================
 #==============================================================================
@@ -532,29 +676,6 @@ def datasets():
 		# })
 	return data
 
-# def _annualtester(BA, dsmask, dates, data, dsn, BPT):
-# 	""" 
-# 	Test function to calculate the fraction that burns each year
-# 	args:
-
-# 	returns:
-
-# 	"""
-# 	outp  = OrderedDict()
-# 	for yr in range(1, 19):
-		
-# 		BE      = (BA == yr) # Burn Event1
-# 		BFpix   = (dsmask["ForestMask"].sum().values/1120**2) * 40000**2  
-		
-# 		BFyr    = BE.sum().values
-# 		AnnFrac = BFyr/((40000**2)-BFpix)
-# 		AnFRI   = (1/AnnFrac)
-# 		outp["%d" %  (2000+yr)] = ({"FunrFrac":AnnFrac, "AnFRI":AnFRI})
-# 		# outp["FunrFrac"] = AnnFrac
-# 		# outp["FunrFrac"] = AnFRI
-# 		# print(yr, AnnFrac, AnFRI)
-
-# 	ipdb.set_trace()
 # 	pass
 
 # _annualtester(BA, dsmask, dates, data, dsn, BPT)

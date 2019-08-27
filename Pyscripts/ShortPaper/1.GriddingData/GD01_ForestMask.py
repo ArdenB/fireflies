@@ -68,50 +68,69 @@ import myfunctions.corefunctions as cf
 
 
 def main():
+	# ========== Setup the paths ==========
+	ft     = "treecover2000"
+	region = "SIBERIA"
+	force  = False
+	
 
 	# ========== Create the mask dates ==========
 	dates  = datefixer(2000, 1, 1)
-	data   = datasets()
 	nfval  = 0.0  # TC Value considered not forest
 	minTC  = 0.30 # Minimum Tree cover
 	maxNF  = 0.50 # Max fraction of non forest
 	force  = True
+	data   = datasets()
+
+	# ========== Setup the paths ==========
+	dpath  = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/FC2000/"
+	datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
+	# fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
+	ds     = xr.open_dataset(datafn, chunks={'latitude': 100})
 
 	# ========== Loop over the datasets ==========
 	for dsn in data:
+		# def _forestmask(ds, ft, region, dsn, data, nfval, minTC, maxNF, force):
+		# 	pass
 		# ========== Set up the filename and global attributes =========
 		fpath        = "./data/other/ForestExtent/%s/" % dsn
 		cf.pymkdir(fpath)
+		
+		# ========== Create the outfile name ==========
+		fnout = fpath + "BorealForestExtent_%s_%s_.nc" % (dsn)
+		if os.path.isfile(fnout) and not force:
+			print("dataset for %s %03d %02d already exist. going to next chunk" % (dsn, region))
+			continue
 
 		DAin, global_attrs = dsloader(data, dsn, dates)
 
-		# ========== Note, this is to be transformed into a loop ==========
+		# ========== subset the dataset in to match the forest cover ==========
+		DAin_sub = DAin.sel(dict(
+			latitude=slice(ds.latitude.max().values, ds.latitude.min().values), 
+			longitude=slice(ds.longitude.min().values, ds.longitude.max().values)))
+
+		# ========== calculate the scale factor ==========
+		rat = np.round(np.array(DAin.attrs["res"]) / np.array(fcda.attrs["res"]))
+		# the scale factor between datasets
+		if np.unique(rat).shape[0] == 1:
+			SF = int(rat[0])
+			RollF = int(SF/2 - 0.5)
+		else:
+			warn.warn("Lat and lon have different scale factors")
+			ipdb.set_trace()
+			sys.exit()
+
+
+		ipdb.set_trace()
+		sys.exit()
+
 		# ========== open the forest cover file ==========
 		fparts = []
 		for LonM, LatM in list(itertools.product(range(100, 120, 10), range(60, 70, 10))):
 
-			# ========== Create the outfile name ==========
-			fnout = fpath + "BorealForest_2000forestcover_%s_%03d_%02d.nc" % (dsn, LonM, LatM)
-			if os.path.isfile(fnout) and not force:
-				print("dataset for %s %03d %02d already exist. going to next chunk" % (dsn, LonM, LatM))
-				continue
 			# ========== lOAD THE Hansen Forest GFC ==========
-			fcda  = Forest2000(LonM, LatM, dates)
+			# fcda  = Forest2000(LonM, LatM, dates)
 			
-			# ========== subset the dataset in to match the forest cover ==========
-			DAin_sub = DAin.sel(dict(
-				latitude=slice(LatM , LatM-10), 
-				longitude=slice(LonM, LonM+10)))
-			# ========== calculate the scale factor ==========
-			rat = np.round(np.array(DAin.attrs["res"]) / np.array(fcda.attrs["res"]))
-			if np.unique(rat).shape[0] == 1:
-				# the scale factor between datasets
-				SF = int(rat[0])
-				RollF = int(SF/2 - 0.5)
-			else:
-				warn.warn("Lat and lon have different scale factors")
-				ipdb.set_trace()
-				sys.exit()
 
 
 			# MW_FC = (fcda.rolling(
@@ -175,12 +194,13 @@ def main():
 	ipdb.set_trace()
 
 #==============================================================================
-def tempNCmaker(dsn, da, vname, chunks={'longitude': 1000}, skip=False):
-	ftemp        = "./data/other/tmp/" 
-	cf.pymkdir(ftemp)
+def tempNCmaker(tmppath, tmpfname, ds, chunks={'longitude': 1000}, skip=False):
+	"""
+	Function to write out a tempoary file 
+	"""
 	
-	dstemp   =  xr.Dataset({"temp":da}) 
-	fntmp    = ftemp +"temp_file_%s_%s.nc"  % (vname, dsn)
+	# dstemp   =  xr.Dataset({"temp":da}) 
+	# fntmp    = ftemp +"temp_file_%s_%s.nc"  % (vname, dsn)
 	encoding =  ({"temp":{'shuffle':True,'zlib':True,'complevel':5}})
 
 	if not skip:
