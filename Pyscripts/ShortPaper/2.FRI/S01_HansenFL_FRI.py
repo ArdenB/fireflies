@@ -79,7 +79,7 @@ def main():
 	region = "SIBERIA"
 
 	# ========== select and analysis scale ==========
-	mwbox     = [1, 2, 5 10] #in decimal degrees
+	mwbox     = [10, 2, 5, 1] #in decimal degrees
 	BPT       = 0.4
 
 	# ========== Set up the filename and global attributes =========
@@ -117,84 +117,11 @@ def main():
 	# with ProgressBar():
 	# 	test_ly = ds_ly.reindex_like(ds_testSUB, method="nearest").compute()
 
-	def TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf,ds_testSUB=None):
-		"""
-		function us applied to the hansen forest loss products 
-		"""
-		
-
-		# ========== Create the outfile name ==========
-		fnout        = "%sHansen_GFC-2018-v1.6_FRI_%ddegMW_%s.nc" % (fpath, mwb, region)
-		if os.path.isfile(fnout) and not force:
-			print("dataset for %d deg already exist. going to next window" % (mwb))
-			return xr.open_dataset(fnout, chunks={'longitude': 1000}) 
-
-		# ========== Calculate scale factors ==========
-		rat = np.round(mwb / np.array(ds_tc["treecover2000"].attrs["res"]) )
-		if np.unique(rat).shape[0] == 1:
-			# the scale factor between datasets
-			SF    = int(rat[0])
-			RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
-		else:
-			warn.warn("Lat and lon have different scale factors")
-			ipdb.set_trace()
-			sys.exit()
-		
-		# ========== Calculate the amount of forest that was lost ==========
-		ba_ly = ds_ly > 0
-
-		# ========== implement the masks ==========
-		ba_ly = ba_ly.where((ds_tc >  tcf).rename({"treecover2000":"lossyear"}))  # mask out the non forest
-		ba_ly = ba_ly.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
-		warn.warn("\n\n I still need to implement some form of boolean MODIS Active fire mask in order to get Fire only \n\n")
-
-		# ========== Perform the moving windows ==========
-		MW_lons  = ba_ly.rolling({"longitude":SF}, center = True, min_periods=RollF).mean()
-		# Save out aa file so i can rechunk it  
-		MW_lons  =  tempNCmaker(
-			MW_lons, fpath+"tmp/", 
-			"Hansen_GFC-2018-v1.6_boolloss_MWtmp_lon_%s_%ddegMW.nc" % (region, mwb), 
-			"lossyear", chunks={'longitude': 1000}, skip=True)
-		
-		with ProgressBar():
-			test_mw1 = MW_lons.reindex_like(ds_testSUB, method="nearest").compute()
-
-		MW_loss  = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
-		MW_loss  = MW_loss.where(~(MW_loss<0), 0)
-		# MW_loss  = MW_loss.where((ds_tc >  tcf).rename({"treecover2000":"lossyear"}))  # mask out the non forest
-		# MW_loss  = MW_loss.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
-		
-		# ========== Fix all the metadata ==========
-		MW_loss.attrs                      = ds_ly.attrs
-		MW_loss["lossyear"].attrs          = ds_ly["lossyear"].attrs
-		MW_loss["lossyear"].latitude.attrs = ds_ly["lossyear"].latitude.attrs
-		MW_loss["lossyear"].longitude.attrs = ds_ly["lossyear"].longitude.attrs
-		MW_loss["lossyear"].time.attrs     = ds_ly["lossyear"].time.attrs
-
-		# ========== Save it out ==========
-		encoding =  ({"lossyear":{'shuffle':True,'zlib':True,'complevel':5}})
-		delayed_obj = ds.to_netcdf(fnout, 
-			format         = 'NETCDF4', 
-			encoding       = encoding,
-			unlimited_dims = ["time"],
-			compute=False)
-
-		ipdb.set_trace()
-		print("Starting write of data at", pd.Timestamp.now())
-		with ProgressBar():
-			results = delayed_obj.compute()
-
-		MW_loss = xr.open_dataset(fnout, chunks={'longitude': 1000}) 
-
-		# ========== implemented for testing ==========
-		with ProgressBar():
-			test_mw2 = MW_loss.reindex_like(ds_testSUB, method="nearest").compute()
-
-		ipdb.set_trace()
-		return MW_loss
-	
 	for mwb in  mwbox:
-		ds = TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf,ds_testSUB=None)
+		# ds = TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, ds_testSUB=ds_testSUB)
+		ValueTester(mwb, dates, ds_SUB=ds_testSUB)
+
+		# THIS IS THE BIT WHERE I LOOP OVER THE DIFFERENT OUTPUT GRID SIZES
 
 	ipdb.set_trace()
 
@@ -284,6 +211,80 @@ def main():
 
 #==============================================================================
 
+def TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, ds_testSUB=None):
+	"""
+	function us applied to the hansen forest loss products 
+	"""
+	
+
+	# ========== Create the outfile name ==========
+	fnout        = "%sHansen_GFC-2018-v1.6_FRI_%ddegMW_%s.nc" % (fpath, mwb, region)
+	if os.path.isfile(fnout) and not force:
+		print("dataset for %d deg already exist. going to next window" % (mwb))
+		return xr.open_dataset(fnout, chunks={'longitude': 1000}) 
+
+	# ========== Calculate scale factors ==========
+	rat = np.round(mwb / np.array(ds_tc["treecover2000"].attrs["res"]) )
+	if np.unique(rat).shape[0] == 1:
+		# the scale factor between datasets
+		SF    = int(rat[0])
+		RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
+	else:
+		warn.warn("Lat and lon have different scale factors")
+		ipdb.set_trace()
+		sys.exit()
+	
+	# ========== Calculate the amount of forest that was lost ==========
+	ba_ly = ds_ly > 0
+
+	# ========== implement the masks ==========
+	ba_ly = ba_ly.where((ds_tc >  tcf).rename({"treecover2000":"lossyear"}))  # mask out the non forest
+	ba_ly = ba_ly.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
+	warn.warn("\n\n I still need to implement some form of boolean MODIS Active fire mask in order to get Fire only \n\n")
+
+	# ========== Perform the moving windows ==========
+	MW_lons  = ba_ly.rolling({"longitude":SF}, center = True, min_periods=RollF).mean()
+	# Save out aa file so i can rechunk it  
+	MW_lons  =  tempNCmaker(
+		MW_lons, fpath+"tmp/", 
+		"Hansen_GFC-2018-v1.6_boolloss_MWtmp_lon_%s_%ddegMW.nc" % (region, mwb), 
+		"lossyear", chunks={'longitude': 1000}, skip=True)
+	
+	with ProgressBar():
+		test_mw1 = MW_lons.reindex_like(ds_testSUB, method="nearest").compute()
+
+	MW_loss  = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+	MW_loss  = MW_loss.where(~(MW_loss<0), 0)
+	# MW_loss  = MW_loss.where((ds_tc >  tcf).rename({"treecover2000":"lossyear"}))  # mask out the non forest
+	# MW_loss  = MW_loss.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
+	
+	# ========== Fix all the metadata ==========
+	MW_loss.attrs                       = ds_ly.attrs
+	MW_loss["lossyear"].attrs           = ds_ly["lossyear"].attrs
+	MW_loss["lossyear"].latitude.attrs  = ds_ly["lossyear"].latitude.attrs
+	MW_loss["lossyear"].longitude.attrs = ds_ly["lossyear"].longitude.attrs
+	MW_loss["lossyear"].time.attrs      = ds_ly["lossyear"].time.attrs
+
+	# ========== Save it out ==========
+	encoding =  ({"lossyear":{'shuffle':True,'zlib':True,'complevel':5}})
+	delayed_obj = MW_loss.to_netcdf(fnout, 
+		format         = 'NETCDF4', 
+		encoding       = encoding,
+		unlimited_dims = ["time"],
+		compute=False)
+
+	print("Starting write of data at", pd.Timestamp.now());
+	with ProgressBar():	results = delayed_obj.compute()
+
+	MW_loss = xr.open_dataset(fnout, chunks={'longitude': 1000}) 
+
+	# ========== implemented for testing ==========
+	with ProgressBar():
+		test_mw2 = MW_loss.reindex_like(ds_testSUB, method="nearest").compute()
+
+	ipdb.set_trace()
+	return MW_loss
+
 def tempNCmaker(ds, tmppath, tmpname, vname, chunks={'longitude': 1000}, skip=False):
 
 	""" Function to save out a tempary netcdf """
@@ -304,7 +305,76 @@ def tempNCmaker(ds, tmppath, tmpname, vname, chunks={'longitude': 1000}, skip=Fa
 			results = delayed_obj.compute()
 	dsout = xr.open_dataset(fntmp, chunks=chunks) 
 	return dsout
+
 #==============================================================================
+
+def ValueTester(mwb, dates, LatM=60, LonM=100, ds_SUB=None, var="ndvi" ):
+	"""
+	This is a test function, it opens the original geotifs and the generated 
+	netcdf and estimates the value at a given point
+	args:
+		mwb: 	int
+			size in decimal degrees of the test box
+		LatMin, LonMin
+			the lat and lon values used to open the file names
+	"""
+	print("Entering Value Checker at", pd.Timestamp.now())
+	
+	if LonM >= 0:
+		lon = "%03dE" % LonM
+	else:
+		lon = "%03dW" % abs(LonM)
+	if LatM >= 0:
+		lat = "%02dN" % LatM
+	else:
+		lon = "%02dS" % abs(LatM)
+	
+	# ========== Create the path and load data ==========
+	path = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
+	# pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
+	def _rasterio_open(fname, dates):
+		da = xr.open_rasterio(fname)
+		da = da.rename({"band":"time", "x":"longitude", "y":"latitude"}) 
+		da = da.chunk({'latitude': 1000, "longitude":1000})
+		da["time"] = dates["CFTime"]
+		return da
+	
+	pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
+	da_ly = _rasterio_open("%s/lossyear/Hansen_GFC-2018-v1.6_lossyear_%s_%s.tif" %(path, lat, lon), dates)
+	da_tc = _rasterio_open("%s/FC2000/Hansen_GFC-2018-v1.6_treecover2000_%s_%s.tif" %(path, lat, lon), dates)
+	da_dm = _rasterio_open("%s/mask/Hansen_GFC-2018-v1.6_datamask_%s_%s.tif" %(path, lat, lon), dates)
+
+	# ========== Mask the data ==========
+	da_lb = (da_ly > 0).astype(float)
+	da_lb = da_lb.where(da_tc >0)
+	da_lb = da_lb.where(da_dm==1)
+
+	# ========== Make a box ==========
+	LaMe = da_lb.latitude.mean().values 
+	LoMe = da_lb.longitude.mean().values 
+	da_box = da_lb.sel(dict(
+		latitude =slice(LaMe + (mwb/2.0),  LaMe - (mwb/2.0)), 
+		longitude=slice(LoMe - (mwb/2.0),  LoMe + (mwb/2.0))))
+
+	# ========== subset the test dataset ==========
+	if not ds_SUB is None:
+		ds_t = ds_SUB.sel(dict(
+			latitude =slice(LaMe + (mwb/2.0),  LaMe - (mwb/2.0)), 
+			longitude=slice(LoMe - (mwb/2.0),  LoMe + (mwb/2.0)))).rename({var:"band"})
+		ds_t["time"] = da_lb.time
+		with ProgressBar():
+			test_mw = da_box.reindex_like(ds_t, method="nearest").compute()
+		test_mw.plot()
+
+	 # ========== get the test values ==========
+	tot_bnt = da_box.mean().values
+	ann_bnt = (da_box.mean().values / 18)
+	est_fri = 1/ann_bnt
+
+	print(tot_bnt, ann_bnt, est_fri)
+
+	ipdb.set_trace()
+
 
 #==============================================================================
 def AnnualForestLoss(BA, BFC, dsmask, global_attrs, FRIwin, dsn):

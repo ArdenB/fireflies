@@ -82,12 +82,18 @@ def main():
 	force  = True
 	data   = datasets()
 
-	# ========== Setup the paths ==========
-	dpath  = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/FC2000/"
-	datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
-	# fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
-	ds     = xr.open_dataset(datafn, chunks={'latitude': 100})
+	# ========== load in the datasets ==========
+	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
+	ds    = HansenNCload(ppath, region, maxNF, nfval)
 
+	
+
+	# ========== Setup the paths ==========
+	# dpath  = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/FC2000/"
+	# datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
+	# # fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
+	# ds     = xr.open_dataset(datafn, chunks={'latitude': 100})
+	
 	# ========== Loop over the datasets ==========
 	for dsn in data:
 		# def _forestmask(ds, ft, region, dsn, data, nfval, minTC, maxNF, force):
@@ -97,7 +103,7 @@ def main():
 		cf.pymkdir(fpath)
 		
 		# ========== Create the outfile name ==========
-		fnout = fpath + "BorealForestExtent_%s_%s_.nc" % (dsn)
+		fnout = fpath + "BorealForestExtent_%s_%s_.nc" % (dsn, region)
 		if os.path.isfile(fnout) and not force:
 			print("dataset for %s %03d %02d already exist. going to next chunk" % (dsn, region))
 			continue
@@ -108,6 +114,9 @@ def main():
 		DAin_sub = DAin.sel(dict(
 			latitude=slice(ds.latitude.max().values, ds.latitude.min().values), 
 			longitude=slice(ds.longitude.min().values, ds.longitude.max().values)))
+
+		ipdb.set_trace()
+		sys.exit()	
 
 		# ========== calculate the scale factor ==========
 		rat = np.round(np.array(DAin.attrs["res"]) / np.array(fcda.attrs["res"]))
@@ -192,6 +201,44 @@ def main():
 
 	warn.warn("I need to implement something to clean up the temp files here")
 	ipdb.set_trace()
+
+#==============================================================================
+
+def HansenNCload(ppath, region, maxNF, nfval):
+	"""
+	Function to open the hansen data products then mask them with key values
+	args:
+		ppath:		str
+			path to the processed nc files
+		region:		str
+			name of the study region
+		naxNF:		float
+			the fraction of tree cover needed for a forest
+		nfval:		float
+			the fraction of pixels needed to consider a pixel in
+	"""
+
+	# ========== Set up the filename and global attributes =========
+	pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
+	fpath        = "%s/FRI/" %  ppath
+	cf.pymkdir(fpath)
+
+	# ========== Setup the paths ==========
+	def _Hansenfile(ppath, pptex, ft, region):
+		dpath  = "%s/%s/" % (ppath, pptex[ft])
+		datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
+		# fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
+		return xr.open_dataset(datafn, chunks={'latitude': 100})
+
+	# ========== get the datatsets ==========
+	ds_tc = _Hansenfile(ppath, pptex, "treecover2000", region)
+	# ds_ly = _Hansenfile(ppath, pptex, "lossyear", region)
+	ds_dm = _Hansenfile(ppath, pptex, "datamask", region)
+	# ========== Check if its a forest ==========
+	ds_IF = (ds_tc > nfval).astype(float).rename({"treecover2000":"datamask"})
+	ds_IF = ds_IF.where(ds_dm == 1, 0)
+	# ipdb.set_trace()
+	return ds_IF
 
 #==============================================================================
 def tempNCmaker(tmppath, tmpfname, ds, chunks={'longitude': 1000}, skip=False):
