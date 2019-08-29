@@ -78,131 +78,104 @@ def main():
 	dates  = datefixer(2000, 1, 1)
 	nfval  = 0.0  # TC Value considered not forest
 	minTC  = 0.30 # Minimum Tree cover
-	maxNF  = 0.50 # Max fraction of non forest
-	force  = True
+	maxNF  = 0.30 # Max fraction of non forest
 	data   = datasets()
 
 	# ========== load in the datasets ==========
 	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
 	ds    = HansenNCload(ppath, region, maxNF, nfval)
 
-	
-
-	# ========== Setup the paths ==========
-	# dpath  = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/FC2000/"
-	# datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
-	# # fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
-	# ds     = xr.open_dataset(datafn, chunks={'latitude': 100})
-	
 	# ========== Loop over the datasets ==========
 	for dsn in data:
-		# def _forestmask(ds, ft, region, dsn, data, nfval, minTC, maxNF, force):
-		# 	pass
 		# ========== Set up the filename and global attributes =========
 		fpath        = "./data/other/ForestExtent/%s/" % dsn
 		cf.pymkdir(fpath)
 		
-		# ========== Create the outfile name ==========
-		fnout = fpath + "BorealForestExtent_%s_%s_.nc" % (dsn, region)
-		if os.path.isfile(fnout) and not force:
-			print("dataset for %s %03d %02d already exist. going to next chunk" % (dsn, region))
-			continue
-
+		# ========== Load the grids =========
 		DAin, global_attrs = dsloader(data, dsn, dates)
 
 		# ========== subset the dataset in to match the forest cover ==========
 		DAin_sub = DAin.sel(dict(
 			latitude=slice(ds.latitude.max().values, ds.latitude.min().values), 
 			longitude=slice(ds.longitude.min().values, ds.longitude.max().values)))
+		
+		# ========== generate the new datasets ==========
+		out = _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs, dates)
 
-		ipdb.set_trace()
-		sys.exit()	
-
-		# ========== calculate the scale factor ==========
-		rat = np.round(np.array(DAin.attrs["res"]) / np.array(fcda.attrs["res"]))
-		# the scale factor between datasets
-		if np.unique(rat).shape[0] == 1:
-			SF = int(rat[0])
-			RollF = int(SF/2 - 0.5)
-		else:
-			warn.warn("Lat and lon have different scale factors")
-			ipdb.set_trace()
-			sys.exit()
-
-
-		ipdb.set_trace()
-		sys.exit()
-
-		# ========== open the forest cover file ==========
-		fparts = []
-		for LonM, LatM in list(itertools.product(range(100, 120, 10), range(60, 70, 10))):
-
-			# ========== lOAD THE Hansen Forest GFC ==========
-			# fcda  = Forest2000(LonM, LatM, dates)
-			
-
-
-			# MW_FC = (fcda.rolling(
-			# 	{"longitude":SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean().rolling(
-			# 	{"latitude" :SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean())
-			# MW_NF = (NFda.rolling(
-			# 	{"longitude":SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean().rolling(
-			# 	{ "latitude":SF}, center = True, min_periods=np.floor(SF/2).astype(int)).mean())
-
-			def _TCcal(fcda, SF, dsn, DAin_sub, RollF, skip=False):
-				# +++++ Moving window Smoothing +++++
-				MW_lons  = fcda.rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
-				MW_lons  = tempNCmaker(dsn, MW_lons, "MW_lon", chunks={'longitude': 1000}, skip=skip)
-				MW_FC    = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
-
-				# ========== Reindex ==========
-				MeanFC = (MW_FC.reindex_like(DAin_sub, method="nearest") / 100.0).persist()
-				MeanFC = MeanFC.where(~(MeanFC<0.0), 0.0) 
-				MeanFC = MeanFC.where(~(MeanFC>1.0), 1.0) 
-				return MeanFC
-
-			def _NFcal(fcda, nfval, SF, DAin_sub, dsn, RollF, skip=False):
-				
-				NFda       = (fcda<=nfval).astype(float)
-				# +++++ Get the number of non forested pixels +++++
-
-				MW_NFlons = NFda.rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
-				MW_NFlons = tempNCmaker(dsn, MW_NFlons, "MW_NF_lon", chunks={'longitude': 1000}, skip=skip)
-				MW_NF     = MW_NFlons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
-
-				# ========== Reindex ==========
-				NFfrac = (MW_NF.reindex_like(DAin_sub, method="nearest")).persist()
-				NFfrac = NFfrac.where(~(NFfrac<0.0), 0.0) 
-				NFfrac = NFfrac.where(~(NFfrac>1.0), 1.0) 
-
-				return NFfrac
-			
-			# ========== calculate the mean forest cover ==========
-			MeanFC = _TCcal(fcda, SF, dsn, DAin_sub, RollF, skip=False)
-
-			# ========== calculate the Non forest fraction ==========
-			NFfrac =  _NFcal(fcda, nfval, SF, DAin_sub, dsn, RollF, skip=False)
-			# ========== Determine if its a forest ==========
-			BFbool = (MeanFC>=minTC).astype(float) * (NFfrac<=maxNF).astype(float)
-
-			# ========== make the dataset ==========
-			ds, encoding = dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout)
-			delayed_obj = ds.to_netcdf(fnout, 
-				format         = 'NETCDF4', 
-				encoding       = encoding,
-				unlimited_dims = ["time"],
-				compute=False)
-
-			print("Starting write of data at", pd.Timestamp.now())
-			with ProgressBar():
-				results = delayed_obj.compute()
-
-			fparts.append(fnout)
-
-	warn.warn("I need to implement something to clean up the temp files here")
 	ipdb.set_trace()
 
 #==============================================================================
+def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs, dates):
+	"""
+	Takes the datasets and rolls them to get the mean forest fraction
+	args:
+		ds:		xr ds
+			the hansen is forest bool
+		DAin_sub: xr da
+			the dataarray with the matched grid
+	"""
+	# ========== Setup the file name and check overwrite ==========
+	fnout = fpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMask.nc" % (dsn, region)
+
+	if os.path.isfile (fnout) and not force:
+		print("a file already exists for %s" % (dsn))
+		return fnout
+
+	# ========== calculate the scale factor ==========
+	rat = np.round(np.array(DAin_sub.attrs["res"]) / np.array(ds.datamask.attrs["res"]))
+	# the scale factor between datasets
+	if np.unique(rat).shape[0] == 1:
+		SF = int(rat[0])
+		RollF = int(SF/4 - 0.5)
+
+	else:
+		warn.warn("Lat and lon have different scale factors")
+		ipdb.set_trace()
+		sys.exit()
+
+	# +++++ Moving window Smoothing +++++
+	MW_lons   = ds.rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
+	MW_lonsRI = MW_lons.reindex({"longitude":DAin_sub.longitude}, method="nearest")
+	MW_lonsRI = MW_lonsRI.chunk({"latitude":-1, "longitude":1000})
+	# MW_lonsRI = tempNCmaker(MW_lonsRI, fptmp, fntmp, "datamask", chunks={'longitude': 1000}, skip=False)
+
+	# +++++ Apply the second smooth +++++
+	MW_FC    = MW_lonsRI.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+	MW_FC_RI = MW_FC.reindex({"latitude":DAin_sub.latitude}, method="nearest")
+
+
+	# +++++ Fix the metadata +++++
+	MW_FC_RI.attrs = ds.attrs
+	MW_FC_RI.attrs["history"]  = "%s: Converted to a boolean forest mask, then resampled to match %s grid resolution using %s" % ((str(pd.Timestamp.now())), dsn, __file__) +MW_FC_RI.attrs["history"]
+	MW_FC_RI.attrs["FileName"] = fnout
+	MW_FC_RI.datamask.attrs    = ds.datamask.attrs	
+	MW_FC_RI.latitude.attrs    = ds.latitude.attrs		
+	MW_FC_RI.longitude.attrs   = ds.longitude.attrs
+
+
+	# ========== Create the new layers ==========
+	MW_FC_RI["mask"] = (MW_FC_RI.datamask >= maxNF).astype(int)		
+	MW_FC_RI         = MW_FC_RI.rename({"datamask":"ForestFraction"})
+
+
+	encoding = OrderedDict()
+	for ky in ["ForestFraction", "mask"]:
+		encoding[ky] = 	 ({'shuffle':True,
+			# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
+			'zlib':True,
+			'complevel':5})
+
+	delayed_obj = MW_FC_RI.to_netcdf(fnout, 
+		format         = 'NETCDF4', 
+		encoding       = encoding,
+		unlimited_dims = ["time"],
+		compute=False)
+
+	print("Starting write of %s gridded data at:" % dsn, pd.Timestamp.now())
+	with ProgressBar():
+		results = delayed_obj.compute()
+
+	return fnout
 
 def HansenNCload(ppath, region, maxNF, nfval):
 	"""
@@ -237,31 +210,97 @@ def HansenNCload(ppath, region, maxNF, nfval):
 	# ========== Check if its a forest ==========
 	ds_IF = (ds_tc > nfval).astype(float).rename({"treecover2000":"datamask"})
 	ds_IF = ds_IF.where(ds_dm == 1, 0)
-	# ipdb.set_trace()
+	# ========== Add back the attrs i need ==========
+	ds_IF.datamask.attrs = ds_dm.datamask.attrs
+
 	return ds_IF
 
 #==============================================================================
-def tempNCmaker(tmppath, tmpfname, ds, chunks={'longitude': 1000}, skip=False):
+# FUnctions i'm not usre if i'm using 
+#==============================================================================
+def dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout):
+
+	# ========== Start making the netcdf ==========
+	layers   = OrderedDict()
+	encoding = OrderedDict()
+	layers["ForestMask"]        = attrs_fixer(
+		DAin_sub, BFbool,"ForestMask", "mask", dates)
+	layers["TreeCover"]         = attrs_fixer(
+		DAin_sub, MeanFC, "TreeCover", "TC", dates)
+	layers["NonForestFraction"] = attrs_fixer(
+		DAin_sub, NFfrac,"NonForestFraction", "NF", dates)
+
+	enc = ({'shuffle':True,
+		# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
+		'zlib':True,
+		'complevel':5})
+	for ly in layers:
+		encoding[ly] = enc
+	# ========== make the dataset ==========
+	ds = xr.Dataset(layers, attrs= global_attrs)
+	ds.attrs["FileName"] = fnout
+	return ds, encoding
+
+def attrs_fixer(origda, da, vname, sname, dates):
 	"""
-	Function to write out a tempoary file 
+	Function to fix the metadata of the dataarrays
+	args:
+		origda:	XR datarray, 
+			the original meta data
+		da: xa dataarray
+			the dataarray to be fixed
+		vname: str
+			name of the variable
+	retunrs
+		da: xr dataarray with fixed metadata
 	"""
+	# ========== Make the DA ==========
+	da.attrs = origda.attrs.copy()
+	da.attrs['_FillValue']	=-1, #9.96921e+36
+	da.attrs['units'     ]	="1",
+	da.attrs['standard_name']	="BF%s" % sname, 
+	da.attrs['long_name'	]	="BorealForest%s" %vname,
+	# if sname == "TC":
+	# 	da.attrs['valid_range']	= [-1, 100.0]	
+	# else:
+	da.attrs['valid_range']	= [0.0, 1.0]
+	da.longitude.attrs['units'] = 'degrees_east'
+	da.latitude.attrs['units']  = 'degrees_north'
+	da.time.attrs["calendar"]   = dates["calendar"]
+	da.time.attrs["units"]      = dates["units"]
+
+	return da
+
+#==============================================================================
+#==============================================================================
+#==============================================================================	
+
+def datefixer(year, month, day):
+	"""
+	Opens a netcdf file and fixes the data, then save a new file and returns
+	the save file name
+	args:
+		ds: xarray dataset
+			dataset of the xarray values
+	return
+		time: array
+			array of new datetime objects
+	"""
+
+
+	# ========== create the new dates ==========
+	# +++++ set up the list of dates +++++
+	dates = OrderedDict()
+	tm = [dt.datetime(int(year) , int(month), int(day))]
+	dates["time"] = pd.to_datetime(tm)
+
+	dates["calendar"] = 'standard'
+	dates["units"]    = 'days since 1900-01-01 00:00'
 	
-	# dstemp   =  xr.Dataset({"temp":da}) 
-	# fntmp    = ftemp +"temp_file_%s_%s.nc"  % (vname, dsn)
-	encoding =  ({"temp":{'shuffle':True,'zlib':True,'complevel':5}})
+	dates["CFTime"]   = date2num(
+		tm, calendar=dates["calendar"], units=dates["units"])
 
-	if not skip:
-		delayed_obj = dstemp.to_netcdf(fntmp, 
-			format         = 'NETCDF4', 
-			encoding       = encoding,
-			unlimited_dims = ["time"],
-			compute=False)
-
-		print("Starting write of %s temp data at" % vname, pd.Timestamp.now())
-		with ProgressBar():
-			results = delayed_obj.compute()
-	dsout = xr.open_dataset(fntmp, chunks=chunks) 
-	return dsout["temp"]
+	return dates
 
 def dsloader(data, dsn, dates):
 	"""Function to load and process data"""
@@ -316,88 +355,6 @@ def dsloader(data, dsn, dates):
 			raise e
 	return DAin, global_attrs
 
-def dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout):
-
-	# ========== Start making the netcdf ==========
-	layers   = OrderedDict()
-	encoding = OrderedDict()
-	layers["ForestMask"]        = attrs_fixer(
-		DAin_sub, BFbool,"ForestMask", "mask", dates)
-	layers["TreeCover"]         = attrs_fixer(
-		DAin_sub, MeanFC, "TreeCover", "TC", dates)
-	layers["NonForestFraction"] = attrs_fixer(
-		DAin_sub, NFfrac,"NonForestFraction", "NF", dates)
-
-	enc = ({'shuffle':True,
-		# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
-		'zlib':True,
-		'complevel':5})
-	for ly in layers:
-		encoding[ly] = enc
-	# ========== make the dataset ==========
-	ds = xr.Dataset(layers, attrs= global_attrs)
-	ds.attrs["FileName"] = fnout
-	return ds, encoding
-
-def attrs_fixer(origda, da, vname, sname, dates):
-	"""
-	Function to fix the metadata of the dataarrays
-	args:
-		origda:	XR datarray, 
-			the original meta data
-		da: xa dataarray
-			the dataarray to be fixed
-		vname: str
-			name of the variable
-	retunrs
-		da: xr dataarray with fixed metadata
-	"""
-	# ========== Make the DA ==========
-	da.attrs = origda.attrs.copy()
-	da.attrs['_FillValue']	=-1, #9.96921e+36
-	da.attrs['units'     ]	="1",
-	da.attrs['standard_name']	="BF%s" % sname, 
-	da.attrs['long_name'	]	="BorealForest%s" %vname,
-	# if sname == "TC":
-	# 	da.attrs['valid_range']	= [-1, 100.0]	
-	# else:
-	da.attrs['valid_range']	= [0.0, 1.0]
-	da.longitude.attrs['units'] = 'degrees_east'
-	da.latitude.attrs['units']  = 'degrees_north'
-	da.time.attrs["calendar"]   = dates["calendar"]
-	da.time.attrs["units"]      = dates["units"]
-
-	return da
-	
-def datefixer(year, month, day):
-	"""
-	Opens a netcdf file and fixes the data, then save a new file and returns
-	the save file name
-	args:
-		ds: xarray dataset
-			dataset of the xarray values
-	return
-		time: array
-			array of new datetime objects
-	"""
-
-
-	# ========== create the new dates ==========
-	# +++++ set up the list of dates +++++
-	dates = OrderedDict()
-	tm = [dt.datetime(int(year) , int(month), int(day))]
-	dates["time"] = pd.to_datetime(tm)
-
-	dates["calendar"] = 'standard'
-	dates["units"]    = 'days since 1900-01-01 00:00'
-	
-	dates["CFTime"]   = date2num(
-		tm, calendar=dates["calendar"], units=dates["units"])
-
-	return dates
-
-#==============================================================================
-
 def GlobalAttributes(ds, dsn, fname=""):
 	"""
 	Creates the global attributes for the netcdf file that is being written
@@ -448,46 +405,15 @@ def GlobalAttributes(ds, dsn, fname=""):
 	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
 	return attr
 
-#==============================================================================
-def Forest2000(LonM, LatM, dates):
-	"""
-	Function takes a lon and a lat and them opens the appropiate 2000 forest 
-	cover data
-	args:
-		LonM: int
-			must be divisible by 10
-		LatM: int
-			must be divisible by 10
-	returns:
-		ds: xarray dataset
-			processed xr dataset 
-	"""
-	if LonM >= 0:
-		lon = "%03dE" % LonM
-	else:
-		lon = "%03dW" % abs(LonM)
-	if LatM >= 0:
-		lat = "%02dN" % LatM
-	else:
-		lon = "%02dS" % abs(LatM)
-	# ========== Create the path ==========
-	path = "./data/Forestloss/2000Forestcover/Hansen_GFC-2018-v1.6_treecover2000_%s_%s.tif" % (lat, lon)
-
-
-	da = xr.open_rasterio(path)
-	da = da.rename({"band":"time", "x":"longitude", "y":"latitude"}) 
-	# da = da.chunk({'latitude': 4444})   
-	# {'latitude': 1000}
-	da = da.chunk({'latitude': 1000})   #, "longitude":1000
-
-	da["time"] = dates["CFTime"]
-	
-	return da
-
-
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	data["GIMMS"] = ({
+		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
+		'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
+		"start":1982, "end":2017, "rasterio":False, "chunks":{'time': 36},
+		"rename":None
+		})
 	data["COPERN"] = ({
 		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
 		'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",

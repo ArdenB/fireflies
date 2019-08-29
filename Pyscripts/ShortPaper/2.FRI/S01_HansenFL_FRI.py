@@ -79,7 +79,7 @@ def main():
 	region = "SIBERIA"
 
 	# ========== select and analysis scale ==========
-	mwbox     = [10, 2, 5, 1] #in decimal degrees
+	mwbox     = [2, 5, 1, 10] #in decimal degrees
 	BPT       = 0.4
 
 	# ========== Set up the filename and global attributes =========
@@ -109,17 +109,108 @@ def main():
 		latitude =slice(ds_tc.latitude.max().values,  ds_tc.latitude.min().values), 
 		longitude=slice(ds_tc.longitude.min().values, ds_tc.longitude.max().values)))
 
-	# ========== Test of the incoming values ==========
-	# with ProgressBar():
-	# 	test_tc = ds_tc.reindex_like(ds_testSUB, method="nearest").compute()
-	# with ProgressBar():
-	# 	test_dm = ds_dm.reindex_like(ds_testSUB, method="nearest").compute()    
-	# with ProgressBar():
-	# 	test_ly = ds_ly.reindex_like(ds_testSUB, method="nearest").compute()
 
 	for mwb in  mwbox:
-		# ds = TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, ds_testSUB=ds_testSUB)
-		ValueTester(mwb, dates, ds_SUB=ds_testSUB)
+		# ========== Loop over the datasets ==========
+		for dsn in data:
+			# ========== Set up the filename and global attributes =========
+			# fpath        = "./data/other/ForestExtent/%s/" % dsn
+			# cf.pymkdir(fpath)
+			
+			# ========== Load the grids =========
+			DAin, global_attrs = dsloader(data, dsn, dates)
+
+			# ========== subset the dataset in to match the forest cover ==========
+			DAin_sub = DAin.sel(dict(
+				latitude=slice(ds_ly.latitude.max().values, ds_ly.latitude.min().values), 
+				longitude=slice(ds_ly.longitude.min().values, ds_ly.longitude.max().values)))
+
+			def dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub):
+				"""
+				This function will try a different approach to reindexing
+				"""
+				# ========== Create the outfile name ==========
+				fnout = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_%ddegMW_%s.nc" % (fpath, dsn, mwb, region)
+				if os.path.isfile(fnout) and not force:
+					print("dataset for %d deg already exist. going to next window" % (mwb))
+					return xr.open_dataset(fnout) 
+
+				# ========== Calculate scale factors ==========
+				rat = np.round(mwb / np.array(ds_tc["treecover2000"].attrs["res"]) )
+				if np.unique(rat).shape[0] == 1:
+					# the scale factor between datasets
+					SF    = int(rat[0])
+					# RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
+					RollF = 100
+				else:
+					warn.warn("Lat and lon have different scale factors")
+					ipdb.set_trace()
+					sys.exit()
+
+				# ========== Calculate the amount of forest that was lost ==========
+				ba_ly = ds_ly > 0
+
+				# ========== implement the masks ==========
+				ba_ly = ba_ly.where((ds_tc >  tcf).rename({"treecover2000":"lossyear"}))  # mask out the non forest
+				ba_ly = ba_ly.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
+				warn.warn("\n\n I still need to implement some form of boolean MODIS Active fire mask in order to get Fire only \n\n")
+				
+				# +++++ Moving window Smoothing +++++
+				MW_lons   = ba_ly.rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
+				MW_lonsRI = MW_lons.reindex({"longitude":DAin_sub.longitude}, method="nearest")
+				MW_lonsRI = MW_lonsRI.chunk({"latitude":-1, "longitude":1000})
+
+				# +++++ Apply the second smooth +++++
+				MW_FC    = MW_lonsRI.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+				MW_FC_RI = MW_FC.reindex({"latitude":DAin_sub.latitude}, method="nearest")
+
+				# +++++ Fix the metadata +++++
+				MW_FC_RI.attrs = ds_ly.attrs
+				MW_FC_RI.attrs["history"]  = "%s: Fraction of burnt forest after a %d degree spatial smoothing, then resampled to match %s grid resolution using %s" % ((str(pd.Timestamp.now())), mwb, dsn, __file__) +MW_FC_RI.attrs["history"]
+				MW_FC_RI.attrs["FileName"] = fnout
+				MW_FC_RI       = MW_FC_RI.rename({"lossyear":"lossfrac"})
+				MW_FC_RI.lossfrac.attrs    = ds_ly.lossyear.attrs	
+				MW_FC_RI.latitude.attrs    = ds_ly.latitude.attrs		
+				MW_FC_RI.longitude.attrs   = ds_ly.longitude.attrs
+				# ========== Create the new layers ==========
+				MW_FC_RI["lossfrac"] = MW_FC_RI["lossfrac"].where(MW_FC_RI["lossfrac"]> 0)
+				MW_FC_RI["FRI"] = (1/MW_FC_RI["lossfrac"]) * 18
+
+
+				maskpath        = "./data/other/ForestExtent/%s/" % dsn
+				mask = xr.open_dataset(maskpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMask.nc" % (dsn, region))
+				MW_FC_RI = MW_FC_RI.where(mask.mask == 1)
+
+				encoding = OrderedDict()
+				for ky in ["lossfrac", "FRI"]:
+					encoding[ky] = 	 ({'shuffle':True,
+						# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
+						'zlib':True,
+						'complevel':5})
+
+				delayed_obj = MW_FC_RI.to_netcdf(fnout, 
+					format         = 'NETCDF4', 
+					encoding       = encoding,
+					unlimited_dims = ["time"],
+					compute=False)
+
+				print("Starting write of %s gridded data at:" % dsn, pd.Timestamp.now())
+				with ProgressBar():
+					results = delayed_obj.compute()
+
+				return xr.open_dataset(fnout) 
+			fto = dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub)
+			
+			# CHECK THIS TOMORROW
+
+			continue
+			ValueTester(fto, mwb, dates, ds_SUB=DAin_sub)
+			
+			ipdb.set_trace()
+			sys.exit()
+
+
+		# ds = TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, ds_testSUB=ds_testSUB)
 
 		# THIS IS THE BIT WHERE I LOOP OVER THE DIFFERENT OUTPUT GRID SIZES
 
@@ -211,7 +302,7 @@ def main():
 
 #==============================================================================
 
-def TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, ds_testSUB=None):
+def TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, ds_testSUB=None):
 	"""
 	function us applied to the hansen forest loss products 
 	"""
@@ -219,16 +310,17 @@ def TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, ds_test
 
 	# ========== Create the outfile name ==========
 	fnout        = "%sHansen_GFC-2018-v1.6_FRI_%ddegMW_%s.nc" % (fpath, mwb, region)
-	if os.path.isfile(fnout) and not force:
-		print("dataset for %d deg already exist. going to next window" % (mwb))
-		return xr.open_dataset(fnout, chunks={'longitude': 1000}) 
+	# if os.path.isfile(fnout) and not force:
+	# 	print("dataset for %d deg already exist. going to next window" % (mwb))
+	# 	return xr.open_dataset(fnout, chunks={'longitude': 1000}) 
 
 	# ========== Calculate scale factors ==========
 	rat = np.round(mwb / np.array(ds_tc["treecover2000"].attrs["res"]) )
 	if np.unique(rat).shape[0] == 1:
 		# the scale factor between datasets
 		SF    = int(rat[0])
-		RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
+		# RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
+		RollF = 2
 	else:
 		warn.warn("Lat and lon have different scale factors")
 		ipdb.set_trace()
@@ -248,10 +340,12 @@ def TotalForestLoss(ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, ds_test
 	MW_lons  =  tempNCmaker(
 		MW_lons, fpath+"tmp/", 
 		"Hansen_GFC-2018-v1.6_boolloss_MWtmp_lon_%s_%ddegMW.nc" % (region, mwb), 
-		"lossyear", chunks={'longitude': 1000}, skip=True)
+		"lossyear", chunks={'longitude': 1000}, skip=False)
 	
+	print("performing reindex_like test")
 	with ProgressBar():
 		test_mw1 = MW_lons.reindex_like(ds_testSUB, method="nearest").compute()
+		ipdb.set_trace()
 
 	MW_loss  = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
 	MW_loss  = MW_loss.where(~(MW_loss<0), 0)
@@ -292,8 +386,7 @@ def tempNCmaker(ds, tmppath, tmpname, vname, chunks={'longitude': 1000}, skip=Fa
 	
 	fntmp    = tmppath + tmpname
 	encoding =  ({vname:{'shuffle':True,'zlib':True,'complevel':5}})
-
-	if skip and os.path.isfile(fntmp):
+	if not all([skip, os.path.isfile(fntmp)]):
 		delayed_obj = ds.to_netcdf(fntmp, 
 			format         = 'NETCDF4', 
 			encoding       = encoding,
@@ -308,7 +401,7 @@ def tempNCmaker(ds, tmppath, tmpname, vname, chunks={'longitude': 1000}, skip=Fa
 
 #==============================================================================
 
-def ValueTester(mwb, dates, LatM=60, LonM=100, ds_SUB=None, var="ndvi" ):
+def ValueTester(ds, mwb, dates, LatM=60, LonM=100, ds_SUB=None, var="ndvi" ):
 	"""
 	This is a test function, it opens the original geotifs and the generated 
 	netcdf and estimates the value at a given point
@@ -374,7 +467,6 @@ def ValueTester(mwb, dates, LatM=60, LonM=100, ds_SUB=None, var="ndvi" ):
 	print(tot_bnt, ann_bnt, est_fri)
 
 	ipdb.set_trace()
-
 
 #==============================================================================
 def AnnualForestLoss(BA, BFC, dsmask, global_attrs, FRIwin, dsn):
@@ -549,29 +641,38 @@ def dsloader(data, dsn, dates):
 
 
 	else:
+		# ========== Load the dataset =========
 		if data[dsn]["chunks"] is None:
 			DS           = xr.open_dataset(data[dsn]["fname"])
-			
 			DAin         = DS[data[dsn]["var"]]
-			DAin["time"] = dates["CFTime"]
-			if not data[dsn]["rename"] is None:
-				DAin    = DAin.rename(data[dsn]["rename"])
-			
-			global_attrs = GlobalAttributes(DS, dsn)
-			try:
-				len(DAin.attrs["res"])
-			except KeyError:
-				DAin.attrs["res"] = ([
-					abs(np.unique(np.diff(DAin.longitude.values))[0]),
-					abs(np.unique(np.diff(DAin.latitude.values))[0]) ])
-			except:
-				print("Unknown error")
+		else:
+			DS           = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
+			# Pull out the chunks 
+			if 'time' in data[dsn]["chunks"].keys():
+				DAin         = DS[data[dsn]["var"]].isel({'time':0})
+			else:
+				warn.warn("This has not been implemented yet")
 				ipdb.set_trace()
 				sys.exit()
-		else:
-			warn.warn("This has not been implemented yet")
+
+		if not data[dsn]["rename"] is None:
+			DAin    = DAin.rename(data[dsn]["rename"])
+		try:
+			DAin["time"] = dates["CFTime"]
+		except ValueError:
+			DAin["time"] = np.squeeze(dates["CFTime"])
+		global_attrs = GlobalAttributes(DS, dsn)
+		
+		try:
+			len(DAin.attrs["res"])
+		except KeyError:
+			DAin.attrs["res"] = ([
+				abs(np.unique(np.diff(DAin.longitude.values))[0]),
+				abs(np.unique(np.diff(DAin.latitude.values))[0]) ])
+		except Exception as e:
+			print("Unknown error", str(e))
 			ipdb.set_trace()
-			sys.exit()
+			raise e
 	return DAin, global_attrs
 
 def dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout):
@@ -709,6 +810,18 @@ def GlobalAttributes(ds, dsn):
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	data["GIMMS"] = ({
+		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
+		'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
+		"start":1982, "end":2017, "rasterio":False, "chunks":{'time': 36},
+		"rename":None
+		})
+	data["COPERN"] = ({
+		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
+		'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
+		"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
+		})
 	data["COPERN_BA"] = ({
 		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
 		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
@@ -720,18 +833,6 @@ def datasets():
 		"fname":"./data/BurntArea/20010101-ESACCI-L3S_FIRE-BA-MODIS-AREA_4-fv5.1-JD.tif",
 		'var':"BurntArea", "gridres":"250m", "region":"Asia", "timestep":"Monthly", 
 		"start":2001, "end":2018, "rasterio":True, "chunks":{'latitude': 1000},
-		"rename":{"band":"time","x":"longitude", "y":"latitude"}
-		})
-	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
-		"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
-	data["HansenGFC"] = ({
-		'fname':"./data/Forestloss/Lossyear/Hansen_GFC-2018-v1.6_lossyear_*_*.tif",
-		'var':"lossyear", "gridres":"25m", "region":"Global", "timestep":"Annual",
-		"start":2000, "end":2018,"rasterio":False, "chunks":{'latitude': 1000},
 		"rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
 	# data["MODISaqua"] = ({
@@ -746,11 +847,6 @@ def datasets():
 		# })
 	return data
 
-# 	pass
-
-# _annualtester(BA, dsmask, dates, data, dsn, BPT)
-# ipdb.set_trace()
-# sys.exit()
 
 	
 #==============================================================================
