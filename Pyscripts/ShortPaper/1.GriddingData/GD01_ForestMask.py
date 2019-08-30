@@ -156,14 +156,22 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 	# ========== Create the new layers ==========
 	MW_FC_RI["mask"] = (MW_FC_RI.datamask >= maxNF).astype(int)		
 	MW_FC_RI         = MW_FC_RI.rename({"datamask":"ForestFraction"})
+	# MW_FC_RI         = MW_FC_RI.transpose("time", "latitude", "longitude")
 
+	if dsn in ["COPERN_BA", "esacci"]:
+		MW_FC_RI.chunk({"time":1, "latitude":1000, "longitude":1000})
+		enc = ({'shuffle':True,
+			'chunksizes':[1, 1000, 1000],
+			'zlib':True,
+			'complevel':5})
+	else:
+		enc = ({'shuffle':True,
+			'zlib':True,
+			'complevel':5})
 
 	encoding = OrderedDict()
 	for ky in ["ForestFraction", "mask"]:
-		encoding[ky] = 	 ({'shuffle':True,
-			# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
-			'zlib':True,
-			'complevel':5})
+		encoding[ky] = 	 enc
 
 	delayed_obj = MW_FC_RI.to_netcdf(fnout, 
 		format         = 'NETCDF4', 
