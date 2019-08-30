@@ -160,6 +160,7 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 
 	if dsn in ["COPERN_BA", "esacci"]:
 		MW_FC_RI.chunk({"time":1, "latitude":1000, "longitude":1000})
+		
 		enc = ({'shuffle':True,
 			'chunksizes':[1, 1000, 1000],
 			'zlib':True,
@@ -172,7 +173,7 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 	encoding = OrderedDict()
 	for ky in ["ForestFraction", "mask"]:
 		encoding[ky] = 	 enc
-
+	# ipdb.set_trace()
 	delayed_obj = MW_FC_RI.to_netcdf(fnout, 
 		format         = 'NETCDF4', 
 		encoding       = encoding,

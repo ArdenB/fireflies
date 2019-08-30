@@ -147,11 +147,6 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 	This function will try a different approach to reindexing
 
 	"""
-	# ========== Create the outfile name ==========
-	fnout = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_annual_%ddegMW_%s.nc" % (fpath, dsn, mwb, region)
-	if os.path.isfile(fnout) and not force:
-		print("dataset for %d deg already exist. going to next window" % (mwb))
-		return xr.open_dataset(fnout, chunks={'time': 1}) 
 
 	# ========== Calculate scale factors ==========
 	rat = np.round(mwb / np.array(ds_tc["treecover2000"].attrs["res"]) )
@@ -167,9 +162,27 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 	
 	warn.warn("\n\n I still need to implement some form of boolean MODIS Active fire mask in order to get Fire only \n\n")
 	
+	# ========== Setup the masks ==========
+	maskpath = "./data/other/ForestExtent/%s/" % dsn
+	maskfn   = maskpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMask.nc" % (dsn, region)
+	if os.path.isfile(maskfn):
+		mask = xr.open_dataset(maskfn)
+	else:
+		warn.warn("Mask file is missing")
+		ipdb.set_trace()
+		sys.exit()
+
+
 	# ========== Loop over the years ==========
-	year_lf = []
+	year_fn = []
 	for yr in range(1, 19):
+		# ========== Create the outfile name ==========
+		fnout = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_20%02d_annual_%ddegMW_%s.nc" % (fpath, dsn, yr, mwb, region)
+		if os.path.isfile(fnout) and not force:
+			print("dataset for %d 20%02d deg already exist. going to next year" % (mwb, yr))
+			year_fn.append(fnout)
+			
+
 		# ========== fetch the dates ==========
 		dts  = datefixer(2000+yr, 12, 31)
 		# ========== Calculate the amount of forest that was lost ==========
@@ -185,74 +198,67 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 		MW_lonsRI = MW_lonsRI.chunk({"latitude":-1, "longitude":1000})
 		
 		# +++++ Apply the second smooth +++++
-		MW_FC    = MW_lonsRI.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
-		MW_FC_RI = MW_FC.reindex({"latitude":DAin_sub.latitude}, method="nearest")
+		MW_FC  = MW_lonsRI.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+		ds_con = MW_FC.reindex({"latitude":DAin_sub.latitude}, method="nearest")
 	
 		# +++++ Fix the dates +++++
-		MW_FC_RI["time"]     = dts["CFTime"]
-		MW_FC_RI["lossyear"] = MW_FC_RI["lossyear"].where(MW_FC_RI["lossyear"]> 0)
-		year_lf.append(MW_FC_RI)
+		ds_con["time"]     = dts["CFTime"]
+		ds_con["lossyear"] = ds_con["lossyear"].where(ds_con["lossyear"]> 0)
+		
+		# ========== Mask out bad pixels ==========
+		ds_con = ds_con.where(mask.mask == 1)
 	
-	# ========== Combine the results ==========
-	ds_con = xr.concat(year_lf, dim="time") 
+		# ========== Combine the results ==========
+		# year_lf.append(ds_con)
+		# ds_con = xr.concat(year_lf, dim="time") 
 
-	# +++++ Fix the metadata +++++
-	ds_con.attrs = ds_ly.attrs
-	
-	ds_con.attrs["history"]  = (
-		"%s: Fraction of burnt forest after a %d degree spatial smoothing, then resampled to match %s grid resolution using %s" % 
-		((str(pd.Timestamp.now())), mwb, dsn, __file__) 
-		+ ds_con.attrs["history"])
+		# +++++ Fix the metadata +++++
+		ds_con.attrs = ds_ly.attrs
+		
+		ds_con.attrs["history"]  = (
+			"%s: Fraction of burnt forest after a %d degree spatial smoothing, then resampled to match %s grid resolution using %s" % 
+			((str(pd.Timestamp.now())), mwb, dsn, __file__) 
+			+ ds_con.attrs["history"])
 
-	ds_con.attrs["FileName"]      = fnout
-	ds_con                        = ds_con.rename({"lossyear":"lossfrac"})
-	ds_con.lossfrac.attrs         = ds_ly.lossyear.attrs	
-	ds_con.latitude.attrs         = ds_ly.latitude.attrs		
-	ds_con.longitude.attrs        = ds_ly.longitude.attrs
-	ds_con.time.attrs["calendar"] = dts["calendar"]
-	ds_con.time.attrs["units"]    = dts["units"]
+		ds_con.attrs["FileName"]      = fnout
+		ds_con                        = ds_con.rename({"lossyear":"lossfrac"})
+		ds_con.lossfrac.attrs         = ds_ly.lossyear.attrs	
+		ds_con.latitude.attrs         = ds_ly.latitude.attrs		
+		ds_con.longitude.attrs        = ds_ly.longitude.attrs
+		ds_con.time.attrs["calendar"] = dts["calendar"]
+		ds_con.time.attrs["units"]    = dts["units"]
 
-	# ========== Create the new layers ==========
-	ds_con["FRI"] = (1/ds_con["lossfrac"])
+		# ========== Create the new layers ==========
+		ds_con["FRI"] = (1/ds_con["lossfrac"])
+		
+		# ========== Build the encoding ==========
+		if dsn in ["COPERN_BA", "esacci"]:
+			enc = ({'shuffle':True,
+				'chunksizes':[1, ds_con.latitude.shape[0], 1000],
+				'zlib':True,
+				'complevel':5})
+		else:
+			enc = ({'shuffle':True,
+				'chunksizes':[1, ds_con.latitude.shape[0], ds_con.longitude.shape[0]],
+				'zlib':True,
+				'complevel':5})
 
-	# ========== Mask out bad pixels ==========
-	maskpath = "./data/other/ForestExtent/%s/" % dsn
-	maskfn   = maskpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMask.nc" % (dsn, region)
-	if os.path.isfile(maskfn):
-		mask = xr.open_dataset(maskfn)
-	else:
-		warn.warn("Mask file is missing")
-		ipdb.set_trace()
-		sys.exit()
-	MW_FC_RI = MW_FC_RI.where(mask.mask == 1)
-	
-	# ========== Build the encoding ==========
-	if dsn in ["COPERN_BA", "esacci"]:
-		enc = ({'shuffle':True,
-			'chunksizes':[1, ds_con.latitude.shape[0], 1000],
-			'zlib':True,
-			'complevel':5})
-	else:
-		enc = ({'shuffle':True,
-			'chunksizes':[1, ds_con.latitude.shape[0], ds_con.longitude.shape[0]],
-			'zlib':True,
-			'complevel':5})
+		encoding = OrderedDict()
+		for ky in ["lossfrac", "FRI"]:
+			encoding[ky] = 	 enc
 
-	encoding = OrderedDict()
-	for ky in ["lossfrac", "FRI"]:
-		encoding[ky] = 	 enc
+		delayed_obj = ds_con.to_netcdf(fnout, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
 
-	delayed_obj = ds_con.to_netcdf(fnout, 
-		format         = 'NETCDF4', 
-		encoding       = encoding,
-		unlimited_dims = ["time"],
-		compute=False)
+		print("Starting write of 20%02d %s gridded data at:" % (yr, dsn), pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
 
-	print("Starting write of %s gridded data at:" % dsn, pd.Timestamp.now())
-	with ProgressBar():
-		results = delayed_obj.compute()
+	return xr.mfopen_dataset(year_fn) 
 
-	return xr.open_dataset(fnout, chunks={'time': 1}) 
 #==============================================================================
 def dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub):
 	"""
