@@ -125,18 +125,17 @@ def main():
 				latitude=slice(ds_ly.latitude.max().values, ds_ly.latitude.min().values), 
 				longitude=slice(ds_ly.longitude.min().values, ds_ly.longitude.max().values)))
 
-			
 			fto = dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub)
 			fta = Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub)
-			
+
 			ipdb.set_trace()
 			sys.exit()
 
 			continue
 			ValueTester(fto, mwb, dates, data, dsn, ds_SUB=DAin_sub)
 			
-			ipdb.set_trace()
-			sys.exit()
+			# ipdb.set_trace()
+			# sys.exit()
 
 	ipdb.set_trace()
 	sys.exit()
@@ -179,9 +178,15 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 		# ========== Create the outfile name ==========
 		fnout = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_20%02d_annual_%ddegMW_%s.nc" % (fpath, dsn, yr, mwb, region)
 		if os.path.isfile(fnout) and not force:
-			print("dataset for %d 20%02d deg already exist. going to next year" % (mwb, yr))
-			year_fn.append(fnout)
-			
+			try:
+				print("dataset for %d 20%02d deg already exist. going to next year" % (mwb, yr))
+				ds = xr.open_dataset(fnout)
+				year_fn.append(fnout)
+				continue
+			except Exception as e:
+				warn.warn(str(e))
+				warn.warn("Retrying file")
+
 
 		# ========== fetch the dates ==========
 		dts  = datefixer(2000+yr, 12, 31)
@@ -204,9 +209,10 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 		# +++++ Fix the dates +++++
 		ds_con["time"]     = dts["CFTime"]
 		ds_con["lossyear"] = ds_con["lossyear"].where(ds_con["lossyear"]> 0)
+		# ipdb.set_trace()
 		
 		# ========== Mask out bad pixels ==========
-		ds_con = ds_con.where(mask.mask == 1)
+		ds_con = ds_con.where(mask.mask.values == 1)
 	
 		# ========== Combine the results ==========
 		# year_lf.append(ds_con)
@@ -247,6 +253,7 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 		for ky in ["lossfrac", "FRI"]:
 			encoding[ky] = 	 enc
 
+
 		delayed_obj = ds_con.to_netcdf(fnout, 
 			format         = 'NETCDF4', 
 			encoding       = encoding,
@@ -256,8 +263,8 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 		print("Starting write of 20%02d %s gridded data at:" % (yr, dsn), pd.Timestamp.now())
 		with ProgressBar():
 			results = delayed_obj.compute()
-
-	return xr.mfopen_dataset(year_fn) 
+	ipdb.set_trace()
+	return xr.open_mfdataset(year_fn) 
 
 #==============================================================================
 def dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub):
