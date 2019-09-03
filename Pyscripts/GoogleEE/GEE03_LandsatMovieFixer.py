@@ -91,6 +91,8 @@ def main():
 
 	# ========== setup the filename ==========
 	fn     = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB.mp4" 
+	fng    = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_grid.tif" 
+	da     = xr.open_rasterio(fng)
 	# fn = "/home/ubuntu/Downloads/Site4_video_region_L8_time_v8_SR.mp4"    
 
 	# ========== load the additional indomation ==========
@@ -107,14 +109,16 @@ def main():
 	# =========== Setup the annimation ===========
 	fig, ax = plt.subplots(1, figsize=(10,10), dpi=400, subplot_kw={'projection': ccrs.PlateCarree()})
 	ax.set_extent(bounds, crs=ccrs.PlateCarree())
-	
+	ipdb.set_trace()
+
+
 	# ========== Loop over each frame of the video ==========
 	nx = []
 
 	def frame_maker(index):
 		# ========== Pull the infomation from the pandas part of the loop ==========
 		# index = rowinfo[0]
-		# ipdb.set_trace()
+
 		info  = dft.iloc[int(index)] #rowinfo[1]
 		frame = videoin[int(index), :, :, :]
 		# nx += 1
@@ -122,13 +126,16 @@ def main():
 		ax.set_title("%s %s" % (info.satellite, info.date.split(" ")[0]))
 		ax.imshow(frame, extent=bounds, transform=ccrs.PlateCarree())
 		ax.scatter(dfg.lon[0], dfg.lat[0], 5, c='r', marker='+', transform=ccrs.PlateCarree())
-		# nx.append(mplfig_to_npimage(fig))
+		fig.subplots_adjust(left=0, right=1, bottom=0)
+		# plt.tight_layout()
+		# ipdb.set_trace()
+
 		return mplfig_to_npimage(fig)
 
 	# for frame, rowinfo in zip(videoin, dft.iterrows()):
 	mov = mpe.VideoClip(frame_maker, duration=int(videoin.shape[0]))
 	
-	fnout = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_updated.mp4" 
+	fnout = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_updatedV2.mp4" 
 
 	print("Starting Write of the data at:", pd.Timestamp.now())
 	mov.write_videofile(fnout, fps=1)

@@ -47,6 +47,7 @@ from numba import jit
 import ee
 import ee.mapclient
 from ee import batch
+from geetools import batch as gee_batch
 
 # from netCDF4 import Dataset, num2date, date2num 
 # from scipy import stats
@@ -139,7 +140,12 @@ def main():
 	# lon = (112.40420250574721 + 112.73241905848158)/2.0
 	# lat = (51.22323236456422  + 51.359781270083886)/2.0
 	# geom   = ee.Geometry.Point([row.lon, row.lat])
-	geom   = ee.Geometry.Point([coords.lon.values[0], coords.lat.values[0]])
+	# geom   = ee.Geometry.Point([coords.lon.values[0], coords.lat.values[0]])
+	geom = ee.Geometry.Polygon([
+			[coords.lonr_min.values[0],coords.latr_min.values[0]],
+			[coords.lonr_max.values[0],coords.latr_min.values[0]],
+			[coords.lonr_max.values[0],coords.latr_max.values[0]],
+			[coords.lonr_min.values[0],coords.latr_max.values[0]]])
 
 	# ========== Rename the LS8 bands to match landsat archive ==========
 	def renamebands(image):
@@ -186,6 +192,18 @@ def main():
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
 
+	# ========== Create a geotif ==========
+	# ipdb.set_trace()
+	gee_batch.imagecollection.toDrive(
+		collection, 
+		"/UoL/FIREFLIES/VideoExports",
+		namePattern='%s_%s_%s_{system_date}' % (dsinfom, coords.name.values[0], dsbands), 
+		region=geom, 
+		crs = "EPSG:4326", 
+		fileFormat='GeoTIFF'
+		)
+		# maxFrames=10000
+
 	## Make 8 bit data
 	def convertBit(image):
 	    return image.multiply(512).uint8()  
@@ -197,6 +215,12 @@ def main():
 		outputVideo = collection.map(convertBit)
 	else:
 		outputVideo = collection.map(convertBitV2)
+
+
+	# process = batch.Task.start(geotif)
+
+	ipdb.set_trace()
+
 
 	print("Starting to create a video for %s at:" % coords.name.values[0], pd.Timestamp.now())
 	# Export video to Google Drive

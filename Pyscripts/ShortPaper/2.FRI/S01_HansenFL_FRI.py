@@ -128,8 +128,8 @@ def main():
 			fto = dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub)
 			fta = Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, tcf, force, DAin_sub)
 
-			ipdb.set_trace()
-			sys.exit()
+			# ipdb.set_trace()
+			# sys.exit()
 
 			continue
 			ValueTester(fto, mwb, dates, data, dsn, ds_SUB=DAin_sub)
