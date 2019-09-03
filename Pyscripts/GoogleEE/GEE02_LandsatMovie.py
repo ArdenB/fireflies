@@ -192,8 +192,11 @@ def main():
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
 
+	df.to_csv("./data/other/tmp/%s_%s_%s_timeinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
+	coords.to_csv("./data/other/tmp/%s_%s_%s_gridinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
+
 	# ========== Create a geotif ==========
-	# ipdb.set_trace()
+
 	gee_batch.imagecollection.toDrive(
 		collection, 
 		"/UoL/FIREFLIES/VideoExports",
@@ -238,8 +241,6 @@ def main():
 	process = batch.Task.start(out)
 	print("Process sent to cloud")
 
-	df.to_csv("./data/other/tmp/%s_%s_%s_timeinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
-	coords.to_csv("./data/other/tmp/%s_%s_%s_gridinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
 
 	ipdb.set_trace()
 

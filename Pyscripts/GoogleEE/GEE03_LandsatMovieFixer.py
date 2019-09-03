@@ -65,6 +65,7 @@ fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is d
 
 import moviepy.editor as mpe
 import skvideo.io     as skv
+import skimage as ski
 from moviepy.video.io.bindings import mplfig_to_npimage
 
 
@@ -88,28 +89,121 @@ print("xarray version : ", xr.__version__)
 #==============================================================================
 
 def main():
+	# fn     = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB.mp4" 
+	# fng    = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_grid.tif" 
+	# da     = xr.open_rasterio(fng)
+	# fn = "/home/ubuntu/Downloads/Site4_video_region_L8_time_v8_SR.mp4"    
 
 	# ========== setup the filename ==========
-	fn     = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB.mp4" 
-	fng    = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_grid.tif" 
-	da     = xr.open_rasterio(fng)
-	# fn = "/home/ubuntu/Downloads/Site4_video_region_L8_time_v8_SR.mp4"    
+	fnames = sorted(glob.glob("/home/ubuntu/Downloads/TestSite/*.tif"))
+	SF     = 0.0001 # Scale Factor
 
 	# ========== load the additional indomation ==========
 	dft = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_TestBurn_RGB_timeinfo.csv", index_col=0, parse_dates=True)
 	dfg = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_TestBurn_RGB_gridinfo.csv", index_col=0, parse_dates=True)      
+
+	# fnn    = fnames[-1]
+	maxvals = []
+	raw  = []
+	orig = []
+	modi = []
+	for fnn, date in zip(fnames, pd.to_datetime(dft.date)):
+		
+		# =========== Open the file and scale it ==========
+		da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"}) * SF
+		raw.append(da_in)
+
+		
+		# =========== mask out dodgy values ==========
+		# da_in = da_in.where(da_in <= 1.1)
+		da_in =  da_in.where(da_in <= 1)
+		da_in =  da_in.where(da_in >= 0)
+		noNaN = ~da_in.reduce(bn.anynan, dim='band')
+		da_in =  da_in.where(noNaN)
+		
+		
+		# =========== Add infomation so i can look it in a dataframe ==========
+		# maxv = da_in.groupby("band").max().values.astype(float)
+		mean = (da_in.groupby("band").mean().values).astype(float)
+		gfrac = float((noNaN.sum().values)/noNaN.size)
+
+		# =========== Pull out the values ==========
+		img = da_in.values
+
+		# =========== Convert them to a 1d array ==========
+		try:
+			pL, pH = np.percentile(img[~np.isnan(img)], (1, 99))
+
+			hist = ski.exposure.histogram(img[~np.isnan(img)])
+			# plt.figure(1) 
+			# plt.plot(hist[1], hist[0])
+
+			imgo  = ski.exposure.adjust_sigmoid(img, cutoff=0.10) # bn.nanmedian(img)
+			imgo = ski.exposure.rescale_intensity(img, in_range=(pL, pH))
+
+
+			histo = ski.exposure.histogram(imgo[~np.isnan(imgo)]) 
+
+			# plt.figure(2)
+			# plt.plot(histo[1], histo[0])
+
+			# plt.show()
+			
+			imgA    = ski.color.gray2rgb(imgo)
+			da_out  =  da_in.copy(data=imgA)
+			meanMod = (da_out.groupby("band").mean().values).astype(float)
+		except IndexError:
+			meanMod = np.array([np.NAN, np.NAN, np.NAN])
+			da_out  = da_in.copy()
+
+		orig.append(da_in)
+
+		# ========== convert to smart xarray dataset ==========
+		da_out = da_out.expand_dims("time")
+		da_out = da_out.assign_coords(time=[date])
+		modi.append(da_out)
+
+		# ========== Add the metadata ==========
+		maxvals.append(np.hstack([mean, meanMod, gfrac]))
+		
+
+	# ========== Add infomation to the dataframe ===========
+	array = np.array(maxvals)
+	keys = ["mean_R", "mean_G", "mean_B","mean_mR", "mean_mG", "mean_mB", "GoodFrac"]
+	for nx in range(0, 7):
+		dft[keys[nx]] = array[:, nx]
+	dft[ "Bright"] = 0.2125*dft.mean_R  + 0.7154*dft.mean_G  + 0.0721*dft.mean_B
+	dft["BrightM"] = 0.2125*dft.mean_mR + 0.7154*dft.mean_mG + 0.0721*dft.mean_mB
+
+	# ipdb.set_trace()
+	# ========== Create a single dataarray for the raster images ===========
+	da_mod = xr.concat(modi, dim="time")
 	
+	# for ind in [-3, 0, dft.Bright.idxmax(), dft.Bright.idxmin(), -1]:
+		
+	# 	plt.figure(0)
+	# 	raw[ind].plot.imshow(rgb="band") 
+
+
+	# 	plt.figure(1)
+	# 	orig[ind].plot.imshow(rgb="band") 
+		
+	# 	plt.figure(2)
+	# 	modi[ind][0, :, :, :].plot.imshow(rgb="band") 
+		
+	# 	plt.show()
+	# ipdb.set_trace()
+
 	# ========== Set up the universal infomation ==========	
-	bounds = [dfg.lonr_min[0], dfg.lonr_max[0], dfg.latr_max[0], dfg.latr_min[0]]
+	# bounds = [dfg.lonr_min[0], dfg.lonr_max[0], dfg.latr_max[0], dfg.latr_min[0]]
 
 	# ========== Open the video a single frame at a time ==========
-	videoin = skv.vread(fn)
+	# videoin = skv.vread(fn)
 	# videoin = skv.vreader(fn)
 
 	# =========== Setup the annimation ===========
-	fig, ax = plt.subplots(1, figsize=(10,10), dpi=400, subplot_kw={'projection': ccrs.PlateCarree()})
-	ax.set_extent(bounds, crs=ccrs.PlateCarree())
-	ipdb.set_trace()
+	fig, ax = plt.subplots(1)#, subplot_kw={'projection': ccrs.PlateCarree()} )#, figsize=(10,10), dpi=400, )
+	# ax.set_extent(bounds, crs=ccrs.PlateCarree())
 
 
 	# ========== Loop over each frame of the video ==========
@@ -117,25 +211,36 @@ def main():
 
 	def frame_maker(index):
 		# ========== Pull the infomation from the pandas part of the loop ==========
-		# index = rowinfo[0]
-
 		info  = dft.iloc[int(index)] #rowinfo[1]
-		frame = videoin[int(index), :, :, :]
-		# nx += 1
+		frame = da_mod.isel(time=int(index))
+		# frame = videoin[int(index), :, :, :]
+		
+		# ========== Check the dates i'm exporting ==========
+		nx.append(frame.time.values)
+
+		# ========== setup the plot ==========
 		ax.clear()
+		frame.plot.imshow(ax=ax, rgb="band")#, transform=ccrs.PlateCarree())
 		ax.set_title("%s %s" % (info.satellite, info.date.split(" ")[0]))
-		ax.imshow(frame, extent=bounds, transform=ccrs.PlateCarree())
-		ax.scatter(dfg.lon[0], dfg.lat[0], 5, c='r', marker='+', transform=ccrs.PlateCarree())
-		fig.subplots_adjust(left=0, right=1, bottom=0)
-		# plt.tight_layout()
+		# ax.imshow(frame, extent=bounds, transform=ccrs.PlateCarree())
+		ax.scatter(dfg.lon[0], dfg.lat[0], 5, c='r', marker='+')#, transform=ccrs.PlateCarree())
+		# ax.scatter(dfg.lon[0], dfg.lat[0], 5, c='r', marker='+')
+		rect = mpl.patches.Rectangle(
+			(dfg.lonb_min[0],dfg.latb_min[0]),
+			dfg.lonb_max[0]-dfg.lonb_min[0],
+			dfg.lonb_max[0]-dfg.lonb_min[0],linewidth=1,edgecolor='r',facecolor='none')
+		ax.add_patch(rect)
 		# ipdb.set_trace()
+
+		# fig.subplots_adjust(left=0, right=1, bottom=0)
+		# plt.tight_layout()
 
 		return mplfig_to_npimage(fig)
 
 	# for frame, rowinfo in zip(videoin, dft.iterrows()):
-	mov = mpe.VideoClip(frame_maker, duration=int(videoin.shape[0]))
+	mov = mpe.VideoClip(frame_maker, duration=int(da_mod.shape[0]))
 	
-	fnout = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_updatedV2.mp4" 
+	fnout = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_updatedV3.mp4" 
 
 	print("Starting Write of the data at:", pd.Timestamp.now())
 	mov.write_videofile(fnout, fps=1)
