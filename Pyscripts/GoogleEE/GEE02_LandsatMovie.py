@@ -59,9 +59,9 @@ import matplotlib.colors as mpc
 import matplotlib as mpl
 import palettable 
 
-import fiona
-fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
-fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
+# import fiona
+# fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
+# fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
 # import seaborn as sns
 # import cartopy.crs as ccrs
 # import cartopy.feature as cpf
@@ -202,9 +202,10 @@ def main():
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
 
-	# ipdb.set_trace()
 	df.to_csv("./data/other/tmp/%s_%s_%s_timeinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
 	coords.to_csv("./data/other/tmp/%s_%s_%s_gridinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
+	ipdb.set_trace()
+	sys.exit()
 
 	# ========== Create a geotif ==========
 	gee_batch.imagecollection.toDrive(

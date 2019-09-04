@@ -58,9 +58,9 @@ import matplotlib.colors as mpc
 import matplotlib as mpl
 import palettable 
 
-import fiona
-fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
-fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
+# import fiona
+# fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
+# fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
 
 
 import moviepy.editor as mpe
@@ -95,12 +95,18 @@ def main():
 	# fn = "/home/ubuntu/Downloads/Site4_video_region_L8_time_v8_SR.mp4"    
 
 	# ========== setup the filename ==========
-	fnames = sorted(glob.glob("/home/ubuntu/Downloads/TestSite/*.tif"))
+	# site = "TestSite"
+	site="G10T1-50"
+
+	if site == "TestSite":
+		fnames = sorted(glob.glob("/home/ubuntu/Downloads/TestSite/*.tif"))
+	else:
+		fnames = sorted(glob.glob("/mnt/c/Users/user/Google Drive/FIREFLIES_geotifs/*.tif"))
 	SF     = 0.0001 # Scale Factor
 
 	# ========== load the additional indomation ==========
-	dft = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_TestBurn_RGB_timeinfo.csv", index_col=0, parse_dates=True)
-	dfg = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_TestBurn_RGB_gridinfo.csv", index_col=0, parse_dates=True)      
+	dft = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_RGB_timeinfo.csv" % site, index_col=0, parse_dates=True)
+	dfg = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_RGB_gridinfo.csv" % site, index_col=0, parse_dates=True)      
 
 	# fnn    = fnames[-1]
 	maxvals = []
@@ -257,7 +263,7 @@ def main():
 	# for frame, rowinfo in zip(videoin, dft.iterrows()):
 	mov = mpe.VideoClip(frame_maker, duration=int(da_mod.shape[0]))
 	
-	fnout = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_updatedV3.mp4" 
+	fnout = "./results/movies/LANDSAT_5_7_8_TestBurn_RGB_updatedV3.mp4" 
 
 	print("Starting Write of the data at:", pd.Timestamp.now())
 	mov.write_videofile(fnout, fps=1)
