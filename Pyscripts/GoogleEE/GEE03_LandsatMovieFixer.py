@@ -76,6 +76,8 @@ import cartopy.feature as cpf
 import matplotlib.ticker as mticker
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import socket
+
 # import cartopy.feature as cpf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
@@ -89,6 +91,7 @@ print("xarray version : ", xr.__version__)
 #==============================================================================
 
 def main():
+	print(socket.gethostname())
 	# fn     = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB.mp4" 
 	# fng    = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_grid.tif" 
 	# da     = xr.open_rasterio(fng)
@@ -101,7 +104,8 @@ def main():
 	if site == "TestSite":
 		fnames = sorted(glob.glob("/home/ubuntu/Downloads/TestSite/*.tif"))
 	else:
-		fnames = sorted(glob.glob("/mnt/c/Users/user/Google Drive/FIREFLIES_geotifs/*.tif"))
+		fnames = sorted(glob.glob("/home/ubuntu/Downloads/FIREFLIES_geotifs/*.tif"))
+		# fnames = sorted(glob.glob("/mnt/c/Users/user/Google Drive/FIREFLIES_geotifs/*.tif"))
 	SF     = 0.0001 # Scale Factor
 
 	# ========== load the additional indomation ==========
@@ -119,6 +123,13 @@ def main():
 		da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"}) * SF
 		raw.append(da_in)
 
+
+		# =========== build a date check ==========
+		ymd = fnn.split("RGB_")[-1][:8] 
+		if not ( ymd  == date.strftime(format="%Y%m%d")):
+			warn.warn("date is missing")
+			
+			ipdb.set_trace()
 		
 		# =========== mask out dodgy values ==========
 		# da_in = da_in.where(da_in <= 1.1)
@@ -190,17 +201,17 @@ def main():
 		maxvals.append(np.hstack([mean, meanMod, gfrac]))
 		
 
-	# ========== Add infomation to the dataframe ===========
+	# ========== Create a single dataarray for the raster images ===========
+	da_mod = xr.concat(modi, dim="time")
+
+	# ========== Add infomation to the dataframe ==========
 	array = np.array(maxvals)
 	keys = ["mean_R", "mean_G", "mean_B","mean_mR", "mean_mG", "mean_mB", "GoodFrac"]
-	for nx in range(0, 7):
-		dft[keys[nx]] = array[:, nx]
+	for nx in range(0, 7):	dft[keys[nx]] = array[:, nx]
 	dft[ "Bright"] = 0.2125*dft.mean_R  + 0.7154*dft.mean_G  + 0.0721*dft.mean_B
 	dft["BrightM"] = 0.2125*dft.mean_mR + 0.7154*dft.mean_mG + 0.0721*dft.mean_mB
 
 	# ipdb.set_trace()
-	# ========== Create a single dataarray for the raster images ===========
-	da_mod = xr.concat(modi, dim="time")
 	
 	for ind in [-3, 0, dft.Bright.idxmax(), dft.Bright.idxmin(), -1]:
 		
