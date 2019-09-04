@@ -82,7 +82,7 @@ def main():
 	ee.Initialize()
 
 	# ========== create the geometery ==========
-	def geom_builder():
+	def geom_builder(site = "Burn2015 UP"):
 		"""
 		function to make the geometery 
 		"""
@@ -94,8 +94,8 @@ def main():
 		pointdt = gpd.read_file(pointfn, driver="kml")
 		
 		# ========== Pull out the location of a point ==========
-		lon = pointdt[pointdt.Name == "Burn2015 UP"].geometry.x.values
-		lat = pointdt[pointdt.Name == "Burn2015 UP"].geometry.y.values
+		lon = pointdt[pointdt.Name == site].geometry.x.values
+		lat = pointdt[pointdt.Name == site].geometry.y.values
 
 		# ========== get the local data info ==========
 		local_data = datasets()
@@ -109,7 +109,11 @@ def main():
 		lonstep = abs(np.unique(np.round(np.diff(ds_gr.longitude.values), decimals=9)))/2.0
 
 		# ========== Get values ready to export ==========
-		coords["name"]     = "TestBurn"
+		if site == "Burn2015 UP":
+			coords["name"] = "TestBurn"
+		else:
+			coords["name"] = site
+
 		coords["lon"]      = lon
 		coords["lat"]      = lat
 		
@@ -125,10 +129,11 @@ def main():
 		coords["latr_min"] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
 		
 		return pd.DataFrame(coords)
-		# ipdb.set_trace()
 
 	# ========== Get the cordinates ==========
-	coords = geom_builder()
+	# coords = geom_builder()
+	coords = geom_builder(site="G10T1-50")
+
 	# ========== Load the Site Data ==========
 	# syear    = 2018
 	# SiteInfo = Field_data()
@@ -158,29 +163,33 @@ def main():
 		 	"SATELLITE", image.get("SATELLITE"))
 
 	# ========== Define the image collection ==========
-	# ls8c = 'LANDSAT/LC8_L1T_TOA'
-	dschoice  = "SR"#
-	dsinfom   = "LANDSAT_5_7_8"
-	dsbands   = "RGB"
-	# dschoice = "TOA"
-	ls8c = "LANDSAT/LC08/C01/T1_%s" % dschoice
-	L5coll = ee.ImageCollection(
-		"LANDSAT/LT05/C01/T1_%s" % dschoice).filter(
-		ee.Filter.lt('CLOUD_COVER',15)).select(
-		['B3', 'B2', 'B1']).filterBounds(geom).select(['B3', 'B2', 'B1'])
+	program   = "LANDSAT"
+	# program   = "sentinal"
+	if program == "LANDSAT":
+		dschoice  = "SR"#
+		dsinfom   = "LANDSAT_5_7_8"
+		dsbands   = "RGB"
+		# dschoice = "TOA"
+		ls8c = "LANDSAT/LC08/C01/T1_%s" % dschoice
+		L5coll = ee.ImageCollection(
+			"LANDSAT/LT05/C01/T1_%s" % dschoice).filter(
+			ee.Filter.lt('CLOUD_COVER',15)).select(
+			['B3', 'B2', 'B1']).filterBounds(geom)#.select(['B3', 'B2', 'B1'])
 
-	L7coll = ee.ImageCollection(
-		'LANDSAT/LE07/C01/T1_%s' % dschoice).filter(
-		ee.Filter.lt('CLOUD_COVER',15)).select(
-		['B3', 'B2', 'B1']).filterBounds(geom).map(LS7fix)
+		L7coll = ee.ImageCollection(
+			'LANDSAT/LE07/C01/T1_%s' % dschoice).filter(
+			ee.Filter.lt('CLOUD_COVER',15)).select(
+			['B3', 'B2', 'B1']).filterBounds(geom).map(LS7fix)
 
-	L8coll = ee.ImageCollection(
-		ls8c).filter(
-		ee.Filter.lt('CLOUD_COVER', 15)).map(
-		renamebands).filterBounds(geom).select(['B3', 'B2', 'B1'])
+		L8coll = ee.ImageCollection(
+			ls8c).filter(
+			ee.Filter.lt('CLOUD_COVER', 15)).map(
+			renamebands).filterBounds(geom).select(['B3', 'B2', 'B1'])
 
-	collection = ee.ImageCollection(L5coll.merge(L7coll.merge(L8coll))).sort('system:time_start', True)
-
+		collection = ee.ImageCollection(L5coll.merge(L7coll.merge(L8coll))).sort('system:time_start', True)
+	else:
+		ipdb.set_trace()
+		sys.exit()
 	# ========== Fetch the dates ==========
 	info = []
 	for elem in collection.getInfo()["features"]:
@@ -188,18 +197,19 @@ def main():
 		sat   = elem["properties"]["SATELLITE"] 
 		info.append({"satellite":sat, "time":utime })
 
+
 	# ========== convert dates to pandas dataframe ==========
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
 
+	# ipdb.set_trace()
 	df.to_csv("./data/other/tmp/%s_%s_%s_timeinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
 	coords.to_csv("./data/other/tmp/%s_%s_%s_gridinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
 
 	# ========== Create a geotif ==========
-
 	gee_batch.imagecollection.toDrive(
 		collection, 
-		"/UoL/FIREFLIES/VideoExports",
+		"FIREFLIES_geotifs",
 		namePattern='%s_%s_%s_{system_date}' % (dsinfom, coords.name.values[0], dsbands), 
 		region=geom, 
 		crs = "EPSG:4326", 

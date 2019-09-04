@@ -138,9 +138,26 @@ def main():
 			# plt.figure(1) 
 			# plt.plot(hist[1], hist[0])
 
-			imgo  = ski.exposure.adjust_sigmoid(img, cutoff=0.10) # bn.nanmedian(img)
-			imgo = ski.exposure.rescale_intensity(img, in_range=(pL, pH))
+			# img_gama = img.copy()
+			# # gamma_list = [0.95, 1.1, 1]
+			# # gamma_list = [0.95, 0.90, 1.1]
+			# gamma_list = [0.90, 0.90, 0.95]
+			# for nx in range(0, 3):
+			# 	img_gama[:, :, nx] = ski.exposure.adjust_gamma(img[:,:,nx], gamma_list[nx])
+			# plt.figure(1)
+			# plt.imshow(img_gama)
+			
+			# imgo = ski.exposure.adjust_sigmoid(img_gama, cutoff=0.15) # bn.nanmedian(img)
+			# # plt.figure(2)
+			# # plt.imshow(imgo2) 
 
+
+			imgo = ski.exposure.rescale_intensity(img, in_range=(pL, pH))
+			# plt.figure(3)
+			# plt.imshow(imgo) 
+			
+			# plt.show()
+			# ipdb.set_trace()
 
 			histo = ski.exposure.histogram(imgo[~np.isnan(imgo)]) 
 
@@ -179,20 +196,20 @@ def main():
 	# ========== Create a single dataarray for the raster images ===========
 	da_mod = xr.concat(modi, dim="time")
 	
-	# for ind in [-3, 0, dft.Bright.idxmax(), dft.Bright.idxmin(), -1]:
+	for ind in [-3, 0, dft.Bright.idxmax(), dft.Bright.idxmin(), -1]:
 		
-	# 	plt.figure(0)
-	# 	raw[ind].plot.imshow(rgb="band") 
+		plt.figure(0)
+		raw[ind].plot.imshow(rgb="band") 
 
 
-	# 	plt.figure(1)
-	# 	orig[ind].plot.imshow(rgb="band") 
+		plt.figure(1)
+		orig[ind].plot.imshow(rgb="band") 
 		
-	# 	plt.figure(2)
-	# 	modi[ind][0, :, :, :].plot.imshow(rgb="band") 
+		plt.figure(2)
+		modi[ind][0, :, :, :].plot.imshow(rgb="band") 
 		
-	# 	plt.show()
-	# ipdb.set_trace()
+		plt.show()
+	ipdb.set_trace()
 
 	# ========== Set up the universal infomation ==========	
 	# bounds = [dfg.lonr_min[0], dfg.lonr_max[0], dfg.latr_max[0], dfg.latr_min[0]]
