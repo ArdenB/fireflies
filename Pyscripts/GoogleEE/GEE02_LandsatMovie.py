@@ -229,9 +229,6 @@ def main():
 	else:
 		outputVideo = collection.map(convertBitV2)
 
-
-	# process = batch.Task.start(geotif)
-
 	ipdb.set_trace()
 
 
