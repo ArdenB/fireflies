@@ -59,9 +59,9 @@ import matplotlib.colors as mpc
 import matplotlib as mpl
 import palettable 
 
-# import fiona
-# fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
-# fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
+import fiona
+fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
+fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
 # import seaborn as sns
 # import cartopy.crs as ccrs
 # import cartopy.feature as cpf
@@ -132,20 +132,16 @@ def main():
 
 	# ========== Get the cordinates ==========
 	# coords = geom_builder()
-	coords = geom_builder(site="G10T1-50")
+	# site="G10T1-50"
+	site="G5T1-50"
+
+	coords = geom_builder(site=site)
 
 	# ========== Load the Site Data ==========
 	# syear    = 2018
 	# SiteInfo = Field_data()
-	# site     = 4 #Site of interest
-	# ipdb.set_trace()
-
-	# row    = SiteInfo.loc[site]
-
-	# lon = (112.40420250574721 + 112.73241905848158)/2.0
-	# lat = (51.22323236456422  + 51.359781270083886)/2.0
-	# geom   = ee.Geometry.Point([row.lon, row.lat])
 	# geom   = ee.Geometry.Point([coords.lon.values[0], coords.lat.values[0]])
+
 	geom = ee.Geometry.Polygon([
 			[coords.lonr_min.values[0],coords.latr_min.values[0]],
 			[coords.lonr_max.values[0],coords.latr_min.values[0]],
@@ -163,28 +159,29 @@ def main():
 		 	"SATELLITE", image.get("SATELLITE"))
 
 	# ========== Define the image collection ==========
-	program   = "LANDSAT"
+	program  = "LANDSAT"
+	bandlist = ['B4','B3', 'B2', 'B1']
 	# program   = "sentinal"
 	if program == "LANDSAT":
 		dschoice  = "SR"#
 		dsinfom   = "LANDSAT_5_7_8"
-		dsbands   = "RGB"
+		dsbands   = "NRGB"
 		# dschoice = "TOA"
 		ls8c = "LANDSAT/LC08/C01/T1_%s" % dschoice
 		L5coll = ee.ImageCollection(
 			"LANDSAT/LT05/C01/T1_%s" % dschoice).filter(
 			ee.Filter.lt('CLOUD_COVER',15)).select(
-			['B3', 'B2', 'B1']).filterBounds(geom)#.select(['B3', 'B2', 'B1'])
+			bandlist).filterBounds(geom)#.select(['B3', 'B2', 'B1'])
 
 		L7coll = ee.ImageCollection(
 			'LANDSAT/LE07/C01/T1_%s' % dschoice).filter(
 			ee.Filter.lt('CLOUD_COVER',15)).select(
-			['B3', 'B2', 'B1']).filterBounds(geom).map(LS7fix)
+			bandlist).filterBounds(geom).map(LS7fix)
 
 		L8coll = ee.ImageCollection(
 			ls8c).filter(
 			ee.Filter.lt('CLOUD_COVER', 15)).map(
-			renamebands).filterBounds(geom).select(['B3', 'B2', 'B1'])
+			renamebands).filterBounds(geom).select(bandlist)
 
 		collection = ee.ImageCollection(L5coll.merge(L7coll.merge(L8coll))).sort('system:time_start', True)
 	else:
@@ -201,17 +198,16 @@ def main():
 	# ========== convert dates to pandas dataframe ==========
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
-
 	df.to_csv("./data/other/tmp/%s_%s_%s_timeinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
 	coords.to_csv("./data/other/tmp/%s_%s_%s_gridinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
-	ipdb.set_trace()
-	sys.exit()
+
 
 	# ========== Create a geotif ==========
+	print("Starting to create GeoTIFF's for %s at:" % coords.name.values[0], pd.Timestamp.now())
 	gee_batch.imagecollection.toDrive(
 		collection, 
-		"FIREFLIES_geotifs",
-		namePattern='%s_%s_%s_{system_date}' % (dsinfom, coords.name.values[0], dsbands), 
+		"FIREFLIES_geotifs_%s",
+		namePattern='%s_%s_%s_%s_{system_date}_{id}' % (dsbands, dsinfom, coords.name.values[0], dsbands), 
 		region=geom, 
 		crs = "EPSG:4326", 
 		fileFormat='GeoTIFF'
@@ -230,14 +226,16 @@ def main():
 	else:
 		outputVideo = collection.map(convertBitV2)
 
-	ipdb.set_trace()
+
+	if len(bandlist)> 3:
+		outputVideo = outputVideo.select(['B3', 'B2', 'B1'])
 
 
-	print("Starting to create a video for %s at:" % coords.name.values[0], pd.Timestamp.now())
 	# Export video to Google Drive
+	print("Starting to create video for %s at:" % coords.name.values[0], pd.Timestamp.now())
 	out = batch.Export.video.toDrive(
 		outputVideo, description='%s_%s_%s' % (dsinfom, coords.name.values[0], dsbands), 
-		folder = "/UoL/FIREFLIES/VideoExports",
+		folder = "/GEE_VIDEO_EXPORTS",
 		framesPerSecond = 1, #dimensions = 1080, 
 		region=(
 			[coords.lonr_min.values[0],coords.latr_min.values[0]],

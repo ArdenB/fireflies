@@ -91,17 +91,17 @@ print("xarray version : ", xr.__version__)
 #==============================================================================
 
 def main():
-	print(socket.gethostname())
+	# print(socket.gethostname())
 	# fn     = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB.mp4" 
 	# fng    = "/home/ubuntu/Downloads/LANDSAT_5_7_8_TestBurn_RGB_grid.tif" 
 	# da     = xr.open_rasterio(fng)
 	# fn = "/home/ubuntu/Downloads/Site4_video_region_L8_time_v8_SR.mp4"    
 
 	# ========== setup the filename ==========
-	# site = "TestSite"
-	site="G10T1-50"
+	site = "TestBurn"
+	# site="G10T1-50"
 
-	if site == "TestSite":
+	if site == "TestBurn":
 		fnames = sorted(glob.glob("/home/ubuntu/Downloads/TestSite/*.tif"))
 	else:
 		fnames = sorted(glob.glob("/home/ubuntu/Downloads/FIREFLIES_geotifs/*.tif"))
@@ -128,7 +128,7 @@ def main():
 		ymd = fnn.split("RGB_")[-1][:8] 
 		if not ( ymd  == date.strftime(format="%Y%m%d")):
 			warn.warn("date is missing")
-			
+
 			ipdb.set_trace()
 		
 		# =========== mask out dodgy values ==========
@@ -213,20 +213,20 @@ def main():
 
 	# ipdb.set_trace()
 	
-	for ind in [-3, 0, dft.Bright.idxmax(), dft.Bright.idxmin(), -1]:
+	# for ind in [-3, 0, dft.Bright.idxmax(), dft.Bright.idxmin(), -1]:
 		
-		plt.figure(0)
-		raw[ind].plot.imshow(rgb="band") 
+	# 	plt.figure(0)
+	# 	raw[ind].plot.imshow(rgb="band") 
 
 
-		plt.figure(1)
-		orig[ind].plot.imshow(rgb="band") 
+	# 	plt.figure(1)
+	# 	orig[ind].plot.imshow(rgb="band") 
 		
-		plt.figure(2)
-		modi[ind][0, :, :, :].plot.imshow(rgb="band") 
+	# 	plt.figure(2)
+	# 	modi[ind][0, :, :, :].plot.imshow(rgb="band") 
 		
-		plt.show()
-	ipdb.set_trace()
+	# 	plt.show()
+	# ipdb.set_trace()
 
 	# ========== Set up the universal infomation ==========	
 	# bounds = [dfg.lonr_min[0], dfg.lonr_max[0], dfg.latr_max[0], dfg.latr_min[0]]
@@ -236,7 +236,7 @@ def main():
 	# videoin = skv.vreader(fn)
 
 	# =========== Setup the annimation ===========
-	fig, ax = plt.subplots(1)#, subplot_kw={'projection': ccrs.PlateCarree()} )#, figsize=(10,10), dpi=400, )
+	fig, ax = plt.subplots(1, figsize=(11,10))#, dpi=400)#, subplot_kw={'projection': ccrs.PlateCarree()} )#, , dpi=400, )
 	# ax.set_extent(bounds, crs=ccrs.PlateCarree())
 
 
@@ -264,6 +264,8 @@ def main():
 			dfg.lonb_max[0]-dfg.lonb_min[0],
 			dfg.lonb_max[0]-dfg.lonb_min[0],linewidth=1,edgecolor='r',facecolor='none')
 		ax.add_patch(rect)
+
+		plt.axis('scaled')
 		# ipdb.set_trace()
 
 		# fig.subplots_adjust(left=0, right=1, bottom=0)
@@ -274,7 +276,7 @@ def main():
 	# for frame, rowinfo in zip(videoin, dft.iterrows()):
 	mov = mpe.VideoClip(frame_maker, duration=int(da_mod.shape[0]))
 	
-	fnout = "./results/movies/LANDSAT_5_7_8_TestBurn_RGB_updatedV3.mp4" 
+	fnout = "./results/movies/LANDSAT_5_7_8_%s_RGB_updatedV3.mp4" % (site) 
 
 	print("Starting Write of the data at:", pd.Timestamp.now())
 	mov.write_videofile(fnout, fps=1)
