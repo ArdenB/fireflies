@@ -876,7 +876,8 @@ def datasets():
 		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
-	
+	warn.warn("\n\n The esacci infomation i've got here is out of date, i need to swap in the processed stuff")
+	ipdb.set_trace()
 	data["esacci"] = ({
 		"fname":"./data/BurntArea/20010101-ESACCI-L3S_FIRE-BA-MODIS-AREA_4-fv5.1-JD.tif",
 		'var':"BurntArea", "gridres":"250m", "region":"Asia", "timestep":"Monthly", 

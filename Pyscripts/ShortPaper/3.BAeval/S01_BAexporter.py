@@ -97,20 +97,140 @@ print("xarray version : ", xr.__version__)
 def main():
 	# ========== Set the site up ==========
 	# site   = "G10T1-50" #
-	site   = "TestBurn"
+	# site   = "TestBurn
+	site   = "G5T1-50"
 	region = "SIBERIA"
 
-	# ========== Get infomation about that site ==========
-	fnames, SF, dft, dfg = SiteInfo(site)
+	for site in ["G5T1-50", "TestBurn", "G10T1-50"]:
+		print(site)
+		# ========== Get infomation about that site ==========
+		fnames, SF, dft, dfg = SiteInfo(site)
+		path = "./results/movies/%s/"	% site
+		cf.pymkdir(path)
 
-	# ========== Make the hansen forest maps ==========
-	Hansen(fnames, SF, dft, dfg, region)
+		# ========== Make the hansen forest maps ==========
+		esacci(path, fnames, SF, dft, dfg, region, site)
+		Hansen(path, fnames, SF, dft, dfg, region, site)
+		copern(path, fnames, SF, dft, dfg, region, site)
 
 # ==============================================================================
 # ====================== BA product functions functions ========================
 # ==============================================================================
 
-def Hansen(fnames, SF, dft, dfg, region):
+def esacci(path, fnames, SF, dft, dfg, region, site):
+	"""Function  to build the cci maps"""
+	# ========== Setup the path ==========
+	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/"
+	var   = "BA"
+	for yr in range(2001, 2019):
+		# ========== make the file name ==========
+		ANfn = ppath + "esacci_FireCCI_%d_burntarea.nc" % yr
+
+		# ========== check if the file exists  ==========
+		if not os.path.isfile(ANfn):
+			print("Unable to locate processed esacci data for ", yr)
+			continue
+
+		# ========== open the file  ==========
+		ds = xr.open_dataset(ANfn, chunks={'latitude': 1000}).sel(dict(
+			latitude =slice(dfg.latr_max[0], dfg.latr_min[0]), 
+			longitude=slice(dfg.lonr_min[0], dfg.lonr_max[0]))).compute()
+
+		# ========== build the plot  ==========
+		fig, ax = plt.subplots(1, figsize=(11,10))
+
+		ds[var].isel(time=0).plot.imshow(
+			ax=ax,
+			vmin=0, 
+			vmax=1, 
+			)
+			# cmap=cmap, 
+			# cbar_kwargs={'ticks':ticks} 
+
+		ax.scatter(dfg.lon[0], dfg.lat[0], 5, c='r', marker='+')
+		rect = mpl.patches.Rectangle(
+			(dfg.lonb_min[0],dfg.latb_min[0]),
+			dfg.lonb_max[0]-dfg.lonb_min[0],
+			dfg.lonb_max[0]-dfg.lonb_min[0],linewidth=1,edgecolor='r',facecolor='none')
+		ax.add_patch(rect)
+		# ax.set_title(None)#"%s %s" % (info.satellite, info.date.split(" ")[0]))
+		plt.axis('scaled')
+		
+		fnout = "%sesacci_%s_%s_%d.png" % (path, site, var, yr) 
+		plt.savefig(fnout)
+		plt.show()
+		ax.clear()
+
+
+
+def copern(path, fnames, SF, dft, dfg, region, site):
+	"""
+	function to make the copernicous BA product maps
+	"""
+
+	# data["COPERN_BA"] = ({
+	# 	'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
+	# 	'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":2014, "end":2019,"rasterio":False, "chunks":None, 
+	# 	"rename":{"lon":"longitude", "lat":"latitude"}
+	# 	})
+	# for yr in range(2014, 2020):
+	
+
+	files = []
+	# ========== get the file neames ==========
+	fnames = glob.glob("/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/*.nc")
+	var = "BA_DEKAD"
+	# var = "FDOB_SEASON"
+	for fn in fnames:
+		ds_yin = xr.open_dataset(fn).rename({"lon":"longitude", "lat":"latitude"}).sel(dict(
+			latitude =slice(dfg.latr_max[0], dfg.latr_min[0]), 
+			longitude=slice(dfg.lonr_min[0], dfg.lonr_max[0]))).drop(["CP_DEKAD", "crs", "FDOB_DEKAD","FDOB_SEASON"]).compute()
+
+		date = pd.to_datetime(ds_yin.attrs["time_coverage_end"][:10]).to_datetime64()
+		try:
+			ds_yin = ds_yin.expand_dims("time")
+			ds_yin = ds_yin.assign_coords(time=[date])
+		
+		except:pass
+		files.append(ds_yin)
+	
+	# ========== convert to smart xarray dataset ==========
+	ds_in  = xr.concat(files, dim="time")
+
+	ds_sum = ds_in.groupby('time.year').sum("time")
+	
+
+	for year in ds_sum.year.values:
+		# ========== Set up the plot ==========
+		fig, ax = plt.subplots(1, figsize=(11,10))
+
+		ds_sum[var].sel(year=year).plot.imshow(
+			ax=ax,
+			vmin=0, 
+			vmax=1, 
+			)
+			# cmap=cmap, 
+			# cbar_kwargs={'ticks':ticks} 
+
+		ax.scatter(dfg.lon[0], dfg.lat[0], 5, c='r', marker='+')
+		rect = mpl.patches.Rectangle(
+			(dfg.lonb_min[0],dfg.latb_min[0]),
+			dfg.lonb_max[0]-dfg.lonb_min[0],
+			dfg.lonb_max[0]-dfg.lonb_min[0],linewidth=1,edgecolor='r',facecolor='none')
+		ax.add_patch(rect)
+		# ax.set_title(None)#"%s %s" % (info.satellite, info.date.split(" ")[0]))
+		plt.axis('scaled')
+		
+		fnout = "%sPROBAV_%s_%s_%d.png" % (path, site, var, year) 
+		plt.savefig(fnout)
+		plt.show()
+		ax.clear()
+		# ipdb.set_trace()
+
+	# ipdb.set_trace()
+	
+def Hansen(path, fnames, SF, dft, dfg, region, site):
 	# ========== Set up the filename and global attributes =========
 	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
 	pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
@@ -154,9 +274,9 @@ def Hansen(fnames, SF, dft, dfg, region):
 	ticks = tks[np.logical_and((counts > 100), (tks>0))]
 	
 	# ========== Set up the plot ==========
-	fig, ax = plt.subplots(1)
+	fig, ax = plt.subplots(1, figsize=(11,10))
 	ax.clear()
-	site_ly["lossyear"].isel(time=0).plot.imshow(
+	site_ly["lossyear"].rename(None).isel(time=0).plot.imshow(
 		ax=ax,
 		vmin=2000.5, 
 		vmax=2018.5, 
@@ -169,8 +289,12 @@ def Hansen(fnames, SF, dft, dfg, region):
 		dfg.lonb_max[0]-dfg.lonb_min[0],
 		dfg.lonb_max[0]-dfg.lonb_min[0],linewidth=1,edgecolor='r',facecolor='none')
 	ax.add_patch(rect)
-
-	ipdb.set_trace()
+	ax.set_title(None)#"%s %s" % (info.satellite, info.date.split(" ")[0]))
+	plt.axis('scaled')
+	
+	fnout = "%sHANSEN_BAFL_%s_.png" % (path, site) 
+	plt.savefig(fnout)
+	plt.show()
 
 
 # ==============================================================================
@@ -196,8 +320,13 @@ def SiteInfo(site):
 
 
 	# ========== load the additional indomation ==========
-	dft = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_RGB_timeinfo.csv" % site, index_col=0, parse_dates=True)
-	dfg = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_RGB_gridinfo.csv" % site, index_col=0, parse_dates=True)      
+	try:
+		dft = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_RGB_timeinfo.csv" % site, index_col=0, parse_dates=True)
+		dfg = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_RGB_gridinfo.csv" % site, index_col=0, parse_dates=True)      
+		
+	except:
+		dft = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_NRGB_timeinfo.csv" % site, index_col=0, parse_dates=True)
+		dfg = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_NRGB_gridinfo.csv" % site, index_col=0, parse_dates=True)     
 	return fnames, SF, dft, dfg
 
 # ==============================================================================

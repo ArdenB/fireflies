@@ -206,7 +206,7 @@ def main():
 	print("Starting to create GeoTIFF's for %s at:" % coords.name.values[0], pd.Timestamp.now())
 	gee_batch.imagecollection.toDrive(
 		collection, 
-		"FIREFLIES_geotifs_%s",
+		"FIREFLIES_geotifs_%s" % site,
 		namePattern='%s_%s_%s_%s_{system_date}_{id}' % (dsbands, dsinfom, coords.name.values[0], dsbands), 
 		region=geom, 
 		crs = "EPSG:4326", 
