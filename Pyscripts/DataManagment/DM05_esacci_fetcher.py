@@ -53,8 +53,8 @@ def main():
 	cf.pymkdir(ppath)
 	force = False
 
-	for yr in range(2001, 2020):
-			# ========== loop over layers ==========		
+	for yr in range(2001, 2019):
+		# ========== loop over layers ==========		
 		for layer in ["JD"]:#, "CL", "LC"]:
 			print("Starting %d %s at:" % (yr, layer), pd.Timestamp.now())
 
@@ -74,7 +74,7 @@ def main():
 		_cleanup(yr, path)
 		# ipdb.set_trace()
 	ipdb.set_trace()
-		
+
 
 #==============================================================================	
 
@@ -108,6 +108,7 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn):
 
 	# ========== loop over the month ==========
 	for mn in range(1, 13):
+		print(yr, mn, pd.Timestamp.now())
 		# ========== Create the file name and check if they need to get downloaded ==========
 		fnA  = "%d%02d01-ESACCI-L3S_FIRE-BA-MODIS-AREA_4-fv5.1.tar.gz" % (yr, mn)
 		fnE  = "%d%02d01-ESACCI-L3S_FIRE-BA-MODIS-AREA_3-fv5.1.tar.gz" % (yr, mn)
@@ -271,6 +272,8 @@ def filefetcher(fn, address, path):
 	"""
 	downloads and uncompresses files 
 	"""
+	from urllib.error import URLError
+
 	url = address+fn
 	out = path + fn
 
@@ -283,6 +286,15 @@ def filefetcher(fn, address, path):
 			# ========== decompress it ==========
 			tf  = tarfile.open(out)
 			tf.extractall(path=path+"tmp/")
+
+	except URLError: 
+		# ========== Modify the url path ==========
+		url = address+"new-corrected/"+fn
+		# ========== Download the file ==========
+		wget.download(url, out=out)
+		# ========== decompress it ==========
+		tf  = tarfile.open(out)
+		tf.extractall(path=path+"tmp/")		
 
 	except Exception as e:
 		warn.warn(str(e))
