@@ -82,54 +82,6 @@ def main():
 	ee.Initialize()
 
 	# ========== create the geometery ==========
-	def geom_builder(site = "Burn2015 UP"):
-		"""
-		function to make the geometery 
-		"""
-		# ========== Create a container ==========
-		coords = OrderedDict()
-		
-		# ========== Load the site data ==========
-		pointfn = "./data/field/Points.kml"
-		pointdt = gpd.read_file(pointfn, driver="kml")
-		
-		# ========== Pull out the location of a point ==========
-		lon = pointdt[pointdt.Name == site].geometry.x.values
-		lat = pointdt[pointdt.Name == site].geometry.y.values
-
-		# ========== get the local data info ==========
-		local_data = datasets()
-		ldsi       = local_data["COPERN"]
-
-		# ========== load in the grid data ==========
-		ds_gr = xr.open_dataset(ldsi["fname"], chunks=ldsi["chunks"])["NDVI"].rename(ldsi["rename"]).isel(time=1)
-		gr_bx = ds_gr.sel({"latitude":lat, "longitude":lon}, method="nearest")
-		# ========== Work out the edges of the grid box ==========
-		latstep = abs(np.unique(np.round(np.diff(ds_gr.latitude.values), decimals=9)))/2.0
-		lonstep = abs(np.unique(np.round(np.diff(ds_gr.longitude.values), decimals=9)))/2.0
-
-		# ========== Get values ready to export ==========
-		if site == "Burn2015 UP":
-			coords["name"] = "TestBurn"
-		else:
-			coords["name"] = site
-
-		coords["lon"]      = lon
-		coords["lat"]      = lat
-		
-		coords["lonb_max"] = gr_bx.longitude.values + lonstep
-		coords["lonb_min"] = gr_bx.longitude.values - lonstep
-		coords["latb_max"] = gr_bx.latitude.values  + latstep
-		coords["latb_min"] = gr_bx.latitude.values  - latstep
-
-
-		coords["lonr_max"] = (gr_bx.longitude.values + 2*(lonstep*2)) + lonstep
-		coords["lonr_min"] = (gr_bx.longitude.values - 2*(lonstep*2)) - lonstep
-		coords["latr_max"] = (gr_bx.latitude.values  + 2*(latstep*2)) + latstep
-		coords["latr_min"] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
-		
-		return pd.DataFrame(coords)
-
 	# ========== Get the cordinates ==========
 	# coords = geom_builder()
 	# site="G10T1-50"
@@ -149,8 +101,20 @@ def main():
 			[coords.lonr_min.values[0],coords.latr_max.values[0]]])
 
 	# ========== Rename the LS8 bands to match landsat archive ==========
+	# def renamebands(image):
+	# 	return image.rename(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11'])
+	def renamebandsETM(image):
+		# Landsat 4-7
+		bands    = ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'pixel_qa']
+		new_bands = ['B', 'G', 'R', 'NIR', 'SWIR1', 'SWIR2', 'pixel_qa']
+		return image.select(bands).rename(new_bands)
+
 	def renamebands(image):
-		return image.rename(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11'])
+		# Landsat 8
+		bands     = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'pixel_qa']
+		new_bands = ['B', 'G', 'R', 'NIR', 'SWIR1', 'SWIR2', 'pixel_qa']
+		return image.select(bands).rename(new_bands)
+
 	def LS7fix(image):
 		 filled1a = image.focal_mean(1, 'square', 'pixels', 2)
 		 # ipdb.set_trace()
@@ -160,7 +124,11 @@ def main():
 
 	# ========== Define the image collection ==========
 	program  = "LANDSAT"
-	bandlist = ['B4','B3', 'B2', 'B1']
+	# bandlist = ['B4','B3', 'B2', 'B1']
+	# ========== setup and reverse the bandlists ==========
+	bandlist = ['B', 'G', 'R', 'NIR', 'SWIR1', 'SWIR2', 'pixel_qa']
+	bandlist.reverse()
+
 	# program   = "sentinal"
 	if program == "LANDSAT":
 		dschoice  = "SR"#
@@ -170,13 +138,13 @@ def main():
 		ls8c = "LANDSAT/LC08/C01/T1_%s" % dschoice
 		L5coll = ee.ImageCollection(
 			"LANDSAT/LT05/C01/T1_%s" % dschoice).filter(
-			ee.Filter.lt('CLOUD_COVER',15)).select(
-			bandlist).filterBounds(geom)#.select(['B3', 'B2', 'B1'])
+			ee.Filter.lt('CLOUD_COVER',15)).map(
+			renamebandsETM).filterBounds(geom).select(bandlist)
 
 		L7coll = ee.ImageCollection(
 			'LANDSAT/LE07/C01/T1_%s' % dschoice).filter(
-			ee.Filter.lt('CLOUD_COVER',15)).select(
-			bandlist).filterBounds(geom).map(LS7fix)
+			ee.Filter.lt('CLOUD_COVER',15)).map(
+			renamebandsETM).filterBounds(geom).map(LS7fix).select(bandlist)
 
 		L8coll = ee.ImageCollection(
 			ls8c).filter(
@@ -184,6 +152,7 @@ def main():
 			renamebands).filterBounds(geom).select(bandlist)
 
 		collection = ee.ImageCollection(L5coll.merge(L7coll.merge(L8coll))).sort('system:time_start', True)
+
 	else:
 		ipdb.set_trace()
 		sys.exit()
@@ -251,7 +220,55 @@ def main():
 	ipdb.set_trace()
 
 	# [112.40420250574721,51.22323236456422]
-#==============================================================================
+
+
+def geom_builder(site = "Burn2015 UP"):
+	"""
+	function to make the geometery 
+	"""
+	# ========== Create a container ==========
+	coords = OrderedDict()
+	
+	# ========== Load the site data ==========
+	pointfn = "./data/field/Points.kml"
+	pointdt = gpd.read_file(pointfn, driver="kml")
+	
+	# ========== Pull out the location of a point ==========
+	lon = pointdt[pointdt.Name == site].geometry.x.values
+	lat = pointdt[pointdt.Name == site].geometry.y.values
+
+	# ========== get the local data info ==========
+	local_data = datasets()
+	ldsi       = local_data["COPERN"]
+
+	# ========== load in the grid data ==========
+	ds_gr = xr.open_dataset(ldsi["fname"], chunks=ldsi["chunks"])["NDVI"].rename(ldsi["rename"]).isel(time=1)
+	gr_bx = ds_gr.sel({"latitude":lat, "longitude":lon}, method="nearest")
+	# ========== Work out the edges of the grid box ==========
+	latstep = abs(np.unique(np.round(np.diff(ds_gr.latitude.values), decimals=9)))/2.0
+	lonstep = abs(np.unique(np.round(np.diff(ds_gr.longitude.values), decimals=9)))/2.0
+
+	# ========== Get values ready to export ==========
+	if site == "Burn2015 UP":
+		coords["name"] = "TestBurn"
+	else:
+		coords["name"] = site
+
+	coords["lon"]      = lon
+	coords["lat"]      = lat
+	
+	coords["lonb_max"] = gr_bx.longitude.values + lonstep
+	coords["lonb_min"] = gr_bx.longitude.values - lonstep
+	coords["latb_max"] = gr_bx.latitude.values  + latstep
+	coords["latb_min"] = gr_bx.latitude.values  - latstep
+
+
+	coords["lonr_max"] = (gr_bx.longitude.values + 2*(lonstep*2)) + lonstep
+	coords["lonr_min"] = (gr_bx.longitude.values - 2*(lonstep*2)) - lonstep
+	coords["latr_max"] = (gr_bx.latitude.values  + 2*(latstep*2)) + latstep
+	coords["latr_min"] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
+	
+	return pd.DataFrame(coords)
 
 def Field_data(year = 2018):
 	"""
@@ -360,5 +377,6 @@ def datasets():
 		# })
 	return data
 
+#==============================================================================
 if __name__ == '__main__':
 	main()
