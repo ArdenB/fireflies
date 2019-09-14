@@ -108,12 +108,12 @@ def main():
 	elif site == "G10T1-50":
 		fnames = sorted(glob.glob("/home/ubuntu/Downloads/Test2/*.tif"))
 	elif site == "G5T1-50":
-		fnames = sorted(glob.glob("/home/ubuntu/Downloads/Test3/*.tif"))
+		fnames = sorted(glob.glob("/mnt/c/Users/user/Google Drive/FIREFLIES_geotifs_G5T1-50/*.tif"))
+		# fnames = sorted(glob.glob("/home/ubuntu/Downloads/Test3/*.tif"))
 	else:
 		fnames = sorted(glob.glob("/home/ubuntu/Downloads/FIREFLIES_geotifs/*.tif"))
 		# fnames = sorted(glob.glob("/mnt/c/Users/user/Google Drive/FIREFLIES_geotifs/*.tif"))
 	SF     = 0.0001 # Scale Factor
-
 	# ========== load the additional indomation ==========
 	try:
 		dft = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_RGB_timeinfo.csv" % site, index_col=0, parse_dates=True)
@@ -130,9 +130,19 @@ def main():
 	da_ts  = xr.open_rasterio(fnames[0]).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"})
 	if da_ts.shape[2] == 3:
 		bandcombo["RGB"] = [1, 2, 3]	
+		bandlist = None
 	elif da_ts.shape[2] == 4:
 		bandcombo["NRG"] = [1, 2, 3]
 		bandcombo["RGB"] = [2, 3, 4]
+		bandlist = None
+	elif da_ts.shape[2] == 7:
+		# bandlist = ['B', 'G', 'R', 'NIR', 'SWIR1', 'SWIR2', 'pixel_qa']
+		bandlist = ['pixel_qa', 'SWIR2','SWIR1', 'NIR', 'R', 'G', 'B']
+
+		bandcombo["SNR"] = ['SWIR1', 'NIR', 'R']
+		bandcombo["NRG"] = ['NIR'  , 'R'  , 'G']
+		bandcombo["RGB"] = [  'R'  , 'G'  , 'B']
+
 	else:
 		warn.warn("unknown band structure")
 		ipdb.set_trace()
@@ -147,8 +157,10 @@ def main():
 			
 			# =========== Open the file and scale it ==========
 			da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"}) * SF
+			if not bandlist is None:
+				da_in["band"] = bandlist
+
 			da_in  = da_in.sel(band=bandcombo[bnd])
-			# ipdb.set_trace()
 			raw.append(da_in)
 
 
@@ -224,7 +236,6 @@ def main():
 						plt.show()
 
 
-					ipdb.set_trace()
 					continue
 					# img_gama = img.copy()
 										# # gamma_list = [0.95, 1.1, 1]
