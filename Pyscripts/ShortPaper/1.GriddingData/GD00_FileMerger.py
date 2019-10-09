@@ -86,11 +86,11 @@ def main():
 		fpath = "%s/%s/" % (ppath, pptex[ft])
 		fnout = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (fpath, ft, region)
 		if os.path.isfile(fnout) and not force:
-			print("dataset for %s %03d %02d already exist. going to next chunk" % (ft, LatM))
+			print("dataset for %s already exist. going to next chunk" % (fnout))
 			continue
 		
 		# ========== Stripe the lat bands ==========
-		DA_LC = [_lat_concat(LatM, fpath, dates, ft) for LatM in range(70, 50, -10)]
+		DA_LC = [_lat_concat(LatM, fpath, dates, ft) for LatM in range(70, 40, -10)]
 		DA    = xr.concat(DA_LC, dim="latitude")
 
 		# ========== Fix the metadata ==========

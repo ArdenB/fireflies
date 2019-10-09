@@ -71,7 +71,7 @@ def main():
 	# ========== Setup the paths ==========
 	ft     = "treecover2000"
 	region = "SIBERIA"
-	force  = False
+	force  = True#False
 	
 
 	# ========== Create the mask dates ==========
@@ -84,6 +84,9 @@ def main():
 	# ========== load in the datasets ==========
 	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
 	ds    = HansenNCload(ppath, region, maxNF, nfval)
+	ds    = ds.sel(dict(latitude=slice(ds.latitude.max().values, 45.0)))
+	# ipdb.set_trace()
+	# sys.exit()
 
 	# ========== Loop over the datasets ==========
 	for dsn in data:
@@ -435,24 +438,25 @@ def datasets():
 		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
-	warn.warn("\n\n The esacci infomation i've got here is out of date, i need to swap in the processed stuff")
-	ipdb.set_trace()
 	data["esacci"] = ({
-		"fname":"./data/BurntArea/20010101-ESACCI-L3S_FIRE-BA-MODIS-AREA_4-fv5.1-JD.tif",
-		'var':"BurntArea", "gridres":"250m", "region":"Asia", "timestep":"Monthly", 
-		"start":2001, "end":2018, "rasterio":True, "chunks":{'latitude': 1000},
-		"rename":{"band":"time","x":"longitude", "y":"latitude"}
+		"fname":"./media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'latitude': 1000},
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
+	data["MODIS"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'latitude': 1000},
+		})
+	
+	# ipdb.set_trace()
+
 	# data["MODISaqua"] = ({
 	# 	"fname":"./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc",
 	# 	'var':"ndvi", "gridres":"250m", "region":"SIBERIA", "timestep":"16day", 
 	# 	"start":2002, "end":2019
 	# 	})
-	# data["MODIS_CMG"] = ({
-	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/terra/processed/MODIS_terra_MOD13C1_5kmCMG_anmax.nc",
-	# 	'var':"ndvi", "gridres":"5km", "region":"Global", "timestep":"AnnualMax", 
-	# 	"start":2000, "end":2018
-		# })
 	return data
 
 # ======= DO NOT DELETE THESE YET< THE INDEXING APPROACH MAK BE GREAT FOR LANDSAT MOVIE ++++++++++++
