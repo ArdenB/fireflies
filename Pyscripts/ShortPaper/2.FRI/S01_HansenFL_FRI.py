@@ -238,7 +238,7 @@ def Annual_dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, fpath, mwb, region, dates, t
 		ds_con["FRI"] = (1/ds_con["lossfrac"])
 		
 		# ========== Build the encoding ==========
-		if dsn in ["COPERN_BA", "esacci"]:
+		if dsn in ["COPERN_BA", "esacci", "MODIS"]:
 			enc = ({'shuffle':True,
 				'chunksizes':[1, ds_con.latitude.shape[0], 1000],
 				'zlib':True,
@@ -870,12 +870,6 @@ def datasets():
 	# 	"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
 	# 	"rename":{"lon":"longitude", "lat":"latitude"}
 	# 	})
-	data["COPERN_BA"] = ({
-		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
-		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
 	data["esacci"] = ({
 		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
 		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
@@ -888,6 +882,12 @@ def datasets():
 		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
 		"rename":None,#{'latitude': 1000},
+		})
+	data["COPERN_BA"] = ({
+		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
+		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
 	# data["MODISaqua"] = ({
 	# 	"fname":"./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc",
