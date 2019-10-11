@@ -79,7 +79,7 @@ def main():
 	region = "SIBERIA"
 
 	# ========== select and analysis scale ==========
-	mwbox     = [2, 5, 1, 10] #in decimal degrees
+	mwbox     = [2, 5]#, 1, 10] #in decimal degrees
 	BPT       = 0.4
 
 	# ========== Set up the filename and global attributes =========
@@ -858,31 +858,36 @@ def GlobalAttributes(ds, dsn):
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	data["GIMMS"] = ({
-		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-		'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
-		"start":1982, "end":2017, "rasterio":False, "chunks":{'time': 36},
-		"rename":None
-		})
-	data["COPERN"] = ({
-		'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-		'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
-		"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
+	# data["GIMMS"] = ({
+	# 	"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
+	# 	'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
+	# 	"start":1982, "end":2017, "rasterio":False, "chunks":{'time': 36},
+	# 	"rename":None
+	# 	})
+	# data["COPERN"] = ({
+	# 	'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
+	# 	'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
+	# 	"rename":{"lon":"longitude", "lat":"latitude"}
+	# 	})
 	data["COPERN_BA"] = ({
 		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
 		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
 		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
-	warn.warn("\n\n The esacci infomation i've got here is out of date, i need to swap in the processed stuff")
-	ipdb.set_trace()
 	data["esacci"] = ({
-		"fname":"./data/BurntArea/20010101-ESACCI-L3S_FIRE-BA-MODIS-AREA_4-fv5.1-JD.tif",
-		'var':"BurntArea", "gridres":"250m", "region":"Asia", "timestep":"Monthly", 
-		"start":2001, "end":2018, "rasterio":True, "chunks":{'latitude': 1000},
-		"rename":{"band":"time","x":"longitude", "y":"latitude"}
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":None,
+		"rename":None,#{'latitude': 1000},
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
+	data["MODIS"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
+		"rename":None,#{'latitude': 1000},
 		})
 	# data["MODISaqua"] = ({
 	# 	"fname":"./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc",

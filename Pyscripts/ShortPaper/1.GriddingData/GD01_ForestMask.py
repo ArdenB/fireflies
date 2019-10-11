@@ -439,15 +439,17 @@ def datasets():
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
 	data["esacci"] = ({
-		"fname":"./media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
 		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'latitude': 1000},
+		"start":2001, "end":2018, "rasterio":False, "chunks":None,
+		"rename":None,#{'latitude': 1000},
 		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
 	data["MODIS"] = ({
 		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc",
 		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'latitude': 1000},
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
+		"rename":None,#{'latitude': 1000},
 		})
 	
 	# ipdb.set_trace()
