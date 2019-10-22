@@ -109,6 +109,7 @@ def main():
 		cf.pymkdir(path)
 
 		# ========== Make the hansen forest maps ==========
+		MODIS(path, fnames, SF, dft, dfg, region, site)
 		esacci(path, fnames, SF, dft, dfg, region, site)
 		Hansen(path, fnames, SF, dft, dfg, region, site)
 		copern(path, fnames, SF, dft, dfg, region, site)
@@ -116,7 +117,59 @@ def main():
 # ==============================================================================
 # ====================== BA product functions functions ========================
 # ==============================================================================
+def MODIS(path, fnames, SF, dft, dfg, region, site):
+	"""
+	function to make the copernicous BA product maps
+	"""
 
+	# data["COPERN_BA"] = ({
+	# 	'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
+	# 	'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":2014, "end":2019,"rasterio":False, "chunks":None, 
+	# 	"rename":{"lon":"longitude", "lat":"latitude"}
+	# 	})
+	# for yr in range(2014, 2020):
+	
+
+	files = []
+	# ========== get the file neames ==========
+	var   = "BA"
+	fname = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc"
+	ds_in = xr.open_dataset(fname, chunks={'latitude': 1000}).sel(dict(
+			latitude =slice(dfg.latr_max[0], dfg.latr_min[0]), 
+			longitude=slice(dfg.lonr_min[0], dfg.lonr_max[0]))).compute()
+	
+	# ========== Loop over each year ==========
+	print("MODIS")
+	for date in ds_in.time.values:
+	
+		# ========== Set up the plot ==========
+		fig, ax = plt.subplots(1, figsize=(11,10))
+		# plt.title("MODIS %d" % pd.Timestamp(date).year)
+		ds_in[var].sel(time=date).astype(float).plot.imshow(
+			ax=ax,
+			vmin=0, 
+			vmax=1, 
+			)
+			# cmap=cmap, 
+			# cbar_kwargs={'ticks':ticks} 
+
+		ax.scatter(dfg.lon[0], dfg.lat[0], 5, c='r', marker='+')
+		rect = mpl.patches.Rectangle(
+			(dfg.lonb_min[0],dfg.latb_min[0]),
+			dfg.lonb_max[0]-dfg.lonb_min[0],
+			dfg.lonb_max[0]-dfg.lonb_min[0],linewidth=1,edgecolor='r',facecolor='none')
+		ax.add_patch(rect)
+		# ax.set_title(None)#"%s %s" % (info.satellite, info.date.split(" ")[0]))
+		plt.axis('scaled')
+
+		fnout = "%sMODIS_%s_%s_%d.png" % (path, site, var, pd.Timestamp(date).year) 
+		plt.savefig(fnout)
+		plt.show()
+		ax.clear()
+		# ipdb.set_trace()
+
+	# ipdb.set_trace()
 def esacci(path, fnames, SF, dft, dfg, region, site):
 	"""Function  to build the cci maps"""
 	# ========== Setup the path ==========
