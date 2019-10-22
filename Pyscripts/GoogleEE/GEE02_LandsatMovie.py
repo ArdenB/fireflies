@@ -82,12 +82,11 @@ def main():
 	ee.Initialize()
 
 	# ========== create the geometery ==========
-	# ========== Get the cordinates ==========
-	# coords = geom_builder()
 	# site="G10T1-50"
 	site="G5T1-50"
 
-	coords = geom_builder(site=site)
+	coords = geom_builder()
+	ipdb.set_trace()
 
 	# ========== Load the Site Data ==========
 	# syear    = 2018
@@ -101,8 +100,6 @@ def main():
 			[coords.lonr_min.values[0],coords.latr_max.values[0]]])
 
 	# ========== Rename the LS8 bands to match landsat archive ==========
-	# def renamebands(image):
-	# 	return image.rename(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11'])
 	def renamebandsETM(image):
 		# Landsat 4-7
 		bands    = ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'pixel_qa']
@@ -133,7 +130,7 @@ def main():
 	if program == "LANDSAT":
 		dschoice  = "SR"#
 		dsinfom   = "LANDSAT_5_7_8"
-		dsbands   = "NRGB"
+		dsbands   = "SNRGB"
 		# dschoice = "TOA"
 		ls8c = "LANDSAT/LC08/C01/T1_%s" % dschoice
 		L5coll = ee.ImageCollection(
@@ -232,10 +229,18 @@ def geom_builder(site = "Burn2015 UP"):
 	# ========== Load the site data ==========
 	pointfn = "./data/field/Points.kml"
 	pointdt = gpd.read_file(pointfn, driver="kml")
-	
-	# ========== Pull out the location of a point ==========
-	lon = pointdt[pointdt.Name == site].geometry.x.values
-	lat = pointdt[pointdt.Name == site].geometry.y.values
+
+
+	# ========== Loop over the names ==========
+	sitenm = []
+	for nm in pointdt.Name:
+
+		if nm == "Burn2015 UP":
+			sitenm.append(nm)
+		elif "GROUP BOX" in nm:
+			pass
+		elif nm[-2:] == '-0':
+			sitenm.append(nm)
 
 	# ========== get the local data info ==========
 	local_data = datasets()
@@ -243,32 +248,51 @@ def geom_builder(site = "Burn2015 UP"):
 
 	# ========== load in the grid data ==========
 	ds_gr = xr.open_dataset(ldsi["fname"], chunks=ldsi["chunks"])["NDVI"].rename(ldsi["rename"]).isel(time=1)
-	gr_bx = ds_gr.sel({"latitude":lat, "longitude":lon}, method="nearest")
-	# ========== Work out the edges of the grid box ==========
-	latstep = abs(np.unique(np.round(np.diff(ds_gr.latitude.values), decimals=9)))/2.0
-	lonstep = abs(np.unique(np.round(np.diff(ds_gr.longitude.values), decimals=9)))/2.0
-
-	# ========== Get values ready to export ==========
-	if site == "Burn2015 UP":
-		coords["name"] = "TestBurn"
-	else:
-		coords["name"] = site
-
-	coords["lon"]      = lon
-	coords["lat"]      = lat
 	
-	coords["lonb_max"] = gr_bx.longitude.values + lonstep
-	coords["lonb_min"] = gr_bx.longitude.values - lonstep
-	coords["latb_max"] = gr_bx.latitude.values  + latstep
-	coords["latb_min"] = gr_bx.latitude.values  - latstep
+
+	def _sitemaker(site):
+		""" wrapper to pull out site info as needed """
+		# ========== Pull out the location of a point ==========
+		lon = pointdt[pointdt.Name == site].geometry.x.values
+		lat = pointdt[pointdt.Name == site].geometry.y.values
 
 
-	coords["lonr_max"] = (gr_bx.longitude.values + 2*(lonstep*2)) + lonstep
-	coords["lonr_min"] = (gr_bx.longitude.values - 2*(lonstep*2)) - lonstep
-	coords["latr_max"] = (gr_bx.latitude.values  + 2*(latstep*2)) + latstep
-	coords["latr_min"] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
+		gr_bx = ds_gr.sel({"latitude":lat, "longitude":lon}, method="nearest")
+		# ========== Work out the edges of the grid box ==========
+		latstep = abs(np.unique(np.round(np.diff(ds_gr.latitude.values), decimals=9)))/2.0
+		lonstep = abs(np.unique(np.round(np.diff(ds_gr.longitude.values), decimals=9)))/2.0
+
+		# ========== Get values ready to export ==========
+		if site == "Burn2015 UP":
+			coords["name"] = "TestBurn"
+		else:
+			coords["name"] = site
+
+		coords["lon"]      = lon
+		coords["lat"]      = lat
+
+		warn.warn("This needs to be updated to make new boxes \n")
+
+		coords["lonb_max"] = gr_bx.longitude.values + lonstep
+		coords["lonb_min"] = gr_bx.longitude.values - lonstep
+		coords["latb_max"] = gr_bx.latitude.values  + latstep
+		coords["latb_min"] = gr_bx.latitude.values  - latstep
+
+
+		coords["lonr_max"] = (gr_bx.longitude.values + 2*(lonstep*2)) + lonstep
+		coords["lonr_min"] = (gr_bx.longitude.values - 2*(lonstep*2)) - lonstep
+		coords["latr_max"] = (gr_bx.latitude.values  + 2*(latstep*2)) + latstep
+		coords["latr_min"] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
+
+		# pd.DataFrame(coords)
+		return coords
 	
-	return pd.DataFrame(coords)
+	# ========== setup an ordered dict of the names ==========
+	sitinfoLS = OrderedDict()
+	for nm in sitenm:
+		sitinfoLS[nm] = _sitemaker(nm)
+	ipdb.set_trace()
+	sys.exit()
 
 def Field_data(year = 2018):
 	"""
