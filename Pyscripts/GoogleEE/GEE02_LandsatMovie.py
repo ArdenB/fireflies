@@ -306,7 +306,7 @@ def GEE_geotifexp(coords, spath, program):
 	sle = 0
 	while sle < 10:
 		sle += 1
-		string = "\r Starting sleep number as %s" % (sle, str(pd.Timestamp.now()))
+		string = "\r Starting sleep number %d at %s" % (sle, str(pd.Timestamp.now()))
 		sys.stdout.write(string)
 		sys.stdout.flush()
 		time.sleep(60)
