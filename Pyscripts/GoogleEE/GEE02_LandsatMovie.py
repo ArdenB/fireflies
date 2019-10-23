@@ -222,7 +222,7 @@ def GEE_geotifexp(coords, spath, program):
 
 		for nx, info in df.iterrows():
 
-			string = "Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
+			string = "\r Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
 			sys.stdout.write(string)
 			sys.stdout.flush()
 
