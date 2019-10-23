@@ -67,6 +67,7 @@ fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is d
 # import cartopy.feature as cpf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
+import myfunctions.corefunctions as cf 
 # # Import debugging packages 
 import ipdb
 
@@ -76,28 +77,56 @@ print("xarray version : ", xr.__version__)
 
 #==============================================================================
 
-
 def main():
 	# ========== Initialize the Earth Engine object ==========
 	ee.Initialize()
 
-	# ========== create the geometery ==========
+	# ========== Set an overwrite =========
+	force = False
+
+	# ========== Create the system specific paths ==========
+	if os.uname()[1] == 'DESKTOP-CSHARFM':
+		# LAPTOP
+		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+	else:
+		warn.warn("Paths not created for this computer")
+		# spath =  "/media/ubuntu/Seagate Backup Plus Drive"
+		ipdb.set_trace()
+
 	# site="G10T1-50"
-	site="G5T1-50"
+	# site="G5T1-50"
 
-	coords = geom_builder()
-	ipdb.set_trace()
+	# ========== create the geometery ==========
+	site_coords = geom_builder()
 
-	# ========== Load the Site Data ==========
-	# syear    = 2018
-	# SiteInfo = Field_data()
-	# geom   = ee.Geometry.Point([coords.lon.values[0], coords.lat.values[0]])
+	# ========== Loop over each site ==========
+	program = "LANDSAT"
+	for index, coords in site_coords.iterrows():
 
+		# ========== Check if the pathe and file exists ==========
+		checkfile = "%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"])
+
+		if os.path.isfile(checkfile) and not force:
+			print("Data has already been exported for %s" % coords["name"])
+		else:
+			# make the dir
+			cf.pymkdir(spath+coords["name"])
+
+			# Export the geotifs
+			GEE_geotifexp(coords, spath, program)
+
+		ipdb.set_trace()
+		sys.exit()
+
+#==============================================================================
+
+def GEE_geotifexp(coords, spath, program):
+	""" function takes in coordinate infomation and begins the save out processs """
 	geom = ee.Geometry.Polygon([
-			[coords.lonr_min.values[0],coords.latr_min.values[0]],
-			[coords.lonr_max.values[0],coords.latr_min.values[0]],
-			[coords.lonr_max.values[0],coords.latr_max.values[0]],
-			[coords.lonr_min.values[0],coords.latr_max.values[0]]])
+			[coords.lonr_min[0],coords.latr_min[0]],
+			[coords.lonr_max[0],coords.latr_min[0]],
+			[coords.lonr_max[0],coords.latr_max[0]],
+			[coords.lonr_min[0],coords.latr_max[0]]])
 
 	# ========== Rename the LS8 bands to match landsat archive ==========
 	def renamebandsETM(image):
@@ -116,11 +145,11 @@ def main():
 		 filled1a = image.focal_mean(1, 'square', 'pixels', 2)
 		 # ipdb.set_trace()
 		 return filled1a.blend(image).set(
-		 	'system:time_start', image.get('system:time_start')).set(
-		 	"SATELLITE", image.get("SATELLITE"))
+			'system:time_start', image.get('system:time_start')).set(
+			"SATELLITE", image.get("SATELLITE"))
 
 	# ========== Define the image collection ==========
-	program  = "LANDSAT"
+	
 	# bandlist = ['B4','B3', 'B2', 'B1']
 	# ========== setup and reverse the bandlists ==========
 	bandlist = ['B', 'G', 'R', 'NIR', 'SWIR1', 'SWIR2', 'pixel_qa']
@@ -153,78 +182,143 @@ def main():
 	else:
 		ipdb.set_trace()
 		sys.exit()
+
 	# ========== Fetch the dates ==========
 	info = []
 	for elem in collection.getInfo()["features"]:
 		utime = elem["properties"]['system:time_start']
-		sat   = elem["properties"]["SATELLITE"] 
-		info.append({"satellite":sat, "time":utime })
-
+		sat   = elem["properties"]["SATELLITE"]
+		try:
+			if sat =='LANDSAT_7':
+				uid   = elem["properties"]['system:index']
+			else:
+				uid   = elem["properties"]['LANDSAT_ID']
+		except KeyError:
+			ipdb.set_trace()
+			
+		info.append({"satellite":sat, "time":utime, "unid":uid })
 
 	# ========== convert dates to pandas dataframe ==========
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
-	df.to_csv("./data/other/tmp/%s_%s_%s_timeinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
-	coords.to_csv("./data/other/tmp/%s_%s_%s_gridinfo.csv" % (dsinfom, coords.name.values[0], dsbands))
+
+	try:
+		print("Starting to create GeoTIFF's for %s at:" % coords["name"], pd.Timestamp.now())
+		gee_batch.imagecollection.toDrive(
+			collection, 
+			"FIREFLIES_geotifs" ,
+			namePattern='%s_%s_%s_%s_{system_date}_{id}' % (dsbands, dsinfom, coords["name"], dsbands), 
+			region=geom, 
+			crs = "EPSG:4326", 
+			fileFormat='GeoTIFF'
+			)
+
+	except Exception as e:
+		warn.warn("Batch processing failed with error" + str(e))
+		print("Attempting manual creation")
+
+		# ========== Convert the collection into a selection of images
+		img_list = collection.toList(collection.size())
+
+		for nx, info in df.iterrows():
+
+			string = "Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
+			sys.stdout.write(string)
+			sys.stdout.flush()
+
+			# ========== convert the datatype ==========
+			img = ee.Image(img_list.get(nx)).toFloat()
+			
+			# ========== Create the name and path ==========
+			name     = '%s_%s_%s_%04d' % (dsinfom, coords["name"], dsbands, nx)
+			folder   = "FIREFLIES_geotifs"
+
+			# ========== Send the task to the cloud ==========
+			task = ee.batch.Export.image.toDrive(
+				image=img,
+				description=name,
+				folder=folder,
+				# fileNamePrefix=name,
+				region=(
+					[coords.lonr_min[0],coords.latr_min[0]],
+					[coords.lonr_max[0],coords.latr_min[0]],
+					[coords.lonr_max[0],coords.latr_max[0]],
+					[coords.lonr_min[0],coords.latr_max[0]]),
+				scale=30, 
+				fileFormat='GeoTIFF')
+
+			process = batch.Task.start(task)
+		
+		ipdb.set_trace()
+
+	# ========== Code for old video export ==========
+	oldvideo = False
+	if oldvides:
+		# This is the way to use the google earth engine to make videos, i've
+		# left the code here in case i need it again in the future
 
 
-	# ========== Create a geotif ==========
-	print("Starting to create GeoTIFF's for %s at:" % coords.name.values[0], pd.Timestamp.now())
-	gee_batch.imagecollection.toDrive(
-		collection, 
-		"FIREFLIES_geotifs_%s" % site,
-		namePattern='%s_%s_%s_%s_{system_date}_{id}' % (dsbands, dsinfom, coords.name.values[0], dsbands), 
-		region=geom, 
-		crs = "EPSG:4326", 
-		fileFormat='GeoTIFF'
-		)
-		# maxFrames=10000
-
-	## Make 8 bit data
-	def convertBit(image):
-	    return image.multiply(512).uint8()  
-
-	def convertBitV2(image):
-		return image.multiply(0.0001).multiply(512).uint8()  
-	## Convert bands to output video  
-	if dschoice == "TOA":
-		outputVideo = collection.map(convertBit)
-	else:
-		outputVideo = collection.map(convertBitV2)
+		## Convert bands to output video  
+		if dschoice == "TOA":
+			outputVideo = collection.map(convertBit)
+		else:
+			outputVideo = collection.map(convertBitV2)
 
 
-	if len(bandlist)> 3:
-		outputVideo = outputVideo.select(['B3', 'B2', 'B1'])
+		if len(bandlist)> 3:
+			outputVideo = outputVideo.select(['B3', 'B2', 'B1'])
 
 
-	# Export video to Google Drive
-	print("Starting to create video for %s at:" % coords.name.values[0], pd.Timestamp.now())
-	out = batch.Export.video.toDrive(
-		outputVideo, description='%s_%s_%s' % (dsinfom, coords.name.values[0], dsbands), 
-		folder = "/GEE_VIDEO_EXPORTS",
-		framesPerSecond = 1, #dimensions = 1080, 
-		region=(
-			[coords.lonr_min.values[0],coords.latr_min.values[0]],
-			[coords.lonr_max.values[0],coords.latr_min.values[0]],
-			[coords.lonr_max.values[0],coords.latr_max.values[0]],
-			[coords.lonr_min.values[0],coords.latr_max.values[0]]), 
-		crs = "EPSG:4326",
-		maxFrames=10000)
-	process = batch.Task.start(out)
-	print("Process sent to cloud")
+		testfirst = False
+		if testfirst:
+			task_config = {
+				# 'description': 'imageToDriveTestExample',
+				'scale': 30,  
+				'region': geom,
+				"crs" : "EPSG:4326", 
+				"fileFormat":'GeoTIFF'
+				}
 
+			task = batch.Export.image.toDrive(outputVideo.first(), "testimage", task_config)
+			task.start()
+		# Export video to Google Drive
+		print("Starting to create video for %s at:" % coords["name"], pd.Timestamp.now())
+		out = batch.Export.video.toDrive(
+			outputVideo, description='%s_%s_%s' % (dsinfom, coords["name"], dsbands), 
+			folder = "/GEE_VIDEO_EXPORTS",
+			framesPerSecond = 1, #dimensions = 1080, 
+			region=(
+				[coords.lonr_min[0],coords.latr_min[0]],
+				[coords.lonr_max[0],coords.latr_min[0]],
+				[coords.lonr_max[0],coords.latr_max[0]],
+				[coords.lonr_min[0],coords.latr_max[0]]), 
+			crs = "EPSG:4326",
+			maxFrames=10000)
+		process = batch.Task.start(out)
+		print("Process sent to cloud")
+
+	# ========== Save out the relevant infomation ==========
+	df.to_csv("%s%s/%s_%s_%s_timeinfo.csv" % (spath, coords["name"], dsinfom, coords["name"], dsbands))
+	coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
 
 	ipdb.set_trace()
 
-	# [112.40420250574721,51.22323236456422]
+#==============================================================================
+#==============================================================================
+#==============================================================================
+
+## Make 8 bit data
+def convertBit(image):
+	return image.multiply(512).uint8()  
+
+def convertBitV2(image):
+	return image.multiply(0.0001).multiply(512).uint8()  
 
 
 def geom_builder(site = "Burn2015 UP"):
 	"""
 	function to make the geometery 
 	"""
-	# ========== Create a container ==========
-	coords = OrderedDict()
 	
 	# ========== Load the site data ==========
 	pointfn = "./data/field/Points.kml"
@@ -234,7 +328,6 @@ def geom_builder(site = "Burn2015 UP"):
 	# ========== Loop over the names ==========
 	sitenm = []
 	for nm in pointdt.Name:
-
 		if nm == "Burn2015 UP":
 			sitenm.append(nm)
 		elif "GROUP BOX" in nm:
@@ -242,57 +335,91 @@ def geom_builder(site = "Burn2015 UP"):
 		elif nm[-2:] == '-0':
 			sitenm.append(nm)
 
-	# ========== get the local data info ==========
-	local_data = datasets()
-	ldsi       = local_data["COPERN"]
 
-	# ========== load in the grid data ==========
-	ds_gr = xr.open_dataset(ldsi["fname"], chunks=ldsi["chunks"])["NDVI"].rename(ldsi["rename"]).isel(time=1)
-	
-
-	def _sitemaker(site):
+	def _sitemaker(site, ds, dsn, sitinfoLS):
+		
 		""" wrapper to pull out site info as needed """
+		
 		# ========== Pull out the location of a point ==========
 		lon = pointdt[pointdt.Name == site].geometry.x.values
 		lat = pointdt[pointdt.Name == site].geometry.y.values
+		
+		# ========== Check if the site has already been built ==========
+		if dsn == "COPERN": # The site has not been built yet
+			# ========== set the key params ==========
+			boxs  = 5   # number of grid cells considered 
+			ident = "r" # The indertifing code of the dataset
+			# ========== Create a container ==========
+			coords = OrderedDict()
+
+
+			# ========== Get values ready to export ==========
+			if site == "Burn2015 UP":
+				coords["name"] = "TestBurn"
+			else:
+				coords["name"] = site
+
+			coords["lon"]      = lon
+			coords["lat"]      = lat
+
+			# ========== Build the empty parts of the Ordered dic ==========
+			for va_nm in ["r", "b_COP", "b_MOD"]:
+				for ll in ["lon", "lat"]:
+					for mm in ["max", "min"]:
+						coords["%s%s_%s" % (ll, va_nm, mm)] = 0
+		else:
+			if dsn == "MODIS":
+				boxs  = 3   # number of grid cells considered 
+				ident = "b_MOD" # The indertifing code of the dataset
+			elif dsn == "COPERN_BA":
+				boxs  = 5   # number of grid cells considered 
+				ident = "b_COP" # The indertifing code of the dataset
+			
+			coords = sitinfoLS[site]
 
 
 		gr_bx = ds_gr.sel({"latitude":lat, "longitude":lon}, method="nearest")
+		
 		# ========== Work out the edges of the grid box ==========
 		latstep = abs(np.unique(np.round(np.diff(ds_gr.latitude.values), decimals=9)))/2.0
 		lonstep = abs(np.unique(np.round(np.diff(ds_gr.longitude.values), decimals=9)))/2.0
 
-		# ========== Get values ready to export ==========
-		if site == "Burn2015 UP":
-			coords["name"] = "TestBurn"
-		else:
-			coords["name"] = site
+		if boxs == 3:
+			coords["lon%s_max" % ident] = gr_bx.longitude.values + lonstep
+			coords["lon%s_min" % ident] = gr_bx.longitude.values - lonstep
+			coords["lat%s_max" % ident] = gr_bx.latitude.values  + latstep
+			coords["lat%s_min" % ident] = gr_bx.latitude.values  - latstep
 
-		coords["lon"]      = lon
-		coords["lat"]      = lat
-
-		warn.warn("This needs to be updated to make new boxes \n")
-
-		coords["lonb_max"] = gr_bx.longitude.values + lonstep
-		coords["lonb_min"] = gr_bx.longitude.values - lonstep
-		coords["latb_max"] = gr_bx.latitude.values  + latstep
-		coords["latb_min"] = gr_bx.latitude.values  - latstep
+		elif boxs == 5:
+			coords["lon%s_max" % ident] = (gr_bx.longitude.values + 2*(lonstep*2)) + lonstep
+			coords["lon%s_min" % ident] = (gr_bx.longitude.values - 2*(lonstep*2)) - lonstep
+			coords["lat%s_max" % ident] = (gr_bx.latitude.values  + 2*(latstep*2)) + latstep
+			coords["lat%s_min" % ident] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
 
 
-		coords["lonr_max"] = (gr_bx.longitude.values + 2*(lonstep*2)) + lonstep
-		coords["lonr_min"] = (gr_bx.longitude.values - 2*(lonstep*2)) - lonstep
-		coords["latr_max"] = (gr_bx.latitude.values  + 2*(latstep*2)) + latstep
-		coords["latr_min"] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
-
-		# pd.DataFrame(coords)
-		return coords
+		sitinfoLS[site] = coords
+		return sitinfoLS #coords
 	
 	# ========== setup an ordered dict of the names ==========
-	sitinfoLS = OrderedDict()
-	for nm in sitenm:
-		sitinfoLS[nm] = _sitemaker(nm)
-	ipdb.set_trace()
-	sys.exit()
+	sitinfoLS  = OrderedDict()
+	local_data = datasets()
+	for dsn in ["COPERN", "COPERN_BA", "MODIS"]:
+		print(dsn)
+		ldsi       = local_data[dsn]
+		
+		# ========== load in the grid data ==========
+		ds_gr = xr.open_dataset(
+			ldsi["fname"], 
+			chunks=ldsi["chunks"])[ldsi["var"]].rename(ldsi["rename"]).isel(time=0)
+
+		for nm in sitenm:
+			sitinfoLS = _sitemaker(nm, ds_gr, dsn, sitinfoLS)
+		
+		# ========== Close the dataset ==========
+		ds_gr = None
+		# ipdb.set_trace()
+
+	return pd.DataFrame(sitinfoLS).transpose()[sitinfoLS["Burn2015 UP"].keys()]
 
 def Field_data(year = 2018):
 	"""
@@ -362,6 +489,15 @@ def Field_data(year = 2018):
 	return RFinfo
 
 def datasets():
+
+	# ========== Create the system specific paths ==========
+	if os.uname()[1] == 'DESKTOP-CSHARFM':
+		# LAPTOP
+		dpath = "/mnt/e"
+	else:
+		warn.warn("Paths not created for this computer")
+		# dpath =  "/media/ubuntu/Seagate Backup Plus Drive"
+		ipdb.set_trace()
 	# ========== set the filnames ==========
 	data= OrderedDict()
 	data["GIMMS"] = ({
@@ -377,30 +513,70 @@ def datasets():
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
 	data["COPERN_BA"] = ({
-		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
+		'fname':"%s/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc" % dpath,
 		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
 		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
-	
 	data["esacci"] = ({
-		"fname":"./data/BurntArea/20010101-ESACCI-L3S_FIRE-BA-MODIS-AREA_4-fv5.1-JD.tif",
-		'var':"BurntArea", "gridres":"250m", "region":"Asia", "timestep":"Monthly", 
-		"start":2001, "end":2018, "rasterio":True, "chunks":{'latitude': 1000},
-		"rename":{"band":"time","x":"longitude", "y":"latitude"}
+		"fname":"%s/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc" % dpath,
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":None,
+		"rename":None,#{'latitude': 1000},
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
-	# data["MODISaqua"] = ({
-	# 	"fname":"./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc",
-	# 	'var':"ndvi", "gridres":"250m", "region":"SIBERIA", "timestep":"16day", 
-	# 	"start":2002, "end":2019
-	# 	})
-	# data["MODIS_CMG"] = ({
-	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/NDVI/5.MODIS/terra/processed/MODIS_terra_MOD13C1_5kmCMG_anmax.nc",
-	# 	'var':"ndvi", "gridres":"5km", "region":"Global", "timestep":"AnnualMax", 
-	# 	"start":2000, "end":2018
-		# })
+	data["MODIS"] = ({
+		"fname":"%s/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc" % dpath,
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
+		"rename":None,#{'latitude': 1000},
+		})
 	return data
 
+def string_format(string, replacement):
+	""" Format a string using variables (as str.format) """
+
+	s = ee.String(string)
+	repl = ee.Dictionary(replacement)
+	keys = repl.keys()
+	values = repl.values().map(lambda v: ee.Algorithms.String(v))
+	z = keys.zip(values)
+
+	def wrap(kv, ini):
+		keyval = ee.List(kv)
+		ini = ee.String(ini)
+
+		key = ee.String(keyval.get(0))
+		value = ee.String(keyval.get(1))
+
+		pattern = ee.String('{').cat(key).cat(ee.String('}'))
+
+		return ini.replace(pattern, value)
+
+	newstr = z.iterate(wrap, s)
+	return ee.String(newstr)
+
+def convertDataType(newtype):
+    """ Convert an image to the specified data type
+    :param newtype: the data type. One of 'float', 'int', 'byte', 'double',
+        'Uint8','int8','Uint16', 'int16', 'Uint32','int32'
+    :type newtype: str
+    :return: a function to map over a collection
+    :rtype: function
+    """
+    def wrap(image):
+        TYPES = {'float': image.toFloat,
+                 'int': image.toInt,
+                 'byte': image.toByte,
+                 'double': image.toDouble,
+                 'Uint8': image.toUint8,
+                 'int8': image.toInt8,
+                 'Uint16': image.toUint16,
+                 'int16': image.toInt16,
+                 'Uint32': image.toUint32,
+                 'int32': image.toInt32}
+        return TYPES[newtype]()
+    return wrap
 #==============================================================================
 if __name__ == '__main__':
 	main()
