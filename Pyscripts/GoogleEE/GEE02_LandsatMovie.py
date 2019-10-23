@@ -38,6 +38,7 @@ import xarray as xr
 import bottleneck as bn
 import scipy as sp
 import glob
+import time
 
 from collections import OrderedDict
 from scipy import stats
@@ -115,8 +116,8 @@ def main():
 			# Export the geotifs
 			GEE_geotifexp(coords, spath, program)
 
-		ipdb.set_trace()
-		sys.exit()
+	ipdb.set_trace()
+	sys.exit()
 
 #==============================================================================
 
@@ -201,6 +202,7 @@ def GEE_geotifexp(coords, spath, program):
 	# ========== convert dates to pandas dataframe ==========
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
+	# ========== Save out the relevant infomation ==========
 
 	try:
 		print("Starting to create GeoTIFF's for %s at:" % coords["name"], pd.Timestamp.now())
@@ -249,11 +251,9 @@ def GEE_geotifexp(coords, spath, program):
 
 			process = batch.Task.start(task)
 		
-		ipdb.set_trace()
-
 	# ========== Code for old video export ==========
 	oldvideo = False
-	if oldvides:
+	if oldvideo:
 		# This is the way to use the google earth engine to make videos, i've
 		# left the code here in case i need it again in the future
 
@@ -301,7 +301,16 @@ def GEE_geotifexp(coords, spath, program):
 	df.to_csv("%s%s/%s_%s_%s_timeinfo.csv" % (spath, coords["name"], dsinfom, coords["name"], dsbands))
 	coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
 
-	ipdb.set_trace()
+	# ========== Going to sleep to give GEE a rest before i slam it with new requests  ==========
+	print("\n Starting 10 minutes of sleep at", pd.Timestamp.now(), "\n")
+	sle = 0
+	while sle < 10:
+		sle += 1
+		string = "\r Starting sleep number as %s" % (sle, str(pd.Timestamp.now()))
+		sys.stdout.write(string)
+		sys.stdout.flush()
+		time.sleep(60)
+
 
 #==============================================================================
 #==============================================================================
