@@ -84,6 +84,7 @@ def main():
 
 	# ========== Set an overwrite =========
 	force = False
+	cordf = True # force the creation of a new maskter coord list
 
 	# ========== Create the system specific paths ==========
 	if os.uname()[1] == 'DESKTOP-CSHARFM':
@@ -94,11 +95,18 @@ def main():
 		# spath =  "/media/ubuntu/Seagate Backup Plus Drive"
 		ipdb.set_trace()
 
-	# site="G10T1-50"
-	# site="G5T1-50"
-
 	# ========== create the geometery ==========
-	site_coords = geom_builder()
+	cordname = "./data/other/GEE_sitelist.csv"
+	if not os.path.isfile(cordname) or cordf:
+		print("Generating and saving a new master coord table")
+		site_coords = geom_builder()
+		site_coords.to_csv(cordname)
+	else:
+		print("Loading master coord table")
+		site_coords = pd.read_csv(cordname, index_col=0)#, parse_dates=True
+		warn.warn("THere is some form of bug here, going interactive. Look at the dataframe")
+		ipdb.set_trace()
+
 
 	# ========== Loop over each site ==========
 	program = "LANDSAT"
@@ -110,11 +118,16 @@ def main():
 		if os.path.isfile(checkfile) and not force:
 			print("Data has already been exported for %s" % coords["name"])
 		else:
+			# ========== Get the start time ==========
+			t0 = pd.Timestamp.now()
 			# make the dir
 			cf.pymkdir(spath+coords["name"])
 
 			# Export the geotifs
 			GEE_geotifexp(coords, spath, program)
+
+			td = pd.Timestamp.now() - t0
+			print("\n Data for %s sent sent for cloud processing. it took " % coords["name"], td)
 
 	ipdb.set_trace()
 	sys.exit()
@@ -202,7 +215,9 @@ def GEE_geotifexp(coords, spath, program):
 	# ========== convert dates to pandas dataframe ==========
 	df         = pd.DataFrame(info)
 	df["date"] = pd.to_datetime(df["time"], unit='ms', origin='unix')  
-	# ========== Save out the relevant infomation ==========
+	# df.to_csv("%s%s/%s_%s_%s_timeinfo.csv" % (spath, coords["name"], dsinfom, coords["name"], dsbands))
+	# coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
+	# sys.exit()
 
 	try:
 		print("Starting to create GeoTIFF's for %s at:" % coords["name"], pd.Timestamp.now())
@@ -223,6 +238,8 @@ def GEE_geotifexp(coords, spath, program):
 		img_list = collection.toList(collection.size())
 
 		for nx, info in df.iterrows():
+			# if nx < 53:
+				# continue
 
 			string = "\r Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
 			sys.stdout.write(string)
@@ -240,7 +257,7 @@ def GEE_geotifexp(coords, spath, program):
 				image=img,
 				description=name,
 				folder=folder,
-				# fileNamePrefix=name,
+				crs = "EPSG:4326",
 				region=(
 					[coords.lonr_min[0],coords.latr_min[0]],
 					[coords.lonr_max[0],coords.latr_min[0]],
@@ -248,8 +265,15 @@ def GEE_geotifexp(coords, spath, program):
 					[coords.lonr_min[0],coords.latr_max[0]]),
 				scale=30, 
 				fileFormat='GeoTIFF')
+			try:
+				process = batch.Task.start(task)
+			except Exception as er:
+				print(str(er))
+				warn.warn("I need to implement some form of waiting here to make sure i don't exceed request limits")
+				ipdb.set_trace()
 
-			process = batch.Task.start(task)
+				process = batch.Task.start(task)
+
 		
 	# ========== Code for old video export ==========
 	oldvideo = False
@@ -302,9 +326,9 @@ def GEE_geotifexp(coords, spath, program):
 	coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
 
 	# ========== Going to sleep to give GEE a rest before i slam it with new requests  ==========
-	print("\n Starting 10 minutes of sleep at", pd.Timestamp.now(), "\n")
+	print("\n Starting 15 minutes of sleep at", pd.Timestamp.now(), "\n")
 	sle = 0
-	while sle < 10:
+	while sle < 15:
 		sle += 1
 		string = "\r Starting sleep number %d at %s" % (sle, str(pd.Timestamp.now()))
 		sys.stdout.write(string)
