@@ -238,8 +238,8 @@ def GEE_geotifexp(coords, spath, program):
 		img_list = collection.toList(collection.size())
 
 		for nx, info in df.iterrows():
-			# if nx < 53:
-				# continue
+			# if nx < 62:
+			# 	continue
 
 			string = "\r Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
 			sys.stdout.write(string)
@@ -274,7 +274,6 @@ def GEE_geotifexp(coords, spath, program):
 
 				process = batch.Task.start(task)
 
-		
 	# ========== Code for old video export ==========
 	oldvideo = False
 	if oldvideo:
