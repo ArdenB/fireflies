@@ -39,6 +39,7 @@ import bottleneck as bn
 import scipy as sp
 import glob
 import shutil
+import time
 
 from collections import OrderedDict
 from scipy import stats
@@ -105,6 +106,7 @@ def main(args):
 	# ========== Check the site ==========
 	if args.site is None:
 		for site, coords in site_coords.iterrows():
+			ipdb.set_trace()
 			scheck = SiteChecker(dpath, coords["name"], args.force)
 			if scheck == False:
 				continue
@@ -350,8 +352,12 @@ def MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands):
 	mov = mpe.VideoClip(frame_maker, duration=int(datelist.shape[0]))
 	# plays the clip (and its mask and sound) twice faster
 	# newclip = clip.fl_time(lambda: 2*t, apply_to=['mask','audio'])
+
+	# fnout = "%s/LANDSAT_5_7_8_%s_complete.txt" % (spath, coords["name"]) 
 	print("Starting Write of the data at:", pd.Timestamp.now())
 	mov.write_videofile(fnout, fps=1)
+
+
 
 	ipdb.set_trace()
 
@@ -436,6 +442,10 @@ def filemover(dpath, spath, site, dsinfom, dsbands, df, dfn_nm):
 
 		df_names = pd.DataFrame({"fnames":mfnames})
 		df_names.to_csv(dfn_nm)
+
+		# ========== Sleep to allow files to move ==========
+		print("Waiting so files have a chance to move. Wait started at:", pd.Timestamp.now())
+		time.sleep(60)
 
 		return df_names
 		
