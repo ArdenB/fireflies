@@ -101,7 +101,7 @@ def main(args):
 	dpath       = syspath()
 	cordname    = "./data/other/GEE_sitelist.csv"
 	site_coords = pd.read_csv(cordname, index_col=0)
-	
+
 	# ========== Check the site ==========
 	if args.site is None:
 		for site, coords in site_coords.iterrows():
@@ -113,7 +113,9 @@ def main(args):
 				images, bandcombo, bandlist, datelist = IMcleaner(dpath, site, scheck, coords, test = False)
 				# ipdb.set_trace()
 				mpl.use('agg')
-				MovieMaker(images, dpath, site, scheck, coords, bandcombo, bandlist, datelist)
+				MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, ["NRG", "RGB", "SNR"])
+				# for bands in bandcombo:
+				# 	MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands)
 				ipdb.set_trace()
 	else:
 		warn.warn("This is yet to be implemented")
@@ -242,60 +244,116 @@ def IMcleaner(dpath, site, scheck, coords, test = False):
 	return images, bandcombo, bandlist, datelist
 
 #==============================================================================
-def MovieMaker(images, dpath, site, scheck, coords, bandcombo, bandlist, datelist):
+def MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands):
 	""" Function to build the movie """
 
 	spath    = dpath + "UoL/FIREFLIES/VideoExports/%s" % coords["name"]
 	
-	for bands in bandcombo:
-		print("\n starting %s at:" % bands, pd.Timestamp.now())
+	# for bands in bandcombo:
+	print("\n starting %s at:" % bands, pd.Timestamp.now())
 
-		# ========== Create a single dataarray for the raster images ===========
-		imstack = images[bands]
-		da_mod = xr.concat(imstack, dim="time")
+	# ========== Create a single dataarray for the raster images ===========
+	sets = OrderedDict()
+	if type(bands) == str:
+		imstack     = images[bands]
+		sets[bands] =  xr.concat(imstack, dim="time")
+		fnout = "%s/LANDSAT_5_7_8_%s_%s.mp4" % (spath, coords["name"], bands) 
+	elif type(bands) == list:
+		bndnm = "multi_" + "_".join(bands)
+		for bnd in bands:
+			imstack   = images[bnd]
+			sets[bnd] =  xr.concat(imstack, dim="time")
+		fnout = "%s/LANDSAT_5_7_8_%s_%s.mp4" % (spath, coords["name"], bndnm) 
+	else:
+		ipdb.set_trace()
 
 
-		# ========== Loop over each frame of the video ==========
-		nx = []
+	# ========== Loop over each frame of the video ==========
+	nx = []
 
-		def frame_maker(index):
-			# ========== Pull the infomation from the pandas part of the loop ==========
-			info  = datelist.iloc[int(index)] #rowinfo[1]
-			frame = da_mod.isel(time=int(index))
+	def frame_maker(index):
 
-			# ========== Check the dates i'm exporting ==========
-			nx.append(frame.time.values)
+		# ========== Pull the infomation from the pandas part of the loop ==========
+		indx  = int(index) 
+		info  = datelist.iloc[int(indx)] #rowinfo[1]
+		
+		# # ========== Check the dates i'm exporting ==========
+		# nx.append(frame.time.values)
 
-			# ========== setup the plot ========== 
-			fig, ax = plt.subplots(1, figsize=(11,10))#, dpi=400)#, subplot_kw={'projection': ccrs.PlateCarree()} )#, , dpi=400, )
+		# ========== create and internal subplot ==========
+		def _subplotmaker(ax, bnds, spt):
+			# ========== Get the data for the frame ==========
+			frame = sets[bnds].isel(time=int(indx))
+			# ========== Set the colors ==========
+			# if bnds == "NRG":
+			color = "blue"
+			# else:
+			# 	color = "purple"
+			# ========== Grab the data ==========
 			frame.plot.imshow(ax=ax, rgb="band")# , transform=ccrs.PlateCarree())
 
-			# =========== Setup the annimation ===========
-			ax.set_title("%s %s frame %d" % (info.satellite, info.date.split(" ")[0], datelist.iloc[index]["index"]))
+			## =========== Setup the annimation ===========
+			ax.set_title(spt)
 
-			ax.scatter(coords.lon[0], coords.lat[0], 5, c='r', marker='+')#, transform=ccrs.PlateCarree())
+			ax.scatter(coords.lon, coords.lat, 5, c=color, marker='+')#, transform=ccrs.PlateCarree())
+			
+			# ========== Set up the box ==========
+			blonO = np.min([coords["lonb_COP_min"], coords["lonb_MOD_min"]])
+			blatO = np.min([coords["latb_COP_min"], coords["latb_MOD_min"]])
+			blonM = np.max([coords["lonb_COP_max"], coords["lonb_MOD_max"]])
+			blatM = np.max([coords["latb_COP_max"], coords["latb_MOD_max"]])
 
-			# rect = mpl.patches.Rectangle(
-			# 	(coords.lonb_min[0],coords.latb_min[0]),
-			# 	coords.lonb_max[0]-coords.lonb_min[0],
-			# 	coords.lonb_max[0]-coords.lonb_min[0],linewidth=1,edgecolor='r',facecolor='none')
-			# ax.add_patch(rect)
+			rect = mpl.patches.Rectangle(
+				(blonO,blatO),
+				blonM-blonO,
+				blatM-blatO,linewidth=2,edgecolor=color,facecolor='none')
+			ax.add_patch(rect)
+			# +++++ change the number od ticks
+			ax.xaxis.set_major_locator(plt.MaxNLocator(5))
 
-			# plt.axis('scaled')
+			
+		# ========== Build the plots ==========
+		if type(bands) == str:
+			# Set up the figure
+			fig, axs = plt.subplots(1, figsize=(11,10))
+			#  create the title 
+			spt = "%s %s %s frame %d" % (bands, info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"])
+			# make the figure
+			_subplotmaker(axs, bands, spt)
+			plt.axis('scaled')
+		else:
+			# Set up the figure
+			fig, axs = plt.subplots(1,len(bands), sharey=True, figsize=(20,8),)
+			# +++++ Loop over the figure combo +++++
+			for ax, bnds, in zip(axs, bands):
+				# make the figure
+				_subplotmaker(ax, bnds, bnds)
+				ax.set_aspect('equal')
 
-			return mplfig_to_npimage(fig)
+			# Get rid of the excess lats
+			for ax in axs.flat:
+				ax.label_outer()
 
-		mov = mpe.VideoClip(frame_maker, duration=int(da_mod.shape[0]))
-		
-		# plays the clip (and its mask and sound) twice faster
-		# newclip = clip.fl_time(lambda: 2*t, apply_to=['mask','audio'])
-		
-		fnout = "%s/LANDSAT_5_7_8_%s_%s.mp4" % (spath, coords["name"], bands) 
+			# ========== Change parms for the entire plot =========
+			fig.suptitle("%s %s frame %d" % (info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"]))
+			# ipdb.set_trace()
+			plt.axis('scaled')
+			# +++++ Make the images bigger by eleminating space +++++
+			fig.subplots_adjust(left=0.1, right=0.9, top=1, bottom=0, wspace=0, hspace=0) #top = 1, bottom = 1, right = 1, left = 1, 
+			plt.tight_layout()
+			plt.margins(0,0)
 
-		print("Starting Write of the data at:", pd.Timestamp.now())
-		mov.write_videofile(fnout, fps=1)
 
-		ipdb.set_trace()
+		return mplfig_to_npimage(fig)
+
+	# ========== Eposrt the videos ==========
+	mov = mpe.VideoClip(frame_maker, duration=int(datelist.shape[0]))
+	# plays the clip (and its mask and sound) twice faster
+	# newclip = clip.fl_time(lambda: 2*t, apply_to=['mask','audio'])
+	print("Starting Write of the data at:", pd.Timestamp.now())
+	mov.write_videofile(fnout, fps=1)
+
+	ipdb.set_trace()
 
 #==============================================================================
 def SiteChecker(dpath, site, force,
