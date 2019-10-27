@@ -106,13 +106,19 @@ def main(args):
 	# ========== Check the site ==========
 	if args.site is None:
 		for site, coords in site_coords.iterrows():
-			ipdb.set_trace()
+			if site in ["Burn2015 UP"]:
+				warn.warn("Skiping site until i have a better test protocol, this will need to be fixed")
+				continue
 			scheck = SiteChecker(dpath, coords["name"], args.force)
 			if scheck == False:
 				continue
 			else:
 				# ========== Process the images ==========
-				images, bandcombo, bandlist, datelist = IMcleaner(dpath, site, scheck, coords, test = False)
+				try:
+					images, bandcombo, bandlist, datelist = IMcleaner(dpath, site, scheck, coords, test = False)
+				except IOError:
+					continue
+
 				# ipdb.set_trace()
 				mpl.use('agg')
 				MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, ["NRG", "RGB", "SNR"])
@@ -129,7 +135,7 @@ def main(args):
 
 #==============================================================================
 
-def IMcleaner(dpath, site, scheck, coords, test = False):
+def IMcleaner(dpath, site, scheck, coords, test = False, dsinfom = "LANDSAT_5_7_8"):
 	"""
 	Function to clean the data up and make the visualisation better
 	"""
@@ -137,6 +143,8 @@ def IMcleaner(dpath, site, scheck, coords, test = False):
 	SF       = 0.0001 # Scale Factor
 	fnames   = scheck["fnames"]
 	spath    = dpath + "UoL/FIREFLIES/VideoExports/%s" % coords["name"]
+	comple   = True #Boolean statment, changed to false if a var fails
+	fails    = []
 
 	# ========== create a check ==========
 	datelist = scheck["dates"].copy()
@@ -164,7 +172,22 @@ def IMcleaner(dpath, site, scheck, coords, test = False):
 		sens = scheck["dates"]["satellite"][nx]
 
 		# =========== Open the file and scale it ==========
-		da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"}) * SF
+		try:
+			da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"}) * SF
+		except:
+			warn.warn("File %d Failed  to open. Setting up repair")
+
+			# ========== make sure the complete file is not written out ==========
+			comple = False
+
+			# ========== delete the bad file ==========
+			print("existing file deleted")
+			os.remove(fnn)
+
+			# ========== append to fails ==========
+			fails.append(nx)
+			continue
+		
 		if not bandlist is None:
 			da_in["band"] = bandlist
 
@@ -241,9 +264,26 @@ def IMcleaner(dpath, site, scheck, coords, test = False):
 			da_img =  _imagefixer(nx, da_in, bandcombo, bnd, date, sens)
 			# if image fails some test: pass
 			images[bnd].append(da_img)
-	# ========== Setup the datelist for a return ==========
-	datelist = (datelist[datelist.QCpass == True]).reset_index(drop=False,inplace=False)
-	return images, bandcombo, bandlist, datelist
+	
+	if comple:
+		# ========== Setup the datelist for a return ==========
+		datelist = (datelist[datelist.QCpass == True]).reset_index(drop=False,inplace=False)
+		return images, bandcombo, bandlist, datelist
+	else:
+		print("%d files failed to load. the complete file list has been deleted" % len(fails))
+		# ========== save the failed numbers ==========
+		fail = np.array(fails)
+		np.save(spath+"/raw/failed_geotifs.npy", fail)
+
+		# ========== delete the complete build list ==========
+		os.remove("%s/raw/%s_CompleteFileList.csv" % (spath, site))
+
+		# ========== generate new files ==========
+		import subprocess as subp
+		subp.call("./Pyscripts/GoogleEE/GEE02_LandsatMovie.py -- --site %s" % (site), shell=True)
+
+		# ========== raise and error ==========
+		raise IOError
 
 #==============================================================================
 def MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands):
@@ -420,12 +460,47 @@ def filemover(dpath, spath, site, dsinfom, dsbands, df, dfn_nm):
 	""" Function to check if all the files i need are in the correct location"""
 
 	# ========== Make the raw path and movepath ==========
-	rpath = dpath + "FIREFLIES_geotifs/"
-	mpath = "%s%s/raw/" % (spath, site)
+	rpath   = dpath + "FIREFLIES_geotifs/"
+	mpath   = "%s%s/raw/" % (spath, site)
+	partial = False
+
 
 	# ========== Find the files ==========
 	fnames = sorted(glob.glob(rpath+'%s_%s_%s_*.tif' % (dsinfom, site, dsbands)))
 	
+	if os.path.isfile(mpath+"failed_geotifs.npy"):
+		# ========== load the fails ==========
+		fails = np.load(mpath+"failed_geotifs.npy")
+
+		def filetester(fnn):
+			da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"})
+			da_in == None
+
+		if len(fnames) == fails.shape[0]:
+			for fnn in fnames:
+				filetester(fnn)
+			print( "all file appear to be valid")
+
+			# ========== Move the files ==========
+			print("Starting %s file relocation at:" % site, pd.Timestamp.now())
+			for fx in fnames:
+				shutil.move(fx, mpath)
+			
+			# ========== Store the file names ==========
+			mfnames  = sorted(glob.glob(mpath+'%s_%s_%s_*.tif' % (dsinfom, site, dsbands)))
+
+			df_names = pd.DataFrame({"fnames":mfnames})
+			if df_names.shape[0] == df.shape[0]:
+				df_names.to_csv(dfn_nm)
+			else:
+				warn.warn("something has gone wrong here")
+				ipdb.set_trace()
+
+			# ========== Sleep to allow files to move ==========
+			print("Waiting so files have a chance to move. Wait started at:", pd.Timestamp.now())
+			time.sleep(60)
+			return df_names
+
 
 	# ========== Check to see if they have all downloaded ==========
 	if len(fnames) == df.shape[0]:
@@ -441,7 +516,11 @@ def filemover(dpath, spath, site, dsinfom, dsbands, df, dfn_nm):
 		mfnames  = sorted(glob.glob(mpath+'%s_%s_%s_*.tif' % (dsinfom, site, dsbands)))
 
 		df_names = pd.DataFrame({"fnames":mfnames})
-		df_names.to_csv(dfn_nm)
+		if df_names.shape[0] == df.shape[0]:
+			df_names.to_csv(dfn_nm)
+		else:
+			warn.warn("something has gone wrong here")
+			ipdb.set_trace()
 
 		# ========== Sleep to allow files to move ==========
 		print("Waiting so files have a chance to move. Wait started at:", pd.Timestamp.now())

@@ -78,13 +78,14 @@ print("xarray version : ", xr.__version__)
 
 #==============================================================================
 
-def main():
+def main(args):
 	# ========== Initialize the Earth Engine object ==========
 	ee.Initialize()
 
 	# ========== Set an overwrite =========
 	force = False
 	cordf = True # force the creation of a new maskter coord list
+	tsite = args.site
 
 	# ========== Create the system specific paths ==========
 	if os.uname()[1] == 'DESKTOP-CSHARFM':
@@ -100,6 +101,8 @@ def main():
 	if not os.path.isfile(cordname) or cordf:
 		print("Generating and saving a new master coord table")
 		site_coords = geom_builder()
+		for col in site_coords.columns[1:]:
+			site_coords = site_coords.astype({col:float})
 		site_coords.to_csv(cordname)
 	else:
 		print("Loading master coord table")
@@ -107,15 +110,29 @@ def main():
 		warn.warn("THere is some form of bug here, going interactive. Look at the dataframe")
 		ipdb.set_trace()
 
-
-	# ========== Loop over each site ==========
 	program = "LANDSAT"
+	# ========== Loop over each site ==========
 	for index, coords in site_coords.iterrows():
 
 		# ========== Check if the pathe and file exists ==========
 		checkfile = "%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"])
 
-		if os.path.isfile(checkfile) and not force:
+		if not args.site is None:
+			# check is the site is correct 
+			if tsite == coords["name"]:
+				# ========== Get the start time ==========
+				t0 = pd.Timestamp.now()
+
+				fails = np.load("%s%s/raw/failed_geotifs.npy" % (spath, tsite))
+
+				# Export the geotifs
+				GEE_geotifexp(coords, spath, program, fails=fails)
+
+				td = pd.Timestamp.now() - t0
+				print("\n Data for %s sent sent for cloud processing. it took " % coords["name"], td)
+		
+
+		elif os.path.isfile(checkfile) and not force:
 			print("Data has already been exported for %s" % coords["name"])
 		else:
 			# ========== Get the start time ==========
@@ -129,18 +146,26 @@ def main():
 			td = pd.Timestamp.now() - t0
 			print("\n Data for %s sent sent for cloud processing. it took " % coords["name"], td)
 
-	ipdb.set_trace()
-	sys.exit()
+	if tsite is None:
+		ipdb.set_trace()
+		sys.exit()
 
 #==============================================================================
 
-def GEE_geotifexp(coords, spath, program):
+def GEE_geotifexp(coords, spath, program, fails = None):
 	""" function takes in coordinate infomation and begins the save out processs """
-	geom = ee.Geometry.Polygon([
+	try:
+		geom = ee.Geometry.Polygon([
 			[coords.lonr_min[0],coords.latr_min[0]],
 			[coords.lonr_max[0],coords.latr_min[0]],
 			[coords.lonr_max[0],coords.latr_max[0]],
 			[coords.lonr_min[0],coords.latr_max[0]]])
+	except:
+		geom = ee.Geometry.Polygon([
+			[coords.lonr_min,coords.latr_min],
+			[coords.lonr_max,coords.latr_min],
+			[coords.lonr_max,coords.latr_max],
+			[coords.lonr_min,coords.latr_max]])
 
 	# ========== Rename the LS8 bands to match landsat archive ==========
 	def renamebandsETM(image):
@@ -238,12 +263,11 @@ def GEE_geotifexp(coords, spath, program):
 		img_list = collection.toList(collection.size())
 
 		for nx, info in df.iterrows():
-			# if nx < 62:
-			# 	continue
+			# ========== Built to allow for scripts to be redone ==========
+			if not fails is None:
+				if not nx in fails:
+					continue
 
-			string = "\r Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
-			sys.stdout.write(string)
-			sys.stdout.flush()
 
 			# ========== convert the datatype ==========
 			img = ee.Image(img_list.get(nx)).toFloat()
@@ -252,19 +276,37 @@ def GEE_geotifexp(coords, spath, program):
 			name     = '%s_%s_%s_%04d' % (dsinfom, coords["name"], dsbands, nx)
 			folder   = "FIREFLIES_geotifs"
 
+			string = "\r Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
+			sys.stdout.write(string)
+			sys.stdout.flush()
 			# ========== Send the task to the cloud ==========
-			task = ee.batch.Export.image.toDrive(
-				image=img,
-				description=name,
-				folder=folder,
-				crs = "EPSG:4326",
-				region=(
-					[coords.lonr_min[0],coords.latr_min[0]],
-					[coords.lonr_max[0],coords.latr_min[0]],
-					[coords.lonr_max[0],coords.latr_max[0]],
-					[coords.lonr_min[0],coords.latr_max[0]]),
-				scale=30, 
-				fileFormat='GeoTIFF')
+			try:
+
+				task = ee.batch.Export.image.toDrive(
+					image=img,
+					description=name,
+					folder=folder,
+					crs = "EPSG:4326",
+					region=(
+						[coords.lonr_min[0],coords.latr_min[0]],
+						[coords.lonr_max[0],coords.latr_min[0]],
+						[coords.lonr_max[0],coords.latr_max[0]],
+						[coords.lonr_min[0],coords.latr_max[0]]),
+					scale=30, 
+					fileFormat='GeoTIFF')
+			except:
+				task = ee.batch.Export.image.toDrive(
+					image=img,
+					description=name,
+					folder=folder,
+					crs = "EPSG:4326",
+					region=(
+						[coords.lonr_min,coords.latr_min],
+						[coords.lonr_max,coords.latr_min],
+						[coords.lonr_max,coords.latr_max],
+						[coords.lonr_min,coords.latr_max]),
+					scale=30, 
+					fileFormat='GeoTIFF')
 			try:
 				process = batch.Task.start(task)
 			except Exception as er:
@@ -273,6 +315,7 @@ def GEE_geotifexp(coords, spath, program):
 				ipdb.set_trace()
 
 				process = batch.Task.start(task)
+			# sys.exit()
 
 	# ========== Code for old video export ==========
 	oldvideo = False
@@ -319,20 +362,21 @@ def GEE_geotifexp(coords, spath, program):
 			maxFrames=10000)
 		process = batch.Task.start(out)
 		print("Process sent to cloud")
+	
+	if fails is None:
+		# ========== Save out the relevant infomation ==========
+		df.to_csv("%s%s/%s_%s_%s_timeinfo.csv" % (spath, coords["name"], dsinfom, coords["name"], dsbands))
+		coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
 
-	# ========== Save out the relevant infomation ==========
-	df.to_csv("%s%s/%s_%s_%s_timeinfo.csv" % (spath, coords["name"], dsinfom, coords["name"], dsbands))
-	coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
-
-	# ========== Going to sleep to give GEE a rest before i slam it with new requests  ==========
-	print("\n Starting 15 minutes of sleep at", pd.Timestamp.now(), "\n")
-	sle = 0
-	while sle < 15:
-		sle += 1
-		string = "\r Starting sleep number %d at %s" % (sle, str(pd.Timestamp.now()))
-		sys.stdout.write(string)
-		sys.stdout.flush()
-		time.sleep(60)
+		# ========== Going to sleep to give GEE a rest before i slam it with new requests  ==========
+		print("\n Starting 15 minutes of sleep at", pd.Timestamp.now(), "\n")
+		sle = 0
+		while sle < 15:
+			sle += 1
+			string = "\r Starting sleep number %d at %s" % (sle, str(pd.Timestamp.now()))
+			sys.stdout.write(string)
+			sys.stdout.flush()
+			time.sleep(60)
 
 
 #==============================================================================
@@ -611,4 +655,20 @@ def convertDataType(newtype):
     return wrap
 #==============================================================================
 if __name__ == '__main__':
-	main()
+	# ========== Set the args Description ==========
+	description='Script to make movies'
+	parser = argparse.ArgumentParser(description=description)
+	
+	# ========== Add additional arguments ==========
+	parser.add_argument(
+		"-s", "--site", type=str, default=None, help="Site to work with ")
+	# parser.add_argument(
+	# 	"--gparts", type=int, default=None,   
+	# 	help="the max partnumber that has not been redone")
+	parser.add_argument(
+		"-f", "--force", action="store_true",
+		help="the max partnumber that has not been redone")
+	args = parser.parse_args() 
+	
+	# ========== Call the main function ==========
+	main(args)
