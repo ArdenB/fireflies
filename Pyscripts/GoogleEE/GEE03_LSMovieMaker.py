@@ -106,7 +106,7 @@ def main(args):
 	# ========== Check the site ==========
 	if args.site is None:
 		for site, coords in site_coords.iterrows():
-			if site in ["Burn2015 UP"]:
+			if site in ["Burn2015 UP", "G10T1-0"]:
 				warn.warn("Skiping site until i have a better test protocol, this will need to be fixed")
 				continue
 			scheck = SiteChecker(dpath, coords["name"], args.force)
@@ -124,7 +124,7 @@ def main(args):
 				MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, ["NRG", "RGB", "SNR"])
 				# for bands in bandcombo:
 				# 	MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands)
-				ipdb.set_trace()
+				# ipdb.set_trace()
 	else:
 		warn.warn("This is yet to be implemented")
 		ipdb.set_trace()
@@ -399,7 +399,7 @@ def MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands):
 
 
 
-	ipdb.set_trace()
+	# ipdb.set_trace()
 
 #==============================================================================
 def SiteChecker(dpath, site, force,
