@@ -102,28 +102,34 @@ def main(args):
 	dpath       = syspath()
 	cordname    = "./data/other/GEE_sitelist.csv"
 	site_coords = pd.read_csv(cordname, index_col=0)
+	force       = args.force
+	verbose     = args.verbose
+	multi       = True
 
 	# ========== Check the site ==========
 	if args.site is None:
 		for site, coords in site_coords.iterrows():
-			if site in ["Burn2015 UP", "G10T1-0"]:
-				warn.warn("Skiping site until i have a better test protocol, this will need to be fixed")
-				continue
-			scheck = SiteChecker(dpath, coords["name"], args.force)
+			# if site in ["Burn2015 UP", "G10T1-0"]:#, "G11T1-0", "G12T1-0", "G13T1-0"]:
+			# 	warn.warn("Skiping site until i have a better test protocol, this will need to be fixed")
+			# 	continue
+			print("\n" + site +"\n")
+			scheck = SiteChecker(dpath, coords["name"], force, multi)
 			if scheck == False:
 				continue
 			else:
 				# ========== Process the images ==========
 				try:
-					images, bandcombo, bandlist, datelist = IMcleaner(dpath, site, scheck, coords, test = False)
+					images, bandcombo, bandlist, datelist = IMcleaner(dpath, site, scheck, coords, verbose, test = False)
 				except IOError:
 					continue
 
 				# ipdb.set_trace()
 				mpl.use('agg')
-				MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, ["NRG", "RGB", "SNR"])
-				# for bands in bandcombo:
-				# 	MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands)
+				if multi:
+					MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, ["NRG", "RGB", "SNR"])
+				else:
+					for bands in bandcombo:
+						MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands)
 				# ipdb.set_trace()
 	else:
 		warn.warn("This is yet to be implemented")
@@ -135,7 +141,7 @@ def main(args):
 
 #==============================================================================
 
-def IMcleaner(dpath, site, scheck, coords, test = False, dsinfom = "LANDSAT_5_7_8"):
+def IMcleaner(dpath, site, scheck, coords, verbose, test = False, dsinfom = "LANDSAT_5_7_8"):
 	"""
 	Function to clean the data up and make the visualisation better
 	"""
@@ -171,6 +177,7 @@ def IMcleaner(dpath, site, scheck, coords, test = False, dsinfom = "LANDSAT_5_7_
 		date = pd.Timestamp(scheck["dates"]["date"][nx])
 		sens = scheck["dates"]["satellite"][nx]
 
+
 		# =========== Open the file and scale it ==========
 		try:
 			da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"}) * SF
@@ -181,7 +188,7 @@ def IMcleaner(dpath, site, scheck, coords, test = False, dsinfom = "LANDSAT_5_7_
 			comple = False
 
 			# ========== delete the bad file ==========
-			print("existing file deleted")
+			print(" Existing file is broken. deleted")
 			os.remove(fnn)
 
 			# ========== append to fails ==========
@@ -196,6 +203,21 @@ def IMcleaner(dpath, site, scheck, coords, test = False, dsinfom = "LANDSAT_5_7_
 		if nanfrac > 0.50:
 			datelist["QCpass"][nx] = False
 			continue
+
+		# ========== Remove duplicate frames ==========
+		if (nx > 1) and not verbose:
+			# Get the previous frame times
+			dateold = pd.Timestamp(scheck["dates"]["date"][nx-1])
+			sensold = scheck["dates"]["satellite"][nx-1] 
+
+			tests = ([
+				((date - dateold) < pd.Timedelta(1, unit='d')), #same day
+				sensold == sens, #same Sensor
+				datelist["QCpass"][nx-1]]) # passed the QC 
+			if all(tests):
+				# There is already a vilid image here
+				datelist["QCpass"][nx] = False
+				continue
 
 		# ========== Loop over the band combinations ==========
 		for bnd in bandcombo:
@@ -275,12 +297,13 @@ def IMcleaner(dpath, site, scheck, coords, test = False, dsinfom = "LANDSAT_5_7_
 		fail = np.array(fails)
 		np.save(spath+"/raw/failed_geotifs.npy", fail)
 
-		# ========== delete the complete build list ==========
-		os.remove("%s/raw/%s_CompleteFileList.csv" % (spath, site))
 
 		# ========== generate new files ==========
 		import subprocess as subp
-		subp.call("./Pyscripts/GoogleEE/GEE02_LandsatMovie.py -- --site %s" % (site), shell=True)
+		subp.call("ipython ./Pyscripts/GoogleEE/GEE02_LandsatMovie.py -- --site %s" % (site), shell=True)
+
+		# ========== delete the complete build list ==========
+		os.remove("%s/raw/%s_CompleteFileList.csv" % (spath, site))
 
 		# ========== raise and error ==========
 		raise IOError
@@ -395,14 +418,15 @@ def MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands):
 
 	# fnout = "%s/LANDSAT_5_7_8_%s_complete.txt" % (spath, coords["name"]) 
 	print("Starting Write of the data at:", pd.Timestamp.now())
-	mov.write_videofile(fnout, fps=1)
-
-
-
-	# ipdb.set_trace()
+	try:
+		mov.write_videofile(fnout, fps=1)
+	except Exception as ex:
+		warn.warn(str(ex))
+		print("Movie making failed. This will need to be redone")
+		ipdb.set_trace()
 
 #==============================================================================
-def SiteChecker(dpath, site, force,
+def SiteChecker(dpath, site, force, multi,
 	program = "LANDSAT", dschoice = "SR", 
 	dsinfom = "LANDSAT_5_7_8", dsbands = "SNRGB"):
 	"""
@@ -420,10 +444,16 @@ def SiteChecker(dpath, site, force,
 	# if not ( ymd  == date.strftime(format="%Y%m%d")):
 	# 	print("date is missing")
 	# 	warn.warn("date is missing")	
-	# 	ipdb.set_trace()
 
 	spath = dpath + "UoL/FIREFLIES/VideoExports/"
 	# ========== Check if the video has already been made ==========
+	if not force:
+		if multi:
+			if os.path.isfile(spath+site+"/LANDSAT_5_7_8_%s_multi_NRG_RGB_SNR.mp4" % (site)):
+				print("File already exists for %s, Going to next site. Use force to overwrite video" % site)
+				return False
+		else:
+			ipdb.set_trace()
 	# TO DO
 
 
@@ -463,24 +493,54 @@ def filemover(dpath, spath, site, dsinfom, dsbands, df, dfn_nm):
 	rpath   = dpath + "FIREFLIES_geotifs/"
 	mpath   = "%s%s/raw/" % (spath, site)
 	partial = False
+	Wloops  = 0
 
 
-	# ========== Find the files ==========
-	fnames = sorted(glob.glob(rpath+'%s_%s_%s_*.tif' % (dsinfom, site, dsbands)))
-	
-	if os.path.isfile(mpath+"failed_geotifs.npy"):
-		# ========== load the fails ==========
-		fails = np.load(mpath+"failed_geotifs.npy")
+	while Wloops<=1:
+		Wloops += 1
 
-		def filetester(fnn):
-			da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"})
-			da_in == None
+		# ========== Find the files ==========
+		fnames = sorted(glob.glob(rpath+'%s_%s_%s_*.tif' % (dsinfom, site, dsbands)))
+		
+		if os.path.isfile(mpath+"failed_geotifs.npy"):
+			# ========== load the fails ==========
+			fails = np.load(mpath+"failed_geotifs.npy")
 
-		if len(fnames) == fails.shape[0]:
-			for fnn in fnames:
-				filetester(fnn)
-			print( "all file appear to be valid")
+			def filetester(fnn):
+				da_in  = xr.open_rasterio(fnn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude"})
+				da_in == None
 
+			if len(fnames) == fails.shape[0]:
+				for fnn in fnames:
+					filetester(fnn)
+				print( "All of the rebuilt file appear to be valid")
+
+				# ========== Move the files ==========
+				print("Starting %s file relocation at:" % site, pd.Timestamp.now())
+				for fx in fnames:
+					shutil.move(fx, mpath)
+				
+				# ========== Store the file names ==========
+				mfnames  = sorted(glob.glob(mpath+'%s_%s_%s_*.tif' % (dsinfom, site, dsbands)))
+
+				df_names = pd.DataFrame({"fnames":mfnames})
+				if df_names.shape[0] == df.shape[0]:
+					df_names.to_csv(dfn_nm)
+				else:
+					warn.warn("something has gone wrong here")
+					ipdb.set_trace()
+
+				# ========== Sleep to allow files to move ==========
+				print("Waiting so files have a chance to move. Wait started at:", pd.Timestamp.now())
+				time.sleep(60)
+				return df_names
+
+
+		# ========== Check to see if they have all downloaded ==========
+		if len(fnames) == df.shape[0]:
+			# ========== Make the path ==========
+			cf.pymkdir(mpath)
+			
 			# ========== Move the files ==========
 			print("Starting %s file relocation at:" % site, pd.Timestamp.now())
 			for fx in fnames:
@@ -500,41 +560,25 @@ def filemover(dpath, spath, site, dsinfom, dsbands, df, dfn_nm):
 			print("Waiting so files have a chance to move. Wait started at:", pd.Timestamp.now())
 			time.sleep(60)
 			return df_names
-
-
-	# ========== Check to see if they have all downloaded ==========
-	if len(fnames) == df.shape[0]:
-		# ========== Make the path ==========
-		cf.pymkdir(mpath)
-		
-		# ========== Move the files ==========
-		print("Starting %s file relocation at:" % site, pd.Timestamp.now())
-		for fx in fnames:
-			shutil.move(fx, mpath)
-		
-		# ========== Store the file names ==========
-		mfnames  = sorted(glob.glob(mpath+'%s_%s_%s_*.tif' % (dsinfom, site, dsbands)))
-
-		df_names = pd.DataFrame({"fnames":mfnames})
-		if df_names.shape[0] == df.shape[0]:
-			df_names.to_csv(dfn_nm)
+		elif len(fnames) == 0:
+			print(site, " is waiting for files to download. No files currently in folder")
+			raise IOError
 		else:
-			warn.warn("something has gone wrong here")
-			ipdb.set_trace()
+			# ========== Look for failures ==========
+			for nnx in range(0, df.shape[0]):
+				fnstest = sorted(glob.glob(rpath+'%s_%s_%s_%04d*' % (dsinfom, site, dsbands, nnx)))
+				if len(fnstest)>1:
+					warn.warn("Duplicate Files exist at: %d" % nnx)
+					# delete duplicates of the form (1), (2) etc
+					for fnt in fnstest:
+						if " (" in fnt:
+							os.remove(fnt)
+							print("Excess file deleted at: %d" % nnx)
 
-		# ========== Sleep to allow files to move ==========
-		print("Waiting so files have a chance to move. Wait started at:", pd.Timestamp.now())
-		time.sleep(60)
-
-		return df_names
-		
-	elif len(fnames) == 0:
-		print(site, " is waiting for files to download. No files currently in folder")
-		raise IOError
-	else:
-		warn.warn("I've yet to implement this. Going interactive")
-		ipdb.set_trace()
-
+				elif len(fnstest) == 0:
+					warn.warn("Missing file: %d" % nnx)
+					ipdb.set_trace()
+	print("WHile loops exceeded")
 	ipdb.set_trace()
 	sys.exit()
 #==============================================================================
@@ -590,6 +634,9 @@ if __name__ == '__main__':
 	parser.add_argument(
 		"-f", "--force", action="store_true",
 		help="the max partnumber that has not been redone")
+	parser.add_argument(
+		"-v", "--verbose", action="store_true",
+		help="make a video with all framse, will increase video length")
 	args = parser.parse_args() 
 	
 	# ========== Call the main function ==========

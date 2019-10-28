@@ -672,3 +672,22 @@ if __name__ == '__main__':
 	
 	# ========== Call the main function ==========
 	main(args)
+else:
+	warn.warn("called from another script")
+	# ========== Set the args Description ==========
+	description='Script to make movies'
+	parser = argparse.ArgumentParser(description=description)
+	
+	# ========== Add additional arguments ==========
+	parser.add_argument(
+		"-s", "--site", type=str, default=None, help="Site to work with ")
+	# parser.add_argument(
+	# 	"--gparts", type=int, default=None,   
+	# 	help="the max partnumber that has not been redone")
+	parser.add_argument(
+		"-f", "--force", action="store_true",
+		help="the max partnumber that has not been redone")
+	args = parser.parse_args() 
+	
+	# ========== Call the main function ==========
+	main(args)
