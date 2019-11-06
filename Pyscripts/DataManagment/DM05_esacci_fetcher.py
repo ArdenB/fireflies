@@ -51,7 +51,7 @@ def main():
 	cf.pymkdir(path)
 	cf.pymkdir(path+"tmp/")
 	cf.pymkdir(ppath)
-	force = False
+	force = True#False
 
 	for yr in range(2001, 2019):
 		# ========== loop over layers ==========		
@@ -130,6 +130,9 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn):
 			dict(
 				latitude=slice(70.0, 45.0),
 				longitude=slice(0.0, 150.0))) for fnr in fn_XR]
+
+		# Address tiny rounding errors in the data
+		da_ls[0]["latitude"] = da_ls[1].latitude.values
 
 		# ========== Merge into a single dataset ==========
 		ds_out = xr.Dataset({layer:xr.concat(da_ls, dim="longitude").chunk({"longitude":1000})})#.sortby("latitude", ascending=False)#.transpose("latitude")
