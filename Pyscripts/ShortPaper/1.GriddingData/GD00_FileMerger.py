@@ -90,7 +90,7 @@ def main():
 			continue
 		
 		# ========== Stripe the lat bands ==========
-		DA_LC = [_lat_concat(LatM, fpath, dates, ft) for LatM in range(70, 40, -10)]
+		DA_LC = [_lat_concat(LatM, fpath, dates, ft) for LatM in range(70, 30, -10)]
 		DA    = xr.concat(DA_LC, dim="latitude")
 
 		# ========== Fix the metadata ==========
@@ -134,7 +134,7 @@ def main():
 def _lat_concat(LatM, fpath, dates, ft):
 	"""Function to open all the individual lat rows """
 	# ========== lOAD THE Hansen Forest GFC ==========
-	gpath   = "%sHansen_GFC-2018-v1.6_%s_%02dN_*E.tif" %(fpath, ft, LatM)
+	gpath   = "%sHansen_GFC-2018-v1.6_%s_%02dN_*.tif" %(fpath, ft, LatM)
 	fn_in   = glob.glob(gpath)
 	da_list = [_daload(fn, dates) for fn in fn_in]
 	# ========== Concatinate the results into a single dataarray ==========

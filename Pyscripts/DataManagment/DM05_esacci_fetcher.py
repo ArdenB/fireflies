@@ -51,7 +51,13 @@ def main():
 	cf.pymkdir(path)
 	cf.pymkdir(path+"tmp/")
 	cf.pymkdir(ppath)
-	force = True#False
+	force = False
+	
+	latmax = 70.0
+	latmin = 40.0
+	lonmin = -14.0
+	lonmax =  180.0
+	shapes = []
 
 	for yr in range(2001, 2019):
 		# ========== loop over layers ==========		
@@ -62,17 +68,20 @@ def main():
 			ANfn    = ppath + "esacci_FireCCI_%d_burntarea.nc" % yr
 			if os.path.isfile(ANfn) and not force:
 				ds = xr.open_dataset(ANfn)
+				force = True
 				continue
 			else:
-				ds = _monthlyfile(yr, path, ppath, force, layer, ANfn)
+				ds = _monthlyfile(yr, path, ppath, force, layer, ANfn, latmax, latmin, lonmin, lonmax)
 			print("%d BA calculation completed at:" % (yr), pd.Timestamp.now(), " Starting Cleanup")
 			
+			shapes.append(ds["BA"].shape)
+			print(shapes)
+			# ipdb.set_trace()
 
 				
 			# da_bl[4,10301, 4865].values
 
 		_cleanup(yr, path)
-		# ipdb.set_trace()
 	ipdb.set_trace()
 
 
@@ -88,7 +97,7 @@ def _cleanup(yr, path):
 		os.remove(fnc)
 
 
-def _monthlyfile(yr, path, ppath, force, layer, ANfn):
+def _monthlyfile(yr, path, ppath, force, layer, ANfn, latmax, latmin, lonmin, lonmax):
 	"""
 	Function to proccess the monthl;y data into an annual file
 	args:
@@ -128,8 +137,8 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn):
 		renm  = {"band":"time","x":"longitude", "y":"latitude"}
 		da_ls = [xr.open_rasterio(fnr).rename(renm).sel(
 			dict(
-				latitude=slice(70.0, 45.0),
-				longitude=slice(0.0, 150.0))) for fnr in fn_XR]
+				latitude=slice(latmax, latmin),
+				longitude=slice(lonmin, lonmax))) for fnr in fn_XR]
 
 		# Address tiny rounding errors in the data
 		da_ls[0]["latitude"] = da_ls[1].latitude.values
@@ -151,6 +160,11 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn):
 		chunks={"time":1, "latitude":1000, 'longitude': 1000})[layer]
 	da = da.reindex(latitude=list(reversed(da.latitude)))
 
+	# ========== build a mask ==========
+	if yr == 2018:
+		# Copy the data
+		da_mask = da.copy()
+
 	# ========== mask it away ==========
 	da_bl = da.where(   da > 0)
 
@@ -168,6 +182,26 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn):
 	# ========== create the dataset ==========
 	ds = xr.Dataset(layers, attrs= global_attrs)
 	ds = tempNCmaker(ds, ANfn, "BA", chunks={"latitude":1000, 'longitude': 1000}, pro = "%d Burnt Area"% yr)
+
+	# ========== process the mask ==========
+	if yr == 2018:
+		maskfn    = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/FRI/esacci_landseamask.nc"
+		# change the values
+		da_mask = (da_mask == -2).mean(dim="time")
+		da_mask = da_mask.where(da_mask >= 5)
+		da_mask = da_mask.where(np.isnan(da_mask), 1).rename()
+		da_mask = attrs_fixer(da_mask, dates)
+
+		# ========== Setup the metadata  ==========
+		global_attrs = GlobalAttributes(maskfn)
+		layers       = OrderedDict()
+		layers["mask"] = da_mask
+
+		# ========== create the dataset ==========
+		ds_mask = xr.Dataset(layers, attrs= global_attrs)
+		ds_mask = tempNCmaker(ds_mask, maskfn, "mask", chunks={"latitude":1000, 'longitude': 1000}, pro = "%d mask"% yr)
+
+		ipdb.set_trace()
 
 	# ========== return the dataset ==========
 	return ds
