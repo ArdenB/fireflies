@@ -52,6 +52,7 @@ def main():
 	cf.pymkdir(path+"tmp/")
 	cf.pymkdir(ppath)
 	force = False
+	force = True
 	
 	latmax = 70.0
 	latmin = 40.0
@@ -59,7 +60,7 @@ def main():
 	lonmax =  180.0
 	shapes = []
 
-	for yr in range(2001, 2019):
+	for yr in range(2018, 2019):
 		# ========== loop over layers ==========		
 		for layer in ["JD"]:#, "CL", "LC"]:
 			print("Starting %d %s at:" % (yr, layer), pd.Timestamp.now())
@@ -115,6 +116,44 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn, latmax, latmin, lonmin, lo
 	# ========== list to holf the file names ==========
 	ptnames = []
 
+		# ========== process the mask ==========
+	def _maskmaker(ds_tomask):
+		print("starting the 2018 mask")
+		ipdb.set_trace()
+
+		# dates  = datefixer(yr, 12, 31)
+		maskfn    = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/FRI/esacci_landseamask.nc"
+
+		# change the values
+		with ProgressBar():
+			ds_mask = (ds_tomask != -2).astype("float32").sum(dim="time").compute()
+			# +++++ ds_mask has 1 for land 0 for water +++++
+			# that is then summed over time
+		# ========== create a date ==========
+		dates    = datefixer(2018, 12, 31)
+
+		# ========= find plces with a few good values ==========
+		ds_mask = (ds_mask>=5).astype("float32")
+		ds_mask = ds_mask.where(ds_mask == 1.0).rename({layer:"mask"}).expand_dims({"time":dates["CFTime"]})
+		
+		# ===== fix the time =====
+		# ds_mask["time"] = dates["CFTime"]
+		ds_mask.time.attrs["calendar"]   = dates["calendar"]
+		ds_mask.time.attrs["units"]      = dates["units"]
+
+		# da_mask = (da_mask == -2).mean(dim="time")
+		# da_mask = attrs_fixer(da_mask, dates)
+
+		# ========== Setup the metadata  ==========
+		ds_mask.attrs = GlobalAttributes(maskfn)
+
+		# layers       = OrderedDict()
+		# layers["mask"] = da_mask
+
+		# ========== create the dataset ==========
+		ds_mask = tempNCmaker(ds_mask, maskfn, "mask", chunks={"latitude":1000, 'longitude': 1000}, pro = "%d mask"% yr)
+		return ds_mask
+
 	# ========== loop over the month ==========
 	for mn in range(1, 13):
 		print(yr, mn, pd.Timestamp.now())
@@ -160,10 +199,10 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn, latmax, latmin, lonmin, lo
 		chunks={"time":1, "latitude":1000, 'longitude': 1000})[layer]
 	da = da.reindex(latitude=list(reversed(da.latitude)))
 
-	# ========== build a mask ==========
 	if yr == 2018:
 		# Copy the data
-		da_mask = da.copy()
+		da_mask = _maskmaker(da.copy())
+		ipdb.set_trace()
 
 	# ========== mask it away ==========
 	da_bl = da.where(   da > 0)
@@ -181,27 +220,10 @@ def _monthlyfile(yr, path, ppath, force, layer, ANfn, latmax, latmin, lonmin, lo
 
 	# ========== create the dataset ==========
 	ds = xr.Dataset(layers, attrs= global_attrs)
+	# ========== build a mask ==========
+
 	ds = tempNCmaker(ds, ANfn, "BA", chunks={"latitude":1000, 'longitude': 1000}, pro = "%d Burnt Area"% yr)
 
-	# ========== process the mask ==========
-	if yr == 2018:
-		maskfn    = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/FRI/esacci_landseamask.nc"
-		# change the values
-		da_mask = (da_mask == -2).mean(dim="time")
-		da_mask = da_mask.where(da_mask >= 5)
-		da_mask = da_mask.where(np.isnan(da_mask), 1).rename()
-		da_mask = attrs_fixer(da_mask, dates)
-
-		# ========== Setup the metadata  ==========
-		global_attrs = GlobalAttributes(maskfn)
-		layers       = OrderedDict()
-		layers["mask"] = da_mask
-
-		# ========== create the dataset ==========
-		ds_mask = xr.Dataset(layers, attrs= global_attrs)
-		ds_mask = tempNCmaker(ds_mask, maskfn, "mask", chunks={"latitude":1000, 'longitude': 1000}, pro = "%d mask"% yr)
-
-		ipdb.set_trace()
 
 	# ========== return the dataset ==========
 	return ds

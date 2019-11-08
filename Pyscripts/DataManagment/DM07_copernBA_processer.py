@@ -53,7 +53,7 @@ def main():
 	cf.pymkdir(path)
 	cf.pymkdir(path+"tmp/")
 	cf.pymkdir(ppath)
-	force  = False
+	force  = True# False
 	dsn    = "COPERN_BA"
 	
 	latmax = 70.0
@@ -62,7 +62,7 @@ def main():
 	lonmax =  180.0
 	shapes = []
 
-	for yr in range(2014, 2019):
+	for yr in range(2015, 2019):
 		# ========== loop over layers ==========		
 		print("Starting %d at:" % (yr), pd.Timestamp.now())
 
@@ -100,6 +100,8 @@ def annualfile(yr, path, ppath, force, ANfn, latmax, latmin, lonmin, lonmax, dsn
 		if files is None:
 			files=ds_out
 		else:
+			ipdb.set_trace()
+			sys.exit()
 			try:
 				files = xr.concat([files, ds_out], dim="time").any(dim="time")
 			except Exception as e:

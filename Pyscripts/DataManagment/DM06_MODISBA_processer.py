@@ -47,44 +47,151 @@ import myfunctions.corefunctions as cf
 def main():
 	# ========== Setup the path ==========
 	path = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/"
-	drop = ["crs", "Burn_Date_Uncertainty", "First_Day", "Last_Day", "QA"]
+	# drop = ["crs", "Burn_Date_Uncertainty", "First_Day", "Last_Day", "QA"]
+	# fin  = path+"MCD64A1.006_500m_aid0001.nc"
 
-	# ========== open the file ==========
-	ds = xr.open_dataset(path+"MCD64A1.006_500m_aid0001.nc").drop(drop).rename(
-		{"lon":"longitude", "lat":"latitude"}).sel(
-		dict(time=slice("2001-01-01", "2018-12-31"))).chunk({"time":12})
+	force = False
 
-	# ========== Process the file ==========
-	ds_bool = ds>0 
-	ds_BA   = ds_bool.groupby("time.year").any(dim="time").rename({"year":"time", "Burn_Date":"BA"})
-	ds_BA["time"] =  [pd.Timestamp("%d-12-31" % yr) for yr in ds_BA.time.values]
 
-	# ========== create the filname ==========
-	fnout = path + "MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc"
 
-	# ========== Fix the metadata ==========
-	GlobalAttributes(ds_BA, fnout)	
+	drop = ["crs", "QA"]
+	fin  = path+"MCD64A1.006_500m_aid0001v2.nc"
+	if not os.path.isfile(fin) or force:
+		# ========== open the file ==========
+		ds = xr.open_dataset(fin).drop(drop).rename(
+			{"lon":"longitude", "lat":"latitude"}).sel(
+			dict(time=slice("2001-01-01", "2018-12-31"))).chunk({"time":12})
 
-	# ========== Create the encoding ==========
-	encoding = OrderedDict()
-	encoding["BA"] = ({
-		'shuffle':True, 
-		# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
-		'zlib':True,
-		'complevel':5})
-	
-	# ========== Write the file out ==========
-	delayed_obj = ds_BA.to_netcdf(fnout, 
-		format         = 'NETCDF4', 
-		encoding       = encoding,
-		unlimited_dims = ["time"],
-		compute=False)
+		# ========== Process the file ==========
+		ds_bool = ds>0 
+		ds_BA   = ds_bool.groupby("time.year").any(dim="time").rename({"year":"time", "Burn_Date":"BA"})
+		ds_BA["time"] =  [pd.Timestamp("%d-12-31" % yr) for yr in ds_BA.time.values]
 
-	print("Starting write of BA data at",  pd.Timestamp.now())
-	with ProgressBar():
-		results = delayed_obj.compute()
+		# ========== create the filname ==========
+		# fnout = path + "MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc"
+		fnout = path + "MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc"
 
+		# ========== Fix the metadata ==========
+		GlobalAttributes(ds_BA, fnout)	
+
+		# ========== Create the encoding ==========
+		encoding = OrderedDict()
+		encoding["BA"] = ({
+			'shuffle':True, 
+			# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
+			'zlib':True,
+			'complevel':5})
+		
+		# ========== Write the file out ==========
+		delayed_obj = ds_BA.to_netcdf(fnout, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
+
+		print("Starting write of BA data at",  pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
+	else:
+		ds_BA = xr.open_dataset(fin)
+
+	# ========== Build the mask ==========
+	mask = maskmaker(force)
 	ipdb.set_trace()
+
+#==============================================================================
+
+def maskmaker(force, dsn="MODIS"):
+
+	print("Building a new mask for %s at:" % dsn, pd.Timestamp.now())
+	# ========== Set up the paths ==========
+	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsn
+	cf.pymkdir(ppath)
+
+	masknm = ppath + "MODIS_landseamask.nc"
+
+	if not os.path.isfile(masknm) or force:
+		
+		# ========== create a date ==========
+		dates    = datefixer(2018, 12, 31)
+
+		# ========== load the modis mask ==========
+		maskfn = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		raw_mask = xr.open_dataset(maskfn)
+
+		# ========== Start on the mask ==========
+		raw_mask = raw_mask.drop(
+			["QC", "crs"]).chunk({"time":1}).isel(time=-1).rename(
+			{"LW":"mask","lon":"longitude", "lat":"latitude"}).expand_dims({"time":dates["CFTime"]})
+
+		# ===== Create a boolean mask =====
+		raw_mask = raw_mask - 1.0
+		raw_mask = raw_mask.where(raw_mask==1)
+
+		# ===== fix the time =====
+		raw_mask["time"] = dates["CFTime"]
+		raw_mask.time.attrs["calendar"]   = dates["calendar"]
+		raw_mask.time.attrs["units"]      = dates["units"]
+
+		# ===== add to the creation history =====
+		raw_mask.attrs["history"] = "%s: Netcdf file created using %s (%s):%s by %s. Grid matches %s data. " % (
+			str(pd.Timestamp.now()), __title__, __file__, __version__, __author__, dsn) + raw_mask.attrs["history"]
+		
+
+		# ===== save the file out =====
+		raw_mask = tempNCmaker(raw_mask, masknm, "mask")
+
+	else:
+		raw_mask = xr.open_dataset(masknm)
+	return raw_mask
+
+#==============================================================================
+
+def tempNCmaker(ds, fntmp, vname, chunks={'longitude': 1000}, skip=False, pro = "tmp"):
+
+	""" Function to save out a tempary netcdf """
+	# cf.pymkdir(tmppath)
+	
+	encoding =  ({vname:{'shuffle':True,'zlib':True,'complevel':5}})
+	if not all([skip, os.path.isfile(fntmp)]):
+		delayed_obj = ds.to_netcdf(fntmp, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
+
+		print("Starting write of %s data at" % pro, pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
+	dsout = xr.open_dataset(fntmp, chunks=chunks) 
+	return dsout
+
+def datefixer(year, month, day):
+	"""
+	Opens a netcdf file and fixes the data, then save a new file and returns
+	the save file name
+	args:
+		ds: xarray dataset
+			dataset of the xarray values
+	return
+		time: array
+			array of new datetime objects
+	"""
+
+
+	# ========== create the new dates ==========
+	# +++++ set up the list of dates +++++
+	dates = OrderedDict()
+	tm = [dt.datetime(int(year) , int(month), int(day))]
+	dates["time"] = pd.to_datetime(tm)
+
+	dates["calendar"] = 'standard'
+	dates["units"]    = 'days since 1900-01-01 00:00'
+	
+	dates["CFTime"]   = date2num(
+		tm, calendar=dates["calendar"], units=dates["units"])
+
+	return dates
 
 
 def GlobalAttributes(ds, fnout):

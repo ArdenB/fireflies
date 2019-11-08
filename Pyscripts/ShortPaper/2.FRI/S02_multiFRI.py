@@ -53,8 +53,8 @@ import seaborn as sns
 import cartopy.crs as ccrs
 import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-import regionmask as rm
-import itertools
+# import regionmask as rm
+# import itertools
 # Import debugging packages 
 import ipdb
 # from rasterio.warp import transform
@@ -74,10 +74,9 @@ def main():
 	data = datasets()
 	
 	# ========== select and analysis scale ==========
-	mwbox     = [1, 2, 5]#, 1, 10] #in decimal degrees
-	# BPT       = 0.4
-	force     = False
-
+	mwbox = [1, 2, 5]#, 1, 10] #in decimal degrees
+	force = True
+	# force = True
 	for dsn in data:
 		# ========== Set up the filename and global attributes =========
 		ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsn
@@ -87,17 +86,18 @@ def main():
 		ds, mask = dsloader(data, dsn, ppath, force)
 
 		# ========== Calculate the annual burn frewuency =========
-		ds_ann = ANNcalculator(data, dsn, ds, mask,force, ppath)
+		# force = False
+		ds_ann = ANNcalculator(data, dsn, ds, mask, force, ppath)
 
-
+		# force = True
 		# ========== work out the FRI ==========
 		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
+		
+	ipdb.set_trace()
 
-		force = True
 
 
 
-		ipdb.set_trace()
 
 
 #==============================================================================
@@ -117,13 +117,18 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 	for mwb in mwbox:
 		print("Starting %s %d degree moving window at:" %(dsn, mwb), pd.Timestamp.now())
 		fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, mwb)
+		tname = "%s_annual_burns_lonMW_%ddegreeBox.nc" % (dsn, mwb)
+
+		# ========== Check if a valid file already exists ==========
 		if os.path.isfile(ppath+fname) and not force:
 			cleanup.append(ppath+tname)
+
+			ipdb.set_trace()
 			continue
-		# ===== get the ratio =====
+
+				# ===== get the ratio =====
 		SF = np.round(mwb /pix).astype(int)
 
-		tname = "%s_annual_burns_lonMW_%ddegreeBox.nc" % (dsn, mwb)
 
 		# ===== Create a masksum =====
 		# This is so i can count the number of values that are valid in each location
@@ -148,16 +153,29 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 		# ===== Calculate a FRI =====
 		ds_out["FRI"] = 1.0/ds_out["AnBF"]
 
+		# ===== add some attrs =====
+		ds_out.attrs   = ds_ann.attrs
+		GlobalAttributes(ds_out, dsn, fnameout=ppath+fname)
+
 		# ===== Save the file out =====
-		ds_out = tempNCmaker(ds_out, ppath, fname, "AnBF", {'longitude': 1000}, readchunks=data[dsn]["chunks"], skip=False)
+		ds_out = tempNCmaker(
+			ds_out, ppath, fname, ["AnBF", "FRI"], {'longitude': 1000}, 
+			readchunks=data[dsn]["chunks"], skip=False, name="%s %d degree MW" % (dsn, mwb))
 
 		cleanup.append(ppath+tname)
 
 		if mwb ==  1:
+			print("\n Making some figures to check the %s %d degree results" % (dsn, mwb))
+			plt.figure(1)
+			ds_out.isel(time=0)["FRI"].plot.imshow(vmin=0, vmax=100)
+			plt.show()
 			ipdb.set_trace()
 
-	warn.warn("I need to implement a cleanup here")
-	ipdb.set_trace()
+			plt.figure(2)
+			ds_out.isel(time=0)["AnBF"].plot.imshow()
+			plt.show()
+			ipdb.set_trace()
+	print("Starting excess file cleanup at:", pd.Timestamp.now())
 	for file in  cleanup:
 		if os.path.isfile(file):
 			os.remove(file)
@@ -183,7 +201,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 	tname = "%s_annual_burns.nc" % dsn
 
 
-	if not os.path.isfile(tpath+tname) or force:
+	if not os.path.isfile(ppath+tname) or force:
 		# ========== calculate the sum ==========
 		dates   = datefixer(2018, 12, 31)
 		ds_flat = ds.mean(dim="time", keep_attrs=True).expand_dims({"time":dates["CFTime"]}).rename({data[dsn]["var"]:"AnBF"})
@@ -191,14 +209,27 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 		ds_flat.time.attrs["units"]      = dates["units"]
 
 		# ========== Write out the file ==========
-		attrs = GlobalAttributes(ds_flat, dsn, fnameout=tpath+tname)
+		attrs = GlobalAttributes(ds_flat, dsn, fnameout=ppath+tname)
 
 		# ========== add some form of mask here ==========
-		ds_flat = ds_flat.where(mask["mask"].values == 1)
+		ds_flat = ds_flat.where(mask["mask"].values == 1).astype("float32")
+
+		# ========== create a date ==========
+		dates    = datefixer(2018, 12, 31)
+
+		# ===== fix the time =====
+		ds_flat["time"] = dates["CFTime"]
+		ds_flat.time.attrs["calendar"]   = dates["calendar"]
+		ds_flat.time.attrs["units"]      = dates["units"]
+
+		# ===== fix the attrs =====
+		ds_flat.attrs = ds.attrs
+		GlobalAttributes(ds_flat, dsn, fnameout=ppath+tname)
+
 
 		ds_flat = tempNCmaker(
-			ds_flat, tpath, tname, "AnBF", 
-			data[dsn]["chunks"], skip=False)
+			ds_flat, ppath, tname, "AnBF", 
+			data[dsn]["chunks"], skip=False, name="%s annual BA" % dsn)
 	
 	else:
 		print("Opening existing temp file")
@@ -208,13 +239,18 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 
 #==============================================================================
 #==============================================================================
-def tempNCmaker(ds, tmppath, tmpname, vname, writechunks, readchunks={'longitude': 1000}, skip=False):
+def tempNCmaker(ds, tmppath, tmpname, vname, writechunks, readchunks={'longitude': 1000}, skip=False, name="tmp"):
 
 	""" Function to save out a tempary netcdf """
 	cf.pymkdir(tmppath)
 	
 	fntmp    = tmppath + tmpname
-	encoding =  ({vname:{'shuffle':True,'zlib':True,'complevel':5}})
+	if type(vname) == list:
+		encoding = OrderedDict()
+		for vn in vname:
+			encoding[vn] = {'shuffle':True,'zlib':True,'complevel':5}
+	else:
+		encoding =  ({vname:{'shuffle':True,'zlib':True,'complevel':5}})
 	if not all([skip, os.path.isfile(fntmp)]):
 		delayed_obj = ds.to_netcdf(fntmp, 
 			format         = 'NETCDF4', 
@@ -222,7 +258,7 @@ def tempNCmaker(ds, tmppath, tmpname, vname, writechunks, readchunks={'longitude
 			unlimited_dims = ["time"],
 			compute=False)
 
-		print("Starting write of temp data at", pd.Timestamp.now())
+		print("Starting write of %s data at" % name, pd.Timestamp.now())
 		with ProgressBar():
 			results = delayed_obj.compute()
 	dsout = xr.open_dataset(fntmp, chunks=readchunks) 
@@ -240,15 +276,19 @@ def dsloader(data, dsn, ppath, force):
 	if "*" in data[dsn]["fname"]:
 		# ========== get all the file names ==========
 		fnames = glob.glob(data[dsn]["fname"])
-		lat = []
+		lat = []	#a test to make sure the sizes are correct
 		for fn in fnames:
 			dsin = xr.open_dataset(fn, chunks=data[dsn]["chunks"])
-			print(dsin["BA"].shape[1] )
-			lat.append(dsin.latitude.values)
+			lat.append(dsin["BA"].shape[1] )
 
 		# ========== open the dataset ==========
-		ds = xr.open_mfdataset(fnames, concat_dim="time", chunks=data[dsn]["chunks"])
-		# ipdb.set_trace()
+		ds = xr.open_mfdataset(fnames, concat_dim="time", chunks=(data[dsn]["chunks"]))
+		
+		# ========== Add a simple dataset check ==========
+		if not np.unique(lat).shape[0] == 1:
+			warn.warn("the datasets have missmatched size, going interactive")
+			ipdb.set_trace()
+			sys.exit()
 	else:
 		ds = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
 	
@@ -263,57 +303,32 @@ def landseamaks(data, dsn, ppath, ds, force, chunks=None ):
 
 	if dsn == "esacci":
 		chunks = data[dsn]["chunks"]
-		raw_mask = xr.open_dataset(ppath+masknm, chunks=chunks)
-		ipdb.set_trace()
-		return raw_mask
 
-	# ========== check if the mask already exists ==========
-	if os.path.isfile(ppath+masknm) and not force:
-		raw_mask = xr.open_dataset(ppath+masknm, chunks=chunks)
-	else:
-		print("Building a new mask for %s at:" % dsn, pd.Timestamp.now())
-		
-		dates    = datefixer(2018, 12, 31)
-		# ========== load the modis mask ==========
-		raw_mask = xr.open_dataset(data[dsn]["maskfn"])
-		if dsn == "MODIS":
-			raw_mask = raw_mask.drop(
-				["QC", "crs"]).chunk({"time":1}).isel(time=-1).rename(
-				{"LW":"mask","lon":"longitude", "lat":"latitude"}).expand_dims({"time":dates["CFTime"]})
-		if not chunks is None:
-			raw_mask = raw_mask.chunk(chunks)
-		
-		# ===== regrid to match the new dataset =====
-		if not dsn == "MODIS":
-			ipdb.set_trace()
-			attrs = raw_mask.attrs.copy()
-			raw_mask = raw_mask.reindex({"latitude":ds.latitude, "longitude":ds.longitude}, method="nearest")
-
-		# ===== Create a boolean mask =====
-		raw_mask = raw_mask - 1.0
-		raw_mask = raw_mask.where(raw_mask==1)
-
-		# ===== fix the time =====
-		raw_mask["time"] = dates["CFTime"]
-		raw_mask.time.attrs["calendar"]   = dates["calendar"]
-		raw_mask.time.attrs["units"]      = dates["units"]
-
-		# ===== add to the creation history =====
-		raw_mask.attrs["history"] = "%s: Netcdf file created using %s (%s):%s by %s. Grid matches %s data. " % (
-			str(pd.Timestamp.now()), __title__, __file__, __version__, __author__, dsn) + raw_mask.attrs["history"]
-		
-
-		# ===== save the file out =====
-		raw_mask = tempNCmaker(
-			raw_mask, ppath, masknm, "mask", 
-			data[dsn]["chunks"], readchunks=chunks, skip=False)
-
-
+	raw_mask = xr.open_dataset(ppath+masknm, chunks=chunks)
 	return raw_mask
 
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	# data["COPERN_BA"] = ({
+	# 	'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*.nc",
+	# 	'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":2014, "end":2019,"rasterio":False, "chunks":None, 
+	# 	"rename":{"lon":"longitude", "lat":"latitude"}
+	# 	})
+	# data["MODIS"] = ({
+	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
+	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+	# 	})
+	data["esacci"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 1000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
 	# data["GIMMS"] = ({
 	# 	"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 	# 	'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
@@ -326,25 +341,6 @@ def datasets():
 	# 	"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
 	# 	"rename":{"lon":"longitude", "lat":"latitude"}
 	# 	})
-	data["COPERN_BA"] = ({
-		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*.nc",
-		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
-	data["MODIS"] = ({
-		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc",
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001.nc"
-		})
-	data["esacci"] = ({
-		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
-		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
-		})
 	return data
 
 def datefixer(year, month, day):
@@ -376,7 +372,7 @@ def datefixer(year, month, day):
 
 #==============================================================================
 
-def GlobalAttributes(ds, dsn, fnameout="",):
+def GlobalAttributes(ds, dsn, fnameout=""):
 	"""
 	Creates the global attributes for the netcdf file that is being written
 	these attributes come from :
