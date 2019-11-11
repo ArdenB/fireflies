@@ -76,7 +76,7 @@ def main():
 	# ========== select and analysis scale ==========
 	mwbox = [1, 2, 5]#, 1, 10] #in decimal degrees
 	force = True
-	# force = True
+	# force = False
 	for dsn in data:
 		# ========== Set up the filename and global attributes =========
 		ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsn
@@ -92,6 +92,7 @@ def main():
 		# force = True
 		# ========== work out the FRI ==========
 		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
+		force = False
 		
 	ipdb.set_trace()
 
@@ -148,7 +149,9 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 		ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
 		ds_out = ds_out.where(mask["mask"].values == 1) #Mask out water
 		ds_out = ds_out.where(mask_sum["mask"].values > ((SF/2)**2)) #Mask out points that lack data
-		ds_out = ds_out.where(ds_out > 0)
+		
+		# ===== Deal with the locations with no fire history =====
+		ds_out = ds_out.where(ds_out > 0, 0.00001)
 		
 		# ===== Calculate a FRI =====
 		ds_out["FRI"] = 1.0/ds_out["AnBF"]
@@ -164,17 +167,17 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		cleanup.append(ppath+tname)
 
-		if mwb ==  1:
-			print("\n Making some figures to check the %s %d degree results" % (dsn, mwb))
-			plt.figure(1)
-			ds_out.isel(time=0)["FRI"].plot.imshow(vmin=0, vmax=100)
-			plt.show()
-			ipdb.set_trace()
+		# if mwb ==  1:
+		# 	print("\n Making some figures to check the %s %d degree results" % (dsn, mwb))
+		# 	plt.figure(1)
+		# 	ds_out.isel(time=0)["FRI"].plot.imshow(vmin=0, vmax=100)
+		# 	plt.show()
+		# 	ipdb.set_trace()
 
-			plt.figure(2)
-			ds_out.isel(time=0)["AnBF"].plot.imshow()
-			plt.show()
-			ipdb.set_trace()
+		# 	plt.figure(2)
+		# 	ds_out.isel(time=0)["AnBF"].plot.imshow()
+		# 	plt.show()
+		# 	ipdb.set_trace()
 	print("Starting excess file cleanup at:", pd.Timestamp.now())
 	for file in  cleanup:
 		if os.path.isfile(file):
@@ -203,7 +206,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 
 	if not os.path.isfile(ppath+tname) or force:
 		# ========== calculate the sum ==========
-		dates   = datefixer(2018, 12, 31)
+		dates   = datefixer(data[dsn]["end"], 12, 31)
 		ds_flat = ds.mean(dim="time", keep_attrs=True).expand_dims({"time":dates["CFTime"]}).rename({data[dsn]["var"]:"AnBF"})
 		ds_flat.time.attrs["calendar"]   = dates["calendar"]
 		ds_flat.time.attrs["units"]      = dates["units"]
@@ -215,7 +218,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 		ds_flat = ds_flat.where(mask["mask"].values == 1).astype("float32")
 
 		# ========== create a date ==========
-		dates    = datefixer(2018, 12, 31)
+		dates    = datefixer(data[dsn]["end"], 12, 31)
 
 		# ===== fix the time =====
 		ds_flat["time"] = dates["CFTime"]
@@ -232,7 +235,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 			data[dsn]["chunks"], skip=False, name="%s annual BA" % dsn)
 	
 	else:
-		print("Opening existing temp file")
+		print("Opening existing Annual Burn Fraction file")
 		ds_flat = xr.open_dataset(tpath+tname, chunks=data[dsn]["chunks"])
 
 	return ds_flat
@@ -310,18 +313,18 @@ def landseamaks(data, dsn, ppath, ds, force, chunks=None ):
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	# data["COPERN_BA"] = ({
-	# 	'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*.nc",
-	# 	'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-	# 	"start":2014, "end":2019,"rasterio":False, "chunks":None, 
-	# 	"rename":{"lon":"longitude", "lat":"latitude"}
-	# 	})
-	# data["MODIS"] = ({
-	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
-	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
-	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
-	# 	})
+	data["COPERN_BA"] = ({
+		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
+		})
+	data["MODIS"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		})
 	data["esacci"] = ({
 		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
 		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
@@ -419,6 +422,8 @@ def GlobalAttributes(ds, dsn, fnameout=""):
 	# attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
 	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
 	return attr	
+
 #==============================================================================
+
 if __name__ == '__main__':
 	main()

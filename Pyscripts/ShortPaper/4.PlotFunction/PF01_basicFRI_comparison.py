@@ -84,7 +84,7 @@ def main():
 	# ========== Setup the params ==========
 
 	mwb      = 1
-	dsnames  = ["COPERN_BA", "MODIS", "esacci"]
+	dsnames  = ["COPERN_BA", "MODIS", "esacci"]#
 
 	# ========== Setup the dataset ==========
 	datasets = OrderedDict()
@@ -97,7 +97,7 @@ def main():
 		datasets[dsnm] = xr.open_dataset(ppath+fname)
 		# ipdb.set_trace()
 	
-	for var in ["FRI", "AnFR"]:
+	for var in ["FRI", "AnBF"]:
 		# ========== setup the figure ==========
 		fig, axs = plt.subplots(
 			len(datasets), 1, sharex=True, 
@@ -123,13 +123,13 @@ def main():
 		# ========== Change parms for the entire plot =========
 		# fig.suptitle("%s %s frame %d" % (info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"]))
 		# ipdb.set_trace()
-		plt.axis('scaled')
-		# +++++ Make the images bigger by eleminating space +++++
-		fig.subplots_adjust(left=0.1, right=0.9, top=1, bottom=0, wspace=0, hspace=0) #top = 1, bottom = 1, right = 1, left = 1, 
-		plt.tight_layout()
-		plt.margins(0,0)
+		# plt.axis('scaled')
+		# # +++++ Make the images bigger by eleminating space +++++
+		# fig.subplots_adjust(left=0.1, right=0.9, top=1, bottom=0, wspace=0, hspace=0) #top = 1, bottom = 1, right = 1, left = 1, 
+		# plt.tight_layout()
+		# plt.margins(0,0)
 
-		ipdb.set_trace()
+		# ipdb.set_trace()
 
 
 
@@ -143,11 +143,11 @@ def _subplotmaker(ax, var, dsn, datasets):
 	if var == "FRI":
 		# +++++ set the min and max values +++++
 		vmin = 0.0
-		vmax = 100
+		vmax = 80.0
 
 		# +++++ create hte colormap +++++
-		# cmapHex = palettable.matplotlib.Inferno_10.hex_colors
-		cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+		# cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+		cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
 		
 
 		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
@@ -155,7 +155,19 @@ def _subplotmaker(ax, var, dsn, datasets):
 		cmap.set_bad('dimgrey',1.)
 
 	else:
-		ipdb.set_trace()
+		# ========== Set the colors ==========
+		vmin = 0.0
+		vmax = 0.20
+
+		# +++++ create the colormap +++++
+		# cmapHex = palettable.matplotlib.Inferno_10.hex_colors
+		# cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+		cmapHex = palettable.colorbrewer.sequential.OrRd_9.hex_colors
+		
+
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		cmap.set_over(cmapHex[-1] )
+		cmap.set_bad('dimgrey',1.)
 
 	# ========== Grab the data ==========
 	im = frame.plot.imshow(

@@ -53,23 +53,27 @@ def main():
 	cf.pymkdir(path)
 	cf.pymkdir(path+"tmp/")
 	cf.pymkdir(ppath)
-	force  = True# False
+	force  = True#False
 	dsn    = "COPERN_BA"
 	
-	latmax = 70.0
-	latmin = 40.0
-	lonmin = -14.0
-	lonmax =  180.0
-	shapes = []
+	latmax   = 70.0
+	latmin   = 40.0
+	lonmin   = -14.0
+	lonmax   =  180.0
+	shapes   = []
+	complete = False #for why i need this see 2.3 of https://land.copernicus.eu/global/sites/cgls.vito.be/files/products/CGLOPS1_PUM_BA300m-V1_I1.40.pdf
 
-	for yr in range(2015, 2019):
+	for yr in range(2014, 2020):
 		# ========== loop over layers ==========		
 		print("Starting %d at:" % (yr), pd.Timestamp.now())
 
 		fnames = glob.glob(indata+"c_gls_BA300_%d*.nc" % yr)
 
 		# ========== Check if a file already exists ==========
-		ANfn    = ppath + "%s_gls_%d_burntarea.nc" % (dsn, yr)
+		if complete:
+			ANfn    = ppath + "%s_gls_%d_burntarea.nc" % (dsn, yr)
+		else:
+			ANfn    = ppath + "%s_gls_%d_burntarea_SensorGapFix.nc" % (dsn, yr)
 		if os.path.isfile(ANfn) and not force:
 			ds = xr.open_dataset(ANfn)
 		else:
@@ -77,12 +81,11 @@ def main():
 			print("%d BA calculation completed at:" % (yr), pd.Timestamp.now(), " Starting Cleanup")
 		shapes.append(ds["BA"].shape)
 		print(shapes)
-		# ipdb.set_trace()
 	ipdb.set_trace()
 
 #==============================================================================
 
-def annualfile(yr, path, ppath, force, ANfn, latmax, latmin, lonmin, lonmax, dsn, fnames):
+def annualfile(yr, path, ppath, force, ANfn, latmax, latmin, lonmin, lonmax, dsn, fnames, complete=False):
 	
 	# ========== rapidly stack results ==========
 	files = None
@@ -91,21 +94,33 @@ def annualfile(yr, path, ppath, force, ANfn, latmax, latmin, lonmin, lonmax, dsn
 	mask  = None
 
 	for fn in fnames:
+
+		# ========== pull out the date from the file name ==========
+		dte = pd.Timestamp(fn.split("/")[-1].split("_")[3][:8])
+		
+		if not complete:
+			# this is where i mask the datasets that are missing due to algrythim gaps
+			# ========== Test the mont number ==========
+			if dte.month <=5 or dte.month >=9:
+				nx +=1
+				continue
+
+
 		ds_yin = xr.open_dataset(fn).rename({"lon":"longitude", "lat":"latitude"}).sel(dict(
 			latitude =slice(latmax, latmin), 
-			longitude=slice(lonmin, lonmax))).drop(["CP_DEKAD", "crs", "FDOB_DEKAD", "BA_DEKAD"]).rename({"FDOB_SEASON":"BA"})#.chunk({'latitude':1000, 'longitude': 1000})
-
-		ds_out = (ds_yin >((yr - 1980) * 1e3))
+			longitude=slice(lonmin, lonmax))).drop(["CP_DEKAD", "crs", "FDOB_DEKAD", "FDOB_SEASON"]).rename({"BA_DEKAD":"BA"})#.chunk({'latitude':1000, 'longitude': 1000})
+		# ds_out = (ds_yin >((yr - 1980) * 1e3))
+		ds_out = ds_yin.copy().where(ds_yin ==1, 0)
 
 		if files is None:
 			files=ds_out
 		else:
-			ipdb.set_trace()
-			sys.exit()
 			try:
 				files = xr.concat([files, ds_out], dim="time").any(dim="time")
 			except Exception as e:
 				files = xr.concat([files, ds_out.isel(time=0, drop=True)], dim="time").any(dim="time")
+			# ipdb.set_trace()
+
 		
 		# ========== Implement the mask here ==========
 		if yr == 2018 and mask is None:
@@ -143,11 +158,11 @@ def annualfile(yr, path, ppath, force, ANfn, latmax, latmin, lonmin, lonmax, dsn
 		GlobalAttributes(mask, maskfn)
 
 		mask = tempNCmaker(mask, maskfn, "mask", chunks={'latitude':1000, 'longitude': 1000}, skip=False, pro = "Mask")
-		ipdb.set_trace()
 
 	return ds_out
 
 #==============================================================================
+
 def tempNCmaker(ds, fntmp, vname, chunks={'longitude': 1000}, skip=False, pro = "tmp"):
 
 	""" Function to save out a tempary netcdf """
@@ -166,6 +181,7 @@ def tempNCmaker(ds, fntmp, vname, chunks={'longitude': 1000}, skip=False, pro = 
 			results = delayed_obj.compute()
 	dsout = xr.open_dataset(fntmp, chunks=chunks) 
 	return dsout
+
 def GlobalAttributes(ds, fnout):
 	"""
 	Creates the global attributes for the netcdf file that is being written
@@ -208,6 +224,8 @@ def GlobalAttributes(ds, fnout):
 	# attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
 	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
 	return attr	
+
 #==============================================================================
+
 if __name__ == '__main__':
 	main()
