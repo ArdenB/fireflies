@@ -67,9 +67,11 @@ fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is d
 # import cartopy.crs as ccrs
 # import cartopy.feature as cpf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-
+import geopy.distance as geodis
 import myfunctions.corefunctions as cf 
 # # Import debugging packages 
+# import socket
+# print(socket.gethostname())
 import ipdb
 
 print("numpy version  : ", np.__version__)
@@ -91,10 +93,16 @@ def main(args):
 	if os.uname()[1] == 'DESKTOP-CSHARFM':
 		# LAPTOP
 		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+
+	elif os.uname()[1] == "ubuntu":
+		# Work PC
+		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+
 	else:
 		warn.warn("Paths not created for this computer")
 		# spath =  "/media/ubuntu/Seagate Backup Plus Drive"
 		ipdb.set_trace()
+	cf.pymkdir(spath)
 
 	# ========== create the geometery ==========
 	cordname = "./data/other/GEE_sitelist.csv"
@@ -109,6 +117,8 @@ def main(args):
 		site_coords = pd.read_csv(cordname, index_col=0)#, parse_dates=True
 		warn.warn("THere is some form of bug here, going interactive. Look at the dataframe")
 		ipdb.set_trace()
+	ipdb.set_trace()
+
 
 	program = "LANDSAT"
 	# ========== Loop over each site ==========
@@ -134,6 +144,8 @@ def main(args):
 
 		elif os.path.isfile(checkfile) and not force:
 			print("Data has already been exported for %s" % coords["name"])
+			if cordf:
+				coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
 		else:
 			# ========== Get the start time ==========
 			t0 = pd.Timestamp.now()
@@ -245,6 +257,7 @@ def GEE_geotifexp(coords, spath, program, fails = None):
 	# sys.exit()
 
 	try:
+		ipdb.set_trace()
 		print("Starting to create GeoTIFF's for %s at:" % coords["name"], pd.Timestamp.now())
 		gee_batch.imagecollection.toDrive(
 			collection, 
@@ -401,24 +414,76 @@ def geom_builder(site = "Burn2015 UP"):
 	pointdt = gpd.read_file(pointfn, driver="kml")
 
 
-	# ========== Loop over the names ==========
 	sitenm = []
+	latit  = []
+	longi  = []
+	year   = []    
+	# ========== Loop over the names 2019 ==========
 	for nm in pointdt.Name:
-		if nm == "Burn2015 UP":
+		if nm in ["Burn2015 UP", "GROUP BOX2 TRANS1-6"]:
 			sitenm.append(nm)
+			latit.append(pointdt[pointdt.Name == nm].geometry.y.values[0])
+			longi.append(pointdt[pointdt.Name == nm].geometry.x.values[0])
+			year.append(2019)
 		elif "GROUP BOX" in nm:
 			pass
 		elif nm[-2:] == '-0':
 			sitenm.append(nm)
+			latit.append(pointdt[pointdt.Name == nm].geometry.y.values[0])
+			longi.append(pointdt[pointdt.Name == nm].geometry.x.values[0])
+			year.append(2018)
 
+	# ========== add 2018 ==========
+	fd18 = pd.read_csv("./data/field/2018data/siteDescriptions18.csv")
+	fd18.sort_values(by=["site number"],inplace=True) 
+	for nx, row in fd18.iterrows():
+		sitenm.append("Site%02d" % row["site number"])
+		latit.append(row.lat)
+		longi.append(row.lon)
+		year.append(2018)	
+	
+	# ========== add 2017 ==========
+	fd17 = pd.read_csv("./data/field/2018data/siteDescriptions17.csv")
+	fd17.sort_values(by=["site number"],inplace=True) 
+	for nx, row in fd17.iterrows():
+		stnm = "Site%02d" % row["site number"]
+		if not stnm in sitenm:
+			sitenm.append(stnm)
+			latit.append(row.strtY)
+			longi.append(row.strtX)
+			year.append(2017)	
+	
+	# ========== Check the distance ==========
+	# def distance_check(p1, p2):
+		# pass
+	STdf = pd.DataFrame({"siteds":sitenm, "lat":latit , "lon":longi , "year":year})
+	STdf["Skip"] = 0
+	STdf["SkipSite"] = ""
+	for nx, row in STdf.iterrows():
+		if STdf["Skip"][nx] > 0:
+			# THis location has laready been skipped
+			continue
+		else:
+			dist = np.array([geodis.distance((row.lat, row.lon), (lat, lon)).km for lat, lon in zip(STdf.lat[nx+1:].values, STdf.lon[nx+1:].values)])
+			STdf["Skip"][nx+1:] += (dist<1).astype(int)
+			def easy(inp, sitenm):
+				if inp:
+					return sitenm
+				else:
+					return ""
 
-	def _sitemaker(site, ds, dsn, sitinfoLS):
+			close = [easy(inp, row.siteds) for inp in (dist<1)]
+			STdf["SkipSite"][nx+1:] = STdf["SkipSite"][nx+1:].values + close
+	# ipdb.set_trace()
+	df = STdf[STdf.Skip == 0].reset_index(drop=True)
+
+	def _sitemaker(site, sampleset, ds, dsn, sitinfoLS, lat, lon):
 		
 		""" wrapper to pull out site info as needed """
 		
 		# ========== Pull out the location of a point ==========
-		lon = pointdt[pointdt.Name == site].geometry.x.values
-		lat = pointdt[pointdt.Name == site].geometry.y.values
+		# lon = pointdt[pointdt.Name == site].geometry.x.values
+		# lat = pointdt[pointdt.Name == site].geometry.y.values
 		
 		# ========== Check if the site has already been built ==========
 		if dsn == "COPERN": # The site has not been built yet
@@ -432,9 +497,11 @@ def geom_builder(site = "Burn2015 UP"):
 			# ========== Get values ready to export ==========
 			if site == "Burn2015 UP":
 				coords["name"] = "TestBurn"
+			elif site == "GROUP BOX2 TRANS1-6":
+				coords["name"] = "G2T1-6"
 			else:
 				coords["name"] = site
-
+			coords["set"]      = sampleset
 			coords["lon"]      = lon
 			coords["lat"]      = lat
 
@@ -484,12 +551,16 @@ def geom_builder(site = "Burn2015 UP"):
 		ldsi       = local_data[dsn]
 		
 		# ========== load in the grid data ==========
-		ds_gr = xr.open_dataset(
-			ldsi["fname"], 
-			chunks=ldsi["chunks"])[ldsi["var"]].rename(ldsi["rename"]).isel(time=0)
+		if os.path.isfile(ldsi["fname"]):
+			ds_gr = xr.open_dataset(
+				ldsi["fname"], 
+				chunks=ldsi["chunks"])[ldsi["var"]].rename(ldsi["rename"]).isel(time=0)
+		else:
+			ipdb.set_trace()
 
-		for nm in sitenm:
-			sitinfoLS = _sitemaker(nm, ds_gr, dsn, sitinfoLS)
+		# for nm in sitenm:
+		for nx, row in df.iterrows():
+			sitinfoLS = _sitemaker(row.siteds, row.year, ds_gr, dsn, sitinfoLS, row.lat, row.lon)
 		
 		# ========== Close the dataset ==========
 		ds_gr = None
@@ -570,12 +641,34 @@ def datasets():
 	if os.uname()[1] == 'DESKTOP-CSHARFM':
 		# LAPTOP
 		dpath = "/mnt/e"
+	elif os.uname()[1] == "ubuntu":
+		# Work PC
+		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
 	else:
 		warn.warn("Paths not created for this computer")
 		# dpath =  "/media/ubuntu/Seagate Backup Plus Drive"
 		ipdb.set_trace()
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	data["MODIS"] = ({
+		"fname":"%s/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc" % dpath,
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		})
+	data["COPERN_BA"] = ({
+		'fname':"%s/BurntArea/COPERN_BA/processed/COPERN_BA_gls_2014_burntarea_SensorGapFix.nc" % dpath,
+		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+		"rename":None
+		})
+	data["esacci"] = ({
+		"fname":"%s/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc" % dpath,
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
 	data["GIMMS"] = ({
 		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
@@ -588,25 +681,7 @@ def datasets():
 		"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
-	data["COPERN_BA"] = ({
-		'fname':"%s/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc" % dpath,
-		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
-	data["esacci"] = ({
-		"fname":"%s/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc" % dpath,
-		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":None,
-		"rename":None,#{'latitude': 1000},
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
-		})
-	data["MODIS"] = ({
-		"fname":"%s/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc" % dpath,
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
-		"rename":None,#{'latitude': 1000},
-		})
+
 	return data
 
 def string_format(string, replacement):
@@ -653,7 +728,9 @@ def convertDataType(newtype):
                  'int32': image.toInt32}
         return TYPES[newtype]()
     return wrap
+
 #==============================================================================
+
 if __name__ == '__main__':
 	# ========== Set the args Description ==========
 	description='Script to make movies'

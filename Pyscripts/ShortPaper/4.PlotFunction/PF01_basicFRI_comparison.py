@@ -116,18 +116,19 @@ def main():
 
 		# +++++ Add a single colorbar +++++
 		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
+		
+		# ========== Change parms for the entire plot =========
+		plt.axis('scaled')
+		# plt.tight_layout()
+		# plt.margins(0,0)
 		plt.show()
 
 		ipdb.set_trace()
 		
-		# ========== Change parms for the entire plot =========
 		# fig.suptitle("%s %s frame %d" % (info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"]))
 		# ipdb.set_trace()
-		# plt.axis('scaled')
 		# # +++++ Make the images bigger by eleminating space +++++
 		# fig.subplots_adjust(left=0.1, right=0.9, top=1, bottom=0, wspace=0, hspace=0) #top = 1, bottom = 1, right = 1, left = 1, 
-		# plt.tight_layout()
-		# plt.margins(0,0)
 
 		# ipdb.set_trace()
 

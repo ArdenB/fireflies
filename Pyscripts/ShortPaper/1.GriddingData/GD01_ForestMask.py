@@ -52,7 +52,7 @@ import seaborn as sns
 import cartopy.crs as ccrs
 import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-import regionmask as rm
+# import regionmask as rm
 import itertools
 # Import debugging packages 
 import ipdb
@@ -71,7 +71,7 @@ def main():
 	# ========== Setup the paths ==========
 	ft     = "treecover2000"
 	region = "SIBERIA"
-	force  = True#False
+	force  =  False
 	
 
 	# ========== Create the mask dates ==========
@@ -83,29 +83,39 @@ def main():
 
 	# ========== load in the datasets ==========
 	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
-	ds    = HansenNCload(ppath, region, maxNF, nfval)
-	ds    = ds.sel(dict(latitude=slice(ds.latitude.max().values, 45.0)))
+	ds    = HansenNCload(ppath, region, maxNF, nfval, force)
+	force  =  True
+	# ds    = ds.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-15, 180.0)))
 	# ipdb.set_trace()
 	# sys.exit()
 
 	# ========== Loop over the datasets ==========
+	cleanup = []
 	for dsn in data:
 		# ========== Set up the filename and global attributes =========
-		fpath        = "./data/other/ForestExtent/%s/" % dsn
+		# fpath        = "./data/other/ForestExtent/%s/" % dsn
+		fpath        = "/media/ubuntu/Seagate Backup Plus Drive/Data51/ForestExtent/%s/" % dsn
 		cf.pymkdir(fpath)
+		cf.pymkdir(fpath+"tmp/")
 		
 		# ========== Load the grids =========
 		DAin, global_attrs = dsloader(data, dsn, dates)
 
 		# ========== subset the dataset in to match the forest cover ==========
-		DAin_sub = DAin.sel(dict(
-			latitude=slice(ds.latitude.max().values, ds.latitude.min().values), 
-			longitude=slice(ds.longitude.min().values, ds.longitude.max().values)))
+		ds = ds.sel(dict(
+			latitude=slice(DAin.latitude.max().values, DAin.latitude.min().values), 
+			longitude=slice(DAin.longitude.min().values, DAin.longitude.max().values)))
 		
 		# ========== generate the new datasets ==========
-		out = _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs, dates)
+		out, tmp = _dsroller(fpath, ds, DAin, dsn, data, maxNF, force, region, global_attrs, dates)
+		cleanup.append(tmp)
 
 	ipdb.set_trace()
+
+	print("Starting excess file cleanup at:", pd.Timestamp.now())
+	for fn in cleanup:
+		if os.path.isfile(tmp):
+			os.remove(tmp)
 
 #==============================================================================
 def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs, dates):
@@ -118,18 +128,19 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 			the dataarray with the matched grid
 	"""
 	# ========== Setup the file name and check overwrite ==========
-	fnout = fpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMask.nc" % (dsn, region)
+	fnout = fpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMaskV2.nc" % (dsn, region)
+	ftmp  = fpath + "tmp/Hansen_GFC-2018-v1.6_regrid_%s_lonMW.nc" % (dsn)
 
 	if os.path.isfile (fnout) and not force:
 		print("a file already exists for %s" % (dsn))
-		return fnout
+		return fnout, ftmp
 
 	# ========== calculate the scale factor ==========
 	rat = np.round(np.array(DAin_sub.attrs["res"]) / np.array(ds.datamask.attrs["res"]))
 	# the scale factor between datasets
 	if np.unique(rat).shape[0] == 1:
 		SF = int(rat[0])
-		RollF = int(SF/4 - 0.5)
+		RollF = 1 #int(SF/4 - 0.5)
 
 	else:
 		warn.warn("Lat and lon have different scale factors")
@@ -137,13 +148,47 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 		sys.exit()
 
 	# +++++ Moving window Smoothing +++++
-	MW_lons   = ds.rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
-	MW_lonsRI = MW_lons.reindex({"longitude":DAin_sub.longitude}, method="nearest")
-	MW_lonsRI = MW_lonsRI.chunk({"latitude":-1, "longitude":1000})
-	# MW_lonsRI = tempNCmaker(MW_lonsRI, fptmp, fntmp, "datamask", chunks={'longitude': 1000}, skip=False)
+
+	def _test(ds, SF, RollF, DAin_sub, fnout):
+		# ========== Testing alternative approach ==========
+		dsMW = ds.copy().chunk({"latitude":10000, "longitude":10000})
+		dsMW = dsMW.rolling({"longitude":SF}, center = True, min_periods=RollF).construct('WDlon')
+		dsMW = dsMW.rolling({"latitude" :SF}, center = True, min_periods=RollF).construct('WDlat')
+
+		# ========== stack the two windows, get the mean and then subset ==========
+		dsMW = dsMW.stack(mw=("WDlon", "WDlat"))
+		ipdb.set_trace()
+		dsMW = dsMW.mean(dim="mw")
+		dsMW = dsMW.reindex({"longitude":DAin_sub.longitude,"latitude":DAin_sub.latitude}, method="nearest")
+
+		# +++++ Fix the metadata +++++
+		dsMW.attrs = ds.attrs
+		dsMW.attrs["history"]  = "%s: Converted to a boolean forest mask, then resampled to match %s grid resolution using %s" % (
+			(str(pd.Timestamp.now())), dsn, __file__) +ds.attrs["history"]
+		dsMW.attrs["FileName"] = fnout
+		dsMW.datamask.attrs    = ds.datamask.attrs	
+		dsMW.latitude.attrs    = ds.latitude.attrs		
+		dsMW.longitude.attrs   = ds.longitude.attrs
+
+
+		# ========== Create the new layers ==========
+		dsMW["mask"] = (dsMW.datamask >= maxNF).astype(int)		
+		dsMW         =  dsMW.rename({"datamask":"ForestFraction"})
+
+		dsMW = tempNCmaker(dsMW, fnout, ["ForestFraction", "mask"], pro = "complete mask")
+		return dsMW
+
+	# MW_FC = _test(ds, SF, RollF, DAin_sub, fnout)
+	# ipdb.set_trace()
+
+	MW_lons = ds.astype("float32").rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
+	MW_lons = MW_lons.reindex({"longitude":DAin_sub.longitude}, method="nearest")
+	MW_lons = tempNCmaker(MW_lons, ftmp, "datamask", chunks={'longitude': 3000})
+
+	# MW_lonsRI = MW_lonsRI.chunk({"latitude":-1, "longitude":1000})
 
 	# +++++ Apply the second smooth +++++
-	MW_FC    = MW_lonsRI.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
+	MW_FC    = MW_lons.rolling({"latitude":SF}, center = True, min_periods=RollF).mean()
 	MW_FC_RI = MW_FC.reindex({"latitude":DAin_sub.latitude}, method="nearest")
 
 
@@ -157,7 +202,7 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 
 
 	# ========== Create the new layers ==========
-	MW_FC_RI["mask"] = (MW_FC_RI.datamask >= maxNF).astype(int)		
+	MW_FC_RI["mask"] = (MW_FC_RI.datamask >= maxNF).astype("int16")		
 	MW_FC_RI         = MW_FC_RI.rename({"datamask":"ForestFraction"})
 	# MW_FC_RI         = MW_FC_RI.transpose("time", "latitude", "longitude")
 
@@ -187,9 +232,9 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 	with ProgressBar():
 		results = delayed_obj.compute()
 
-	return fnout
+	return fnout, ftmp
 
-def HansenNCload(ppath, region, maxNF, nfval):
+def HansenNCload(ppath, region, maxNF, nfval, force):
 	"""
 	Function to open the hansen data products then mask them with key values
 	args:
@@ -204,32 +249,71 @@ def HansenNCload(ppath, region, maxNF, nfval):
 	"""
 
 	# ========== Set up the filename and global attributes =========
-	pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
-	fpath        = "%s/FRI/" %  ppath
-	cf.pymkdir(fpath)
 
-	# ========== Setup the paths ==========
-	def _Hansenfile(ppath, pptex, ft, region):
-		dpath  = "%s/%s/" % (ppath, pptex[ft])
-		datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
-		# fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
-		return xr.open_dataset(datafn, chunks={'latitude': 100})
+	datafn = "%s/Hansen_GFC-2018-v1.6_%s_ProcessedTo50m.nc" % (ppath, region)
+	if os.path.isfile(datafn) and not force:
+		ds_IF = xr.open_dataset(datafn, chunks={'latitude': 100})
+	else:
+		pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
+		fpath        = "%s/FRI/" %  ppath
+		cf.pymkdir(fpath)
 
-	# ========== get the datatsets ==========
-	ds_tc = _Hansenfile(ppath, pptex, "treecover2000", region)
-	# ds_ly = _Hansenfile(ppath, pptex, "lossyear", region)
-	ds_dm = _Hansenfile(ppath, pptex, "datamask", region)
-	# ========== Check if its a forest ==========
-	ds_IF = (ds_tc > nfval).astype(float).rename({"treecover2000":"datamask"})
-	ds_IF = ds_IF.where(ds_dm == 1, 0)
-	# ========== Add back the attrs i need ==========
-	ds_IF.datamask.attrs = ds_dm.datamask.attrs
+		# ========== Setup the paths ==========
+		def _Hansenfile(ppath, pptex, ft, region):
+			dpath  = "%s/%s/" % (ppath, pptex[ft])
+			datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
+			# fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
+			return xr.open_dataset(datafn, chunks={'latitude': 10000, 'longitude':10000})
 
+		# ========== get the datatsets ==========
+		ds_tc = _Hansenfile(ppath, pptex, "treecover2000", region)
+		ds_tc = ds_tc.coarsen(latitude=2, longitude=2).mean()
+
+		# ds_ly = _Hansenfile(ppath, pptex, "lossyear", region)
+		ds_dm = _Hansenfile(ppath, pptex, "datamask", region)
+		attrs = ds_dm.attrs
+		vattr = ds_dm.datamask.attrs
+		ds_dm = ds_dm.coarsen(latitude=2, longitude=2).max()
+		# ========== Check if its a forest ==========
+		ds_IF = (ds_tc > nfval).astype("float32").rename({"treecover2000":"datamask"})
+		ds_IF = ds_IF.where(ds_dm == 1, 0)
+		# ========== Add back the attrs i need ==========
+		ds_IF.attrs = attrs
+		ds_IF.datamask.attrs = vattr
+		ds_IF.datamask.attrs["res"] = ([
+			abs(np.unique(np.round(np.diff(ds_IF.latitude.values), decimals=4))[0]),
+			abs(np.unique(np.round(np.diff(ds_IF.longitude.values), decimals=4))[0])])
+
+		ds_IF = tempNCmaker(ds_IF, datafn, "datamask", pchunk=10000, chunks={'latitude': 100}, skip=False, pro = "Hansen Downscaled")
 	return ds_IF
 
 #==============================================================================
 # FUnctions i'm not usre if i'm using 
 #==============================================================================
+def tempNCmaker(ds, fntmp, vname, pchunk=1000, chunks={'longitude': 1000, "latitude":1000}, skip=False, pro = "tmp"):
+
+	""" Function to save out a tempary netcdf """
+	# cf.pymkdir(tmppath)
+	enc = {'shuffle':True,'zlib':True,'complevel':5, "chunksizes":[1, pchunk, pchunk]}
+	if type(vname) == list:
+		encoding = OrderedDict()
+		for vn in vname:
+			encoding[vn] = enc
+	else:
+		encoding =  ({vname:enc})
+
+	if not all([skip, os.path.isfile(fntmp)]):
+		delayed_obj = ds.to_netcdf(fntmp, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
+		print("Starting write of %s data at" % pro, pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
+	dsout = xr.open_dataset(fntmp, chunks=chunks) 
+	return dsout
+
 def dsbuilder(DAin_sub, dates, BFbool, MeanFC, NFfrac, global_attrs, fnout):
 
 	# ========== Start making the netcdf ==========
@@ -317,54 +401,44 @@ def datefixer(year, month, day):
 def dsloader(data, dsn, dates):
 	"""Function to load and process data"""
 
+
 	# ========== Load the dataset =========
-	if data[dsn]["rasterio"]:
-		DAin    = xr.open_rasterio(data[dsn]["fname"])
-		if not data[dsn]["rename"] is None:
-			DAin    = DAin.rename(data[dsn]["rename"])
-		if not data[dsn]["chunks"] is None:
-			DAin = DAin.chunk(data[dsn]["chunks"])    
-		
-		# ========== calculate the bounding box of the pixel ==========
-		lonres = DAin.attrs["res"][0]/2
-		latres = DAin.attrs["res"][1]/2
-		DAin["time"] = dates["CFTime"]
-		global_attrs = GlobalAttributes(None, dsn)	
-
-
+	if data[dsn]["chunks"] is None:
+		DS           = xr.open_dataset(data[dsn]["fname"])
+		DAin         = DS[data[dsn]["var"]]
 	else:
-		# ========== Load the dataset =========
-		if data[dsn]["chunks"] is None:
-			DS           = xr.open_dataset(data[dsn]["fname"])
-			DAin         = DS[data[dsn]["var"]]
-		else:
+		try:
 			DS           = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
-			# Pull out the chunks 
-			if 'time' in data[dsn]["chunks"].keys():
-				DAin         = DS[data[dsn]["var"]].isel({'time':0})
-			else:
-				warn.warn("This has not been implemented yet")
-				ipdb.set_trace()
-				sys.exit()
-
-		if not data[dsn]["rename"] is None:
-			DAin    = DAin.rename(data[dsn]["rename"])
-		try:
-			DAin["time"] = dates["CFTime"]
-		except ValueError:
-			DAin["time"] = np.squeeze(dates["CFTime"])
-		global_attrs = GlobalAttributes(DS, dsn)
-		
-		try:
-			len(DAin.attrs["res"])
-		except KeyError:
-			DAin.attrs["res"] = ([
-				abs(np.unique(np.diff(DAin.longitude.values))[0]),
-				abs(np.unique(np.diff(DAin.latitude.values))[0]) ])
+			
 		except Exception as e:
-			print("Unknown error", str(e))
+			print(str(e))
 			ipdb.set_trace()
-			raise e
+		# Pull out the chunks 
+		if 'time' in data[dsn]["chunks"].keys():
+			DAin         = DS[data[dsn]["var"]].isel({'time':0})
+		else:
+			warn.warn("This has not been implemented yet")
+			ipdb.set_trace()
+			sys.exit()
+
+	if not data[dsn]["rename"] is None:
+		DAin    = DAin.rename(data[dsn]["rename"])
+	try:
+		DAin["time"] = dates["CFTime"]
+	except ValueError:
+		DAin["time"] = np.squeeze(dates["CFTime"])
+	global_attrs = GlobalAttributes(DS, dsn)
+	
+	try:
+		len(DAin.attrs["res"])
+	except KeyError:
+		DAin.attrs["res"] = ([
+			abs(np.unique(np.diff(DAin.longitude.values))[0]),
+			abs(np.unique(np.diff(DAin.latitude.values))[0]) ])
+	except Exception as e:
+		print("Unknown error", str(e))
+		ipdb.set_trace()
+		raise e
 	return DAin, global_attrs
 
 def GlobalAttributes(ds, dsn, fname=""):
@@ -420,6 +494,25 @@ def GlobalAttributes(ds, dsn, fname=""):
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	# data["MODIS"] = ({
+	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+	# 	})
+	# data["COPERN_BA"] = ({
+	# 	'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_2014_burntarea_SensorGapFix.nc",
+	# 	'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+	# 	"rename":None#{"lon":"longitude", "lat":"latitude"}
+	# 	})
+	data["esacci"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
 	data["GIMMS"] = ({
 		"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
 		'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
@@ -431,25 +524,6 @@ def datasets():
 		'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
 		"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
-	data["COPERN_BA"] = ({
-		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
-		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
-	data["esacci"] = ({
-		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
-		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":None,
-		"rename":None,#{'latitude': 1000},
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
-		})
-	data["MODIS"] = ({
-		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc",
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
-		"rename":None,#{'latitude': 1000},
 		})
 	
 	# ipdb.set_trace()
