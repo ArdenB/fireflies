@@ -86,7 +86,7 @@ def main(args):
 
 	# ========== Set an overwrite =========
 	force = False
-	cordf = True # force the creation of a new maskter coord list
+	cordf = False #force the creation of a new maskter coord list
 	tsite = args.site
 
 	# ========== Create the system specific paths ==========
@@ -121,6 +121,7 @@ def main(args):
 
 
 	program = "LANDSAT"
+	cordf = True
 	# ========== Loop over each site ==========
 	for index, coords in site_coords.iterrows():
 
