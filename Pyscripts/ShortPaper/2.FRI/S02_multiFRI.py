@@ -236,7 +236,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 	
 	else:
 		print("Opening existing Annual Burn Fraction file")
-		ds_flat = xr.open_dataset(tpath+tname, chunks=data[dsn]["chunks"])
+		ds_flat = xr.open_dataset(ppath+tname, chunks=data[dsn]["chunks"])
 
 	return ds_flat
 
