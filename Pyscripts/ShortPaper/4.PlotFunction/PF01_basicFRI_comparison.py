@@ -86,7 +86,7 @@ def main():
 
 	# ========== Setup the params ==========
 
-	mwbox   = [1]
+	mwbox   = [1, 2, 5]
 	dsnames = ["COPERN_BA", "MODIS", "esacci"]#
 	formats = [".png", ".pdf"] # None
 	# mask    = True
