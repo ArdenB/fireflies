@@ -17,7 +17,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.colors as mpc
 import webcolors as wc
 
-import pdb
+import ipdb
 
 def _ColorConversion(color):
     """

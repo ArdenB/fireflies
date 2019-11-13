@@ -43,6 +43,8 @@ from numba import jit
 import bottleneck as bn
 import scipy as sp
 from scipy import stats
+
+import shutil
 # Import plotting and colorpackages
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpc
@@ -84,7 +86,8 @@ def main():
 	# ========== load in the datasets ==========
 	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
 	ds    = HansenNCload(ppath, region, maxNF, nfval, force)
-	force  =  True
+	# force  =  True
+
 	# ds    = ds.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-15, 180.0)))
 	# ipdb.set_trace()
 	# sys.exit()
@@ -92,11 +95,14 @@ def main():
 	# ========== Loop over the datasets ==========
 	cleanup = []
 	for dsn in data:
+		print(dsn)
 		# ========== Set up the filename and global attributes =========
-		# fpath        = "./data/other/ForestExtent/%s/" % dsn
-		fpath        = "/media/ubuntu/Seagate Backup Plus Drive/Data51/ForestExtent/%s/" % dsn
-		cf.pymkdir(fpath)
-		cf.pymkdir(fpath+"tmp/")
+		
+		fpath     = "./data/other/ForestExtent/%s/" % dsn
+		storepath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/ForestExtent/%s/" % dsn
+		for dirr in [fpath, storepath]:
+			cf.pymkdir(dirr)
+			cf.pymkdir(dirr+"tmp/")
 		
 		# ========== Load the grids =========
 		DAin, global_attrs = dsloader(data, dsn, dates)
@@ -107,9 +113,14 @@ def main():
 			longitude=slice(DAin.longitude.min().values, DAin.longitude.max().values)))
 		
 		# ========== generate the new datasets ==========
-		out, tmp = _dsroller(fpath, ds, DAin, dsn, data, maxNF, force, region, global_attrs, dates)
+		out, tmp = _dsroller(fpath, storepath, ds, DAin, dsn, data, maxNF, force, region, global_attrs, dates)
 		cleanup.append(tmp)
 
+		# ========== Implement moving of file ==========
+		warn.warn("File move needs to occour here")
+		if not storepath in out:
+			shutil.move(out, out.replace(fpath, storepath))
+		ipdb.set_trace()
 	ipdb.set_trace()
 
 	print("Starting excess file cleanup at:", pd.Timestamp.now())
@@ -118,7 +129,7 @@ def main():
 			os.remove(tmp)
 
 #==============================================================================
-def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs, dates):
+def _dsroller(fpath, storepath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs, dates):
 	"""
 	Takes the datasets and rolls them to get the mean forest fraction
 	args:
@@ -128,10 +139,14 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 			the dataarray with the matched grid
 	"""
 	# ========== Setup the file name and check overwrite ==========
+	Tpath = storepath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMaskV2.nc" % (dsn, region)
 	fnout = fpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMaskV2.nc" % (dsn, region)
 	ftmp  = fpath + "tmp/Hansen_GFC-2018-v1.6_regrid_%s_lonMW.nc" % (dsn)
 
-	if os.path.isfile (fnout) and not force:
+	if os.path.isfile (Tpath) and not force:
+		print("a file already exists for %s" % (dsn))
+		return Tpath, ftmp
+	elif os.path.isfile (fnout) and not force:
 		print("a file already exists for %s" % (dsn))
 		return fnout, ftmp
 
@@ -181,7 +196,7 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 	# MW_FC = _test(ds, SF, RollF, DAin_sub, fnout)
 	# ipdb.set_trace()
 
-	MW_lons = ds.astype("float32").rolling({"longitude":SF}, center = True, min_periods=RollF).mean() 
+	MW_lons = ds.rolling({"longitude":SF}, center = True, min_periods=RollF).mean().astype("float32")
 	MW_lons = MW_lons.reindex({"longitude":DAin_sub.longitude}, method="nearest")
 	MW_lons = tempNCmaker(MW_lons, ftmp, "datamask", chunks={'longitude': 3000})
 
@@ -231,7 +246,8 @@ def _dsroller(fpath, ds, DAin_sub, dsn, data, maxNF, force, region, global_attrs
 	print("Starting write of %s gridded data at:" % dsn, pd.Timestamp.now())
 	with ProgressBar():
 		results = delayed_obj.compute()
-
+	# ========== Test the file to see if it opens ==========
+	MW_FC_RI = xr.open_dataset(fnout, chunks={'longitude': 3000})
 	return fnout, ftmp
 
 def HansenNCload(ppath, region, maxNF, nfval, force):
@@ -494,18 +510,18 @@ def GlobalAttributes(ds, dsn, fname=""):
 def datasets():
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	# data["MODIS"] = ({
-	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
-	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'latitude': 1000},
-	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
-	# 	})
-	# data["COPERN_BA"] = ({
-	# 	'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_2014_burntarea_SensorGapFix.nc",
-	# 	'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-	# 	"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'latitude': 1000},
-	# 	"rename":None#{"lon":"longitude", "lat":"latitude"}
-	# 	})
+	data["MODIS"] = ({
+		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		})
+	data["COPERN_BA"] = ({
+		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_2014_burntarea_SensorGapFix.nc",
+		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'latitude': 1000},
+		"rename":None#{"lon":"longitude", "lat":"latitude"}
+		})
 	data["esacci"] = ({
 		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_2001_burntarea.nc",
 		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 

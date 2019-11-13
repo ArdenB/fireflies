@@ -65,7 +65,10 @@ import matplotlib.ticker as mticker
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
-import myfunctions.corefunctions as cf 
+
+# ========== Import my dunctions ==========
+import myfunctions.corefunctions as cf
+import myfunctions.PlotFunctions as pf 
 
 # import cartopy.feature as cpf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
@@ -83,62 +86,110 @@ def main():
 
 	# ========== Setup the params ==========
 
-	mwb      = 1
-	dsnames  = ["COPERN_BA", "MODIS", "esacci"]#
+	mwbox   = [1]
+	dsnames = ["COPERN_BA", "MODIS", "esacci"]#
+	formats = ["png", "pdf"] # None
+	# mask    = True
 
-	# ========== Setup the dataset ==========
-	datasets = OrderedDict()
-	for dsnm in dsnames:
-		# +++++ make a path +++++
-		ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsnm
-		fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+	# ========== Setup the plot dir ==========
+	plotdir = "./plots/ShortPaper/"
+	cf.pymkdir(plotdir)
+
+	for mwb in mwbox:
+		# ========== Setup the dataset ==========
+		datasets = OrderedDict()
+		for dsnm in dsnames:
+			# +++++ make a path +++++
+			ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsnm
+			fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+			
+			# +++++ open the datasets +++++
+			datasets[dsnm] = xr.open_dataset(ppath+fname)
+			# ipdb.set_trace()
 		
-		# +++++ open the datasets +++++
-		datasets[dsnm] = xr.open_dataset(ppath+fname)
-		# ipdb.set_trace()
-	
-	for var in ["FRI", "AnBF"]:
-		# ========== setup the figure ==========
-		fig, axs = plt.subplots(
-			len(datasets), 1, sharex=True, 
-			figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
+		for var in ["FRI", "AnBF"]:
+			for mask in [True, False]:
+				plotmaker(datasets, var, mwb, plotdir, formats, mask)
 
-		# ========== Loop over the figure ==========
-		for ax, dsn, in zip(axs, datasets):
-			# make the figure
-			im = _subplotmaker(ax, var, dsn, datasets)
-			ax.set_aspect('equal')
-
-		# ========== Make the final figure adjusments ==========
-		# +++++ Get rid of the excess lats +++++
-		for ax in axs.flat:
-			ax.label_outer()
-
-		# +++++ Add a single colorbar +++++
-		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
-		
-		# ========== Change parms for the entire plot =========
-		plt.axis('scaled')
-		# plt.tight_layout()
-		# plt.margins(0,0)
-		plt.show()
-
-		ipdb.set_trace()
-		
-		# fig.suptitle("%s %s frame %d" % (info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"]))
-		# ipdb.set_trace()
-		# # +++++ Make the images bigger by eleminating space +++++
-		# fig.subplots_adjust(left=0.1, right=0.9, top=1, bottom=0, wspace=0, hspace=0) #top = 1, bottom = 1, right = 1, left = 1, 
-
-		# ipdb.set_trace()
-
-
+			ipdb.set_trace()
 
 #==============================================================================
-def _subplotmaker(ax, var, dsn, datasets):
+def plotmaker(datasets, var, mwb, plotdir, formats, mask):
+	"""Function builds a basic stack of maps """
+
+	# ========== make the plot name ==========
+	plotfname = plotdir + "PF01_%s_MW_%02dDegBox" % (var, mwb)
+	if mask:
+		plotfname += "_ForestMask"
+		
+	# ========== setup the figure ==========
+	fig, axs = plt.subplots(
+		len(datasets), 1, sharex=True, 
+		figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
+
+	# ========== Loop over the figure ==========
+	for ax, dsn, in zip(axs, datasets):
+		# make the figure
+		im = _subplotmaker(ax, var, dsn, datasets, mask)
+		ax.set_aspect('equal')
+
+	# ========== Make the final figure adjusments ==========
+	# +++++ Get rid of the excess lats +++++
+	for ax in axs.flat:
+		ax.label_outer()
+
+	# +++++ Add a single colorbar +++++
+	fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
+	
+	# ========== Change parms for the entire plot =========
+	plt.axis('scaled')
+
+	if not (formats is None): 
+		print("starting plot save at:", pd.Timestamp.now())
+		# ========== loop over the formats ==========
+		for fmt in formats:
+			plt.savefig(plotfname+fmt)#, dpi=dpi)
+
+	plt.show()
+	if not (plotfname is None):
+		maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
+			__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+		gitinfo = pf.gitmetadata()
+		infomation = [maininfo, plotfname, gitinfo]
+		cf.writemetadata(plotfname, infomation)
+
+#==============================================================================
+def _subplotmaker(ax, var, dsn, datasets, mask, region = "SIBERIA"):
+	
 	# ========== Get the data for the frame ==========
 	frame = datasets[dsn][var].isel(time=0)
 	bounds = [-10.0, 180.0, 70.0, 40.0]
+
+	# ========== mask ==========
+	if mask:
+		# +++++ Setup the paths +++++
+		stpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/ForestExtent/%s/" % dsn
+		fnmask = stpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMaskV2.nc" % (dsn, region)
+
+		# +++++ Check if the mask exists yet +++++
+		if os.path.isfile(fnmask):
+			with xr.open_dataset(fnmask).drop("ForestFraction") as dsmask:
+				
+				msk    = dsmask.mask.isel(time=0).astype("float32").values
+
+				# +++++ Change the boolean mask to NaNs +++++
+				msk[msk == 0] = np.NAN
+				
+				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+				# +++++ mask the frame +++++
+				frame *= msk
+
+				# +++++ close the mask +++++
+				msk = None
+
+
+		else:
+			print("No mask exists for ", dsn)
 	
 	# ========== Set the colors ==========
 	if var == "FRI":

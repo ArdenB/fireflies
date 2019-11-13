@@ -101,11 +101,26 @@ def main():
 	site   = "G5T1-50"
 	region = "SIBERIA"
 
+		# ========== Create the system specific paths ==========
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-CSHARFM':
+		# LAPTOP
+		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/e"
+
+	elif sysname == "owner":
+		ipdb.set_trace()
+		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+	elif sysname == "ubuntu":
+		# Work PC
+		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
+		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+
 	for site in ["G5T1-50", "TestBurn", "G10T1-50"]:
 		print(site)
 		# ========== Get infomation about that site ==========
 		fnames, SF, dft, dfg = SiteInfo(site)
-		path = "./results/movies/%s/"	% site
+		path = spath + "%s/"	% site
 		cf.pymkdir(path)
 
 		# ========== Make the hansen forest maps ==========
@@ -170,6 +185,7 @@ def MODIS(path, fnames, SF, dft, dfg, region, site):
 		# ipdb.set_trace()
 
 	# ipdb.set_trace()
+
 def esacci(path, fnames, SF, dft, dfg, region, site):
 	"""Function  to build the cci maps"""
 	# ========== Setup the path ==========
@@ -213,7 +229,6 @@ def esacci(path, fnames, SF, dft, dfg, region, site):
 		plt.savefig(fnout)
 		plt.show()
 		ax.clear()
-
 
 
 def copern(path, fnames, SF, dft, dfg, region, site):
