@@ -88,7 +88,7 @@ def main():
 
 	mwbox   = [1]
 	dsnames = ["COPERN_BA", "MODIS", "esacci"]#
-	formats = ["png", "pdf"] # None
+	formats = [".png", ".pdf"] # None
 	# mask    = True
 
 	# ========== Setup the plot dir ==========
