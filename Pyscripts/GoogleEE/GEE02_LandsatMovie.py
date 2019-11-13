@@ -90,11 +90,14 @@ def main(args):
 	tsite = args.site
 
 	# ========== Create the system specific paths ==========
-	if os.uname()[1] == 'DESKTOP-CSHARFM':
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-CSHARFM':
 		# LAPTOP
 		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 
-	elif os.uname()[1] == "ubuntu":
+	elif sysname == "owner":
+		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+	elif sysname == "ubuntu":
 		# Work PC
 		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 
@@ -115,9 +118,8 @@ def main(args):
 	else:
 		print("Loading master coord table")
 		site_coords = pd.read_csv(cordname, index_col=0)#, parse_dates=True
-		warn.warn("THere is some form of bug here, going interactive. Look at the dataframe")
-		ipdb.set_trace()
-	ipdb.set_trace()
+		# warn.warn("THere is some form of bug here, going interactive. Look at the dataframe")
+		# ipdb.set_trace()
 
 
 	program = "LANDSAT"
@@ -146,8 +148,10 @@ def main(args):
 		elif os.path.isfile(checkfile) and not force:
 			print("Data has already been exported for %s" % coords["name"])
 			if cordf:
-				coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
+				coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]), header=True)
 		else:
+			# ipdb.set_trace()
+			# sys.exit()
 			# ========== Get the start time ==========
 			t0 = pd.Timestamp.now()
 			# make the dir
@@ -257,78 +261,81 @@ def GEE_geotifexp(coords, spath, program, fails = None):
 	# coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
 	# sys.exit()
 
-	try:
-		ipdb.set_trace()
-		print("Starting to create GeoTIFF's for %s at:" % coords["name"], pd.Timestamp.now())
-		gee_batch.imagecollection.toDrive(
-			collection, 
-			"FIREFLIES_geotifs" ,
-			namePattern='%s_%s_%s_%s_{system_date}_{id}' % (dsbands, dsinfom, coords["name"], dsbands), 
-			region=geom, 
-			crs = "EPSG:4326", 
-			fileFormat='GeoTIFF'
-			)
 
-	except Exception as e:
-		warn.warn("Batch processing failed with error" + str(e))
-		print("Attempting manual creation")
+	# gee_batch.imagecollection.toDrive(
+	# 	collection, 
+	# 	"FIREFLIES_geotifs" ,
+	# 	namePattern='%s_%s_%s_%s_{system_date}_{id}' % (dsbands, dsinfom, coords["name"], dsbands), 
+	# 	region=geom, 
+	# 	crs = "EPSG:4326", 
+	# 	fileFormat='GeoTIFF'
+	# 	)
 
-		# ========== Convert the collection into a selection of images
-		img_list = collection.toList(collection.size())
+	print("Starting to create GeoTIFF's for %s at:" % coords["name"], pd.Timestamp.now())
+	print("Attempting manual creation")
 
-		for nx, info in df.iterrows():
-			# ========== Built to allow for scripts to be redone ==========
-			if not fails is None:
-				if not nx in fails:
-					continue
+	# ========== Convert the collection into a selection of images
+	img_list = collection.toList(collection.size())
+
+	for nx, info in df.iterrows():
+		# ========== Built to allow for scripts to be redone ==========
+		if not fails is None:
+			if not nx in fails:
+				continue
 
 
-			# ========== convert the datatype ==========
-			img = ee.Image(img_list.get(nx)).toFloat()
-			
-			# ========== Create the name and path ==========
-			name     = '%s_%s_%s_%04d' % (dsinfom, coords["name"], dsbands, nx)
-			folder   = "FIREFLIES_geotifs"
+		# ========== convert the datatype ==========
+		img = ee.Image(img_list.get(nx)).toFloat()
+		
+		# ========== Create the name and path ==========
+		name     = '%s_%s_%s_%04d' % (dsinfom, coords["name"], dsbands, nx)
+		folder   = "FIREFLIES_geotifs"
 
-			string = "\r Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
-			sys.stdout.write(string)
-			sys.stdout.flush()
-			# ========== Send the task to the cloud ==========
-			try:
+		string = "\r Sending image %d of %d to the cloud for processing" % (nx, df.index.max())
+		sys.stdout.write(string)
+		sys.stdout.flush()
+		# ========== Send the task to the cloud ==========
+		try:
 
-				task = ee.batch.Export.image.toDrive(
-					image=img,
-					description=name,
-					folder=folder,
-					crs = "EPSG:4326",
-					region=(
-						[coords.lonr_min[0],coords.latr_min[0]],
-						[coords.lonr_max[0],coords.latr_min[0]],
-						[coords.lonr_max[0],coords.latr_max[0]],
-						[coords.lonr_min[0],coords.latr_max[0]]),
-					scale=30, 
-					fileFormat='GeoTIFF')
-			except:
-				task = ee.batch.Export.image.toDrive(
-					image=img,
-					description=name,
-					folder=folder,
-					crs = "EPSG:4326",
-					region=(
-						[coords.lonr_min,coords.latr_min],
-						[coords.lonr_max,coords.latr_min],
-						[coords.lonr_max,coords.latr_max],
-						[coords.lonr_min,coords.latr_max]),
-					scale=30, 
-					fileFormat='GeoTIFF')
-			try:
-				process = batch.Task.start(task)
-			except Exception as er:
-				print(str(er))
-				warn.warn("I need to implement some form of waiting here to make sure i don't exceed request limits")
-				ipdb.set_trace()
+			task = ee.batch.Export.image.toDrive(
+				image=img,
+				description=name,
+				folder=folder,
+				crs = "EPSG:4326",
+				region=(
+					[coords.lonr_min[0],coords.latr_min[0]],
+					[coords.lonr_max[0],coords.latr_min[0]],
+					[coords.lonr_max[0],coords.latr_max[0]],
+					[coords.lonr_min[0],coords.latr_max[0]]),
+				scale=30, 
+				fileFormat='GeoTIFF')
+		except:
+			task = ee.batch.Export.image.toDrive(
+				image=img,
+				description=name,
+				folder=folder,
+				crs = "EPSG:4326",
+				region=(
+					[coords.lonr_min,coords.latr_min],
+					[coords.lonr_max,coords.latr_min],
+					[coords.lonr_max,coords.latr_max],
+					[coords.lonr_min,coords.latr_max]),
+				scale=30, 
+				fileFormat='GeoTIFF')
+		try:
+			process = batch.Task.start(task)
+		except Exception as er:
+			sle = 0
+			print(str(er))
+			warn.warn("Hit a task limit, sleeping for an hour to let tasks complete")
+			while sle < 61:
+				sle += 1
+				string = "\r Starting sleep number %d at %s" % (sle, str(pd.Timestamp.now()))
+				sys.stdout.write(string)
+				sys.stdout.flush()
+				time.sleep(60)
 
-				process = batch.Task.start(task)
+			process = batch.Task.start(task)
 			# sys.exit()
 
 	# ========== Code for old video export ==========
@@ -383,9 +390,9 @@ def GEE_geotifexp(coords, spath, program, fails = None):
 		coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]))
 
 		# ========== Going to sleep to give GEE a rest before i slam it with new requests  ==========
-		print("\n Starting 15 minutes of sleep at", pd.Timestamp.now(), "\n")
+		print("\n Starting 20 minutes of sleep at", pd.Timestamp.now(), "\n")
 		sle = 0
-		while sle < 15:
+		while sle < 20:
 			sle += 1
 			string = "\r Starting sleep number %d at %s" % (sle, str(pd.Timestamp.now()))
 			sys.stdout.write(string)
@@ -639,14 +646,15 @@ def Field_data(year = 2018):
 def datasets():
 
 	# ========== Create the system specific paths ==========
-	if os.uname()[1] == 'DESKTOP-CSHARFM':
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-CSHARFM':
 		# LAPTOP
 		dpath = "/mnt/e"
-	elif os.uname()[1] == "ubuntu":
+	elif sysname == "ubuntu":
 		# Work PC
 		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
 	else:
-		warn.warn("Paths not created for this computer")
+		warn.warn("Paths not created for this computer. System" + sysname)
 		# dpath =  "/media/ubuntu/Seagate Backup Plus Drive"
 		ipdb.set_trace()
 	# ========== set the filnames ==========

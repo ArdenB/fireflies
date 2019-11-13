@@ -107,34 +107,34 @@ def main(args):
 	multi       = True
 
 	# ========== Check the site ==========
-	if args.site is None:
-		for site, coords in site_coords.iterrows():
-			# if site in ["Burn2015 UP", "G10T1-0"]:#, "G11T1-0", "G12T1-0", "G13T1-0"]:
-			# 	warn.warn("Skiping site until i have a better test protocol, this will need to be fixed")
-			# 	continue
-			print("\n" + site +"\n")
-			scheck = SiteChecker(dpath, coords["name"], force, multi)
-			if scheck == False:
+	for site, coords in site_coords.iterrows():
+		if not args.site is None:
+			if not args.site == coords.name:
 				continue
-			else:
-				# ========== Process the images ==========
-				try:
-					images, bandcombo, bandlist, datelist = IMcleaner(dpath, site, scheck, coords, verbose, test = False)
-				except IOError:
-					continue
+		# if site in ["Burn2015 UP", "G10T1-0"]:#, "G11T1-0", "G12T1-0", "G13T1-0"]:
+		# 	warn.warn("Skiping site until i have a better test protocol, this will need to be fixed")
+		# 	continue
+		print("\n" + site +"\n")
 
-				# ipdb.set_trace()
-				mpl.use('agg')
-				if multi:
-					MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, ["NRG", "RGB", "SNR"])
-				else:
-					for bands in bandcombo:
-						MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands)
-				# ipdb.set_trace()
-	else:
-		warn.warn("This is yet to be implemented")
-		ipdb.set_trace()
-		sys.exit()
+		scheck = SiteChecker(dpath, coords["name"], force, multi)
+		
+		if scheck == False:
+			continue
+		else:
+			# ========== Process the images ==========
+			try:
+				images, bandcombo, bandlist, datelist = IMcleaner(dpath, site, scheck, coords, verbose, test = False)
+			except IOError:
+				continue
+
+			# ipdb.set_trace()
+			mpl.use('agg')
+			if multi:
+				MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, ["NRG", "RGB", "SNR"])
+			else:
+				for bands in bandcombo:
+					MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands)
+			# ipdb.set_trace()
 
 	ipdb.set_trace()
 	sys.exit()
@@ -312,118 +312,124 @@ def IMcleaner(dpath, site, scheck, coords, verbose, test = False, dsinfom = "LAN
 def MovieMaker(images, dpath, site, scheck, coords, bandlist, datelist, bands):
 	""" Function to build the movie """
 
-	spath    = dpath + "UoL/FIREFLIES/VideoExports/%s" % coords["name"]
-	
-	# for bands in bandcombo:
-	print("\n starting %s at:" % bands, pd.Timestamp.now())
-
-	# ========== Create a single dataarray for the raster images ===========
-	sets = OrderedDict()
-	if type(bands) == str:
-		imstack     = images[bands]
-		sets[bands] =  xr.concat(imstack, dim="time")
-		fnout = "%s/LANDSAT_5_7_8_%s_%s.mp4" % (spath, coords["name"], bands) 
-	elif type(bands) == list:
-		bndnm = "multi_" + "_".join(bands)
-		for bnd in bands:
-			imstack   = images[bnd]
-			sets[bnd] =  xr.concat(imstack, dim="time")
-		fnout = "%s/LANDSAT_5_7_8_%s_%s.mp4" % (spath, coords["name"], bndnm) 
-	else:
-		ipdb.set_trace()
-
-
-	# ========== Loop over each frame of the video ==========
-	nx = []
-
-	def frame_maker(index):
-
-		# ========== Pull the infomation from the pandas part of the loop ==========
-		indx  = int(index) 
-		info  = datelist.iloc[int(indx)] #rowinfo[1]
+	failed = 0
+	while failed <2:
+		spath    = dpath + "UoL/FIREFLIES/VideoExports/%s" % coords["name"]
 		
-		# # ========== Check the dates i'm exporting ==========
-		# nx.append(frame.time.values)
+		# for bands in bandcombo:
+		print("\n starting %s at:" % bands, pd.Timestamp.now())
 
-		# ========== create and internal subplot ==========
-		def _subplotmaker(ax, bnds, spt):
-			# ========== Get the data for the frame ==========
-			frame = sets[bnds].isel(time=int(indx))
-			# ========== Set the colors ==========
-			# if bnds == "NRG":
-			color = "blue"
-			# else:
-			# 	color = "purple"
-			# ========== Grab the data ==========
-			frame.plot.imshow(ax=ax, rgb="band")# , transform=ccrs.PlateCarree())
-
-			## =========== Setup the annimation ===========
-			ax.set_title(spt)
-
-			ax.scatter(coords.lon, coords.lat, 5, c=color, marker='+')#, transform=ccrs.PlateCarree())
-			
-			# ========== Set up the box ==========
-			blonO = np.min([coords["lonb_COP_min"], coords["lonb_MOD_min"]])
-			blatO = np.min([coords["latb_COP_min"], coords["latb_MOD_min"]])
-			blonM = np.max([coords["lonb_COP_max"], coords["lonb_MOD_max"]])
-			blatM = np.max([coords["latb_COP_max"], coords["latb_MOD_max"]])
-
-			rect = mpl.patches.Rectangle(
-				(blonO,blatO),
-				blonM-blonO,
-				blatM-blatO,linewidth=2,edgecolor=color,facecolor='none')
-			ax.add_patch(rect)
-			# +++++ change the number od ticks
-			ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-
-			
-		# ========== Build the plots ==========
+		# ========== Create a single dataarray for the raster images ===========
+		sets = OrderedDict()
 		if type(bands) == str:
-			# Set up the figure
-			fig, axs = plt.subplots(1, figsize=(11,10))
-			#  create the title 
-			spt = "%s %s %s frame %d" % (bands, info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"])
-			# make the figure
-			_subplotmaker(axs, bands, spt)
-			plt.axis('scaled')
+			imstack     = images[bands]
+			sets[bands] =  xr.concat(imstack, dim="time")
+			fnout = "%s/LANDSAT_5_7_8_%s_%s.mp4" % (spath, coords["name"], bands) 
+		elif type(bands) == list:
+			bndnm = "multi_" + "_".join(bands)
+			for bnd in bands:
+				imstack   = images[bnd]
+				sets[bnd] =  xr.concat(imstack, dim="time")
+			fnout = "%s/LANDSAT_5_7_8_%s_%s.mp4" % (spath, coords["name"], bndnm) 
 		else:
-			# Set up the figure
-			fig, axs = plt.subplots(1,len(bands), sharey=True, figsize=(20,8),)
-			# +++++ Loop over the figure combo +++++
-			for ax, bnds, in zip(axs, bands):
+			ipdb.set_trace()
+
+
+		# ========== Loop over each frame of the video ==========
+		nx = []
+
+		def frame_maker(index):
+
+			# ========== Pull the infomation from the pandas part of the loop ==========
+			indx  = int(index) 
+			info  = datelist.iloc[int(indx)] #rowinfo[1]
+			
+			# # ========== Check the dates i'm exporting ==========
+			# nx.append(frame.time.values)
+
+			# ========== create and internal subplot ==========
+			def _subplotmaker(ax, bnds, spt):
+				# ========== Get the data for the frame ==========
+				frame = sets[bnds].isel(time=int(indx))
+				# ========== Set the colors ==========
+				# if bnds == "NRG":
+				color = "blue"
+				# else:
+				# 	color = "purple"
+				# ========== Grab the data ==========
+				frame.plot.imshow(ax=ax, rgb="band")# , transform=ccrs.PlateCarree())
+
+				## =========== Setup the annimation ===========
+				ax.set_title(spt)
+
+				ax.scatter(coords.lon, coords.lat, 5, c=color, marker='+')#, transform=ccrs.PlateCarree())
+				
+				# ========== Set up the box ==========
+				blonO = np.min([coords["lonb_COP_min"], coords["lonb_MOD_min"]])
+				blatO = np.min([coords["latb_COP_min"], coords["latb_MOD_min"]])
+				blonM = np.max([coords["lonb_COP_max"], coords["lonb_MOD_max"]])
+				blatM = np.max([coords["latb_COP_max"], coords["latb_MOD_max"]])
+
+				rect = mpl.patches.Rectangle(
+					(blonO,blatO),
+					blonM-blonO,
+					blatM-blatO,linewidth=2,edgecolor=color,facecolor='none')
+				ax.add_patch(rect)
+				# +++++ change the number od ticks
+				ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+
+				
+			# ========== Build the plots ==========
+			if type(bands) == str:
+				# Set up the figure
+				fig, axs = plt.subplots(1, figsize=(11,10))
+				#  create the title 
+				spt = "%s %s %s frame %d" % (bands, info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"])
 				# make the figure
-				_subplotmaker(ax, bnds, bnds)
-				ax.set_aspect('equal')
+				_subplotmaker(axs, bands, spt)
+				plt.axis('scaled')
+			else:
+				# Set up the figure
+				fig, axs = plt.subplots(1,len(bands), sharey=True, figsize=(20,8),)
+				# +++++ Loop over the figure combo +++++
+				for ax, bnds, in zip(axs, bands):
+					# make the figure
+					_subplotmaker(ax, bnds, bnds)
+					ax.set_aspect('equal')
 
-			# Get rid of the excess lats
-			for ax in axs.flat:
-				ax.label_outer()
+				# Get rid of the excess lats
+				for ax in axs.flat:
+					ax.label_outer()
 
-			# ========== Change parms for the entire plot =========
-			fig.suptitle("%s %s frame %d" % (info.satellite, info.date.split(" ")[0], datelist.iloc[indx]["index"]))
-			# ipdb.set_trace()
-			plt.axis('scaled')
-			# +++++ Make the images bigger by eleminating space +++++
-			fig.subplots_adjust(left=0.1, right=0.9, top=1, bottom=0, wspace=0, hspace=0) #top = 1, bottom = 1, right = 1, left = 1, 
-			plt.tight_layout()
-			plt.margins(0,0)
+				# ========== Change parms for the entire plot =========
+				fig.suptitle("%s %s - Frame%03d" % (
+					info.satellite, pd.Timestamp(info.date).strftime('%d-%m-%Y'), datelist.iloc[indx]["index"]))
+				# ipdb.set_trace()
+				plt.axis('scaled')
+				# +++++ Make the images bigger by eleminating space +++++
+				fig.subplots_adjust(left=0.1, right=0.9, top=1, bottom=0, wspace=0, hspace=0) #top = 1, bottom = 1, right = 1, left = 1, 
+				plt.tight_layout()
+				plt.margins(0,0)
 
 
-		return mplfig_to_npimage(fig)
+			return mplfig_to_npimage(fig)
 
-	# ========== Eposrt the videos ==========
-	mov = mpe.VideoClip(frame_maker, duration=int(datelist.shape[0]))
-	# plays the clip (and its mask and sound) twice faster
-	# newclip = clip.fl_time(lambda: 2*t, apply_to=['mask','audio'])
+		# ========== Eposrt the videos ==========
+		mov = mpe.VideoClip(frame_maker, duration=int(datelist.shape[0]))
+		# plays the clip (and its mask and sound) twice faster
+		# newclip = clip.fl_time(lambda: 2*t, apply_to=['mask','audio'])
 
-	# fnout = "%s/LANDSAT_5_7_8_%s_complete.txt" % (spath, coords["name"]) 
-	print("Starting Write of the data at:", pd.Timestamp.now())
-	try:
-		mov.write_videofile(fnout, fps=1)
-	except Exception as ex:
-		warn.warn(str(ex))
-		print("Movie making failed. This will need to be redone")
-		ipdb.set_trace()
+		# fnout = "%s/LANDSAT_5_7_8_%s_complete.txt" % (spath, coords["name"]) 
+		print("Starting Write of the data at:", pd.Timestamp.now())
+		try:
+			mov.write_videofile(fnout, fps=1)
+			return
+		except Exception as ex:
+			warn.warn(str(ex))
+			print("Movie making failed. This will need to be redone")
+			failed +=1
+	raise ValueError
+
 
 #==============================================================================
 def SiteChecker(dpath, site, force, multi,
@@ -456,7 +462,6 @@ def SiteChecker(dpath, site, force, multi,
 			ipdb.set_trace()
 	# TO DO
 
-
 	# ========== Look for the coords file ==========
 	csv_cr = "%s%s/%s_%s_gridinfo.csv" % (spath, site, program, site)
 	csv_nm = "%s%s/%s_%s_%s_timeinfo.csv" % (spath, site, dsinfom, site, dsbands)
@@ -479,6 +484,9 @@ def SiteChecker(dpath, site, force, multi,
 			return False
 	else:
 		df_names = pd.read_csv(dfn_nm, index_col=0)
+		if not (spath+site+"/raw/" ==   df_names.iloc[1].values[0].strip(df_names.iloc[1].values[0].split("/")[-1])):
+			fnameslist = [spath+site+"/raw/"+gnm.split("/")[-1] for gnm in df_names.fnames.values]
+			df_names["fnames"] = fnameslist
 
 
 	return({"fnames":df_names, "dates":df_dates, "coords":df_cords})
@@ -532,7 +540,7 @@ def filemover(dpath, spath, site, dsinfom, dsbands, df, dfn_nm):
 
 				# ========== Sleep to allow files to move ==========
 				print("Waiting so files have a chance to move. Wait started at:", pd.Timestamp.now())
-				time.sleep(60)
+				time.sleep(120)
 				return df_names
 
 
@@ -576,6 +584,7 @@ def filemover(dpath, spath, site, dsinfom, dsbands, df, dfn_nm):
 							print("Excess file deleted at: %d" % nnx)
 
 				elif len(fnstest) == 0:
+					print(nnx)
 					warn.warn("Missing file: %d" % nnx)
 					ipdb.set_trace()
 	print("WHile loops exceeded")
@@ -610,9 +619,14 @@ def _bandcom(fn):
 def syspath():
 	""" Gets the system path """
 	# ========== Create the system specific paths ==========
-	if os.uname()[1] == 'DESKTOP-CSHARFM':
+	# ========== Create the system specific paths ==========
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-CSHARFM':
 		# LAPTOP
 		dpath = "/mnt/c/Users/arden/Google Drive/"
+
+	elif sysname == "owner":
+		dpath = "/mnt/c/Users/user/Google Drive/"
 	else:
 		warn.warn("Paths not created for this computer")
 		# spath =  "/media/ubuntu/Seagate Backup Plus Drive"
