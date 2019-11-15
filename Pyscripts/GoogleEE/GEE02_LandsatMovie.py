@@ -136,13 +136,25 @@ def main(args):
 				# ========== Get the start time ==========
 				t0 = pd.Timestamp.now()
 
-				fails = np.load("%s%s/raw/failed_geotifs.npy" % (spath, tsite))
+				if is.path.isfile("%s%s/raw/failed_geotifs.npy" % (spath, tsite)):
 
-				# Export the geotifs
-				GEE_geotifexp(coords, spath, program, fails=fails)
+					fails = np.load("%s%s/raw/failed_geotifs.npy" % (spath, tsite))
 
-				td = pd.Timestamp.now() - t0
-				print("\n Data for %s sent sent for cloud processing. it took " % coords["name"], td)
+					# Export the geotifs
+					GEE_geotifexp(coords, spath, program, fails=fails)
+
+					td = pd.Timestamp.now() - t0
+					print("\n Data for %s sent sent for cloud processing. it took " % coords["name"], td)
+				else:
+					# ========== Get the start time ==========
+					t0 = pd.Timestamp.now()
+
+					# Export the geotifs
+					GEE_geotifexp(coords, spath, program)
+
+					td = pd.Timestamp.now() - t0
+					print("\n Data for %s sent sent for cloud processing. it took " % coords["name"], td)
+
 		
 
 		elif os.path.isfile(checkfile) and not force:
