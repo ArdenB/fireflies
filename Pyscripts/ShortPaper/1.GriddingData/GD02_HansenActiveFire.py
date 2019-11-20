@@ -66,6 +66,7 @@ from shapely.geometry import Polygon
 import geopandas as gpd
 from rasterio import features
 from affine import Affine
+# import fiona as fi
 # import regionmask as rm
 # +++++ Import my packages +++++
 import myfunctions.corefunctions as cf 
@@ -74,9 +75,55 @@ import myfunctions.corefunctions as cf
 
 #==============================================================================
 def main():
-	path = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS_ActiveFire/fire_archive_V1_85603.shp"
 
+	# ========== Create the system specific paths ==========
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-CSHARFM':
+		# LAPTOP
+		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+
+	elif sysname == "owner":
+		spath = "/mnt/d/Data51/"
+	elif sysname == "ubuntu":
+		# Work PC
+		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+
+
+	# path = spath + "BurntArea/MODIS_ActiveFire/DL_FIRE_M6_85602/fire_archive_M6_85602.shp"
+	path = spath + "BurntArea/MODIS_ActiveFire/DL_FIRE_M6_87877/fire_archive_M6_87877.shp"
+
+	# ========== Load the data ==========
 	actfire = gpd.read_file(path)
+	
+	# ========== Add a new column ==========
+	years = pd.Series([pd.Timestamp(date).year for date in actfire.ACQ_DATE.values])
+	actfire["year"] = years
+
+	# ========== Subset the data ==========
+	# actfire = actfire[['ACQ_DATE', 'CONFIDENCE', 'geometry']]
+	actfire = actfire[['year', 'geometry']]
+
+
+	# ========== Convert to an equal area projection ==========
+	print("starting equal area reprojection at:", pd.Timestamp.now())
+	actfire = actfire.to_crs({'init': 'epsg:3174'})
+
+	# ========== Add a 4km buffer ==========
+	actfire["geometry"] = actfire.geometry.buffer(4000)
+
+	# ========== Convert back to projection ==========
+	print("starting latlon reprojection at:", pd.Timestamp.now())
+	actfire = actfire.to_crs({'init': 'epsg:4326'})
+
+	# ========== Disolve by year ==========
+	print("starting dissolve at:", pd.Timestamp.now())
+	actfire = actfire.dissolve(by='year')
+
+	# ========== Save the results ==========
+
+
+
+	
 
 	ipdb.set_trace()
 #==============================================================================

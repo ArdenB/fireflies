@@ -114,7 +114,7 @@ def main(args):
 		# if site in ["Burn2015 UP", "G10T1-0"]:#, "G11T1-0", "G12T1-0", "G13T1-0"]:
 		# 	warn.warn("Skiping site until i have a better test protocol, this will need to be fixed")
 		# 	continue
-		print("\n" + site +"\n")
+		print(site)
 
 		scheck = SiteChecker(dpath, coords["name"], force, multi)
 		
@@ -456,7 +456,7 @@ def SiteChecker(dpath, site, force, multi,
 	if not force:
 		if multi:
 			if os.path.isfile(spath+site+"/LANDSAT_5_7_8_%s_multi_NRG_RGB_SNR.mp4" % (site)):
-				print("File already exists for %s, Going to next site. Use force to overwrite video" % site)
+				print(" \r File already exists for %s, Going to next site. Use force to overwrite video" % site)
 				return False
 		else:
 			ipdb.set_trace()
