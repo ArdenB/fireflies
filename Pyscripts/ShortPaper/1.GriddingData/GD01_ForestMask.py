@@ -118,9 +118,9 @@ def main():
 
 		# ========== Implement moving of file ==========
 		warn.warn("File move needs to occour here")
+		ipdb.set_trace()
 		if not storepath in out:
 			shutil.move(out, out.replace(fpath, storepath))
-		ipdb.set_trace()
 	ipdb.set_trace()
 
 	print("Starting excess file cleanup at:", pd.Timestamp.now())
