@@ -68,10 +68,9 @@ import myfunctions.corefunctions as cf
 
 
 def main():
-	# sys.exit()
 
-	force = False
 	# ========== Create the dates ==========
+	force = False
 	dates  = datefixer(2018, 12, 31)
 	data   = datasets()
 	dsn    = "HansenGFC"
@@ -96,9 +95,10 @@ def main():
 		return xr.open_dataset(datafn, chunks={'latitude': 100})
 
 	# ========== get the datatsets ==========
-	ds_tc = _Hansenfile(ppath, pptex, "treecover2000")
+	# ds_tc = _Hansenfile(ppath, pptex, "treecover2000")
 	ds_ly = _Hansenfile(ppath, pptex, "lossyear")
 	ds_dm = _Hansenfile(ppath, pptex, "datamask")
+	# Add in the loss year
 
 	# ========== Load in a test dataset and fix the time ==========
 	# ds_test = xr.open_dataset("./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc").isel(time=-1)
