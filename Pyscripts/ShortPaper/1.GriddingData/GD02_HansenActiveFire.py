@@ -90,12 +90,12 @@ def main():
 
 
 	# ========== Loop over the datasets ==========
-	HansenMasker(fnames, ymin=2002, ymax=2010,)
+	HansenMasker(fnames, force, ymin=2001, ymax=2019, )
 	ipdb.set_trace()
 
 #==============================================================================
 
-def HansenMasker(fnames, ymin=2001, ymax=2019, **kwargs):
+def HansenMasker(fnames, force, ymin=2001, ymax=2019, **kwargs):
 	"""Takes a list of file names and masks the hansen data"""
 	# ========== load the hansen ==========\
 	region = "SIBERIA"
@@ -103,98 +103,136 @@ def HansenMasker(fnames, ymin=2001, ymax=2019, **kwargs):
 	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
 	ft    = "lossyear"
 
-	tpath = "/home/ubuntu/Documents/fireflies/data/tmp/"
-	cf.pymkdir(tpath)
+	fn_out = ppath +"/HansenMODIS_activefiremask.nc"
+	if not os.path.isfile(fn_out) or force:
 
-	# ========== Create the outfile name ==========
-	fpath = "%s/%s/" % (ppath, ft)
-	fnout = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (fpath, ft, region)
-	# ========== Open the dataset ==========
-	ds = xr.open_dataset(fnout, chunks={'latitude': 10000, 'longitude':10000})
-	lmax = int(np.round(ds.latitude.values.max()))
-	lmin = int(np.round(ds.latitude.values.min()))
-	window = -1
+		tpath = "/home/ubuntu/Documents/fireflies/data/tmp/"
+		cf.pymkdir(tpath)
 
-	for yr, fn in zip(range(ymin, ymax), fnames):
-		Fyout = fntmp  =  tpath+"HansenActiveFire_%d.nc" % (yr)
+		# ========== Create the outfile name ==========
+		fpath = "%s/%s/" % (ppath, ft)
+		fnout = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (fpath, ft, region)
+		# ========== Open the dataset ==========
+		ds = xr.open_dataset(fnout, chunks={'latitude': 10000, 'longitude':10000})
+		lmax = int(np.round(ds.latitude.values.max()))
+		lmin = int(np.round(ds.latitude.values.min()))
+		window = -1
 
-		if not os.path.isfile(Fyout) or force:
-			date  = datefixer(yr, 12, 31)
-			# ========== Load the results ==========
-			afr    = gpd.read_file(fn)
-			# maskre = rm.Regions_cls("AFY",[0],["activefire"], ["af"],  afr.geometry)
-			shapes = [(shape, n+1) for n, shape in enumerate(afr.geometry)]
+		Annfn  = []
 
-			# ========== empty container for the files ==========
-			filenames = []
+		for yr, fn in zip(range(ymin, ymax), fnames):
+			Fyout = fntmp  =  tpath+"HansenActiveFire_%d.nc" % (yr)
 
+			if not os.path.isfile(Fyout) or force:
+				date  = datefixer(yr, 12, 31)
+				# ========== Load the results ==========
+				afr    = gpd.read_file(fn)
+				# maskre = rm.Regions_cls("AFY",[0],["activefire"], ["af"],  afr.geometry)
+				shapes = [(shape, n+1) for n, shape in enumerate(afr.geometry)]
 
-			# ========== Chunk specific sections ==========
-			for lm in range(lmax, lmin, window):
-				print(yr, lm, pd.Timestamp.now())
-				fntmp  =  tpath+"HansenActiveFire_%d_%d.nc" % (yr, lm)
-				if not os.path.isfile(fntmp): 
-					def _dsSlice(fnout, yr, lm, window, shapes, afr):
-						# ========== open the file ==========
-						ds_in = xr.open_dataset(fnout, chunks={'latitude': 1000}).sel(
-							dict(latitude =slice(int(lm), int(lm)+window)))#.compute()
+				# ========== empty container for the files ==========
+				filenames = []
 
 
-						# ========== build a mask ==========
-						# mask = maskre.mask(dsbool.longitude.values, dsbool.latitude.values)
-						# ipdb.set_trace()
-						transform = transform_from_latlon(ds_in['latitude'], ds_in['longitude'])
-						out_shape = (len(ds_in['latitude']), len(ds_in['longitude']))
-						raster    = features.rasterize(shapes, out_shape=out_shape,
-						                            fill=0, transform=transform,
-						                            dtype="int16", **kwargs)
-
-						# ========== build a boolean array ==========
-						raster = raster.astype(bool)
-						with ProgressBar():
-							dsbool = (ds_in == (yr-2000) or ds_in == (yr-2000+1)).compute()
-
-						dsbool *= raster
-
-						# ========== Save the file out ==========
-						encoding = ({"lossyear":{'shuffle':True,'zlib':True,'complevel':5}})
-
-						dsbool.to_netcdf(fntmp, format = 'NETCDF4',encoding=encoding, unlimited_dims = ["time"])
+				# ========== Chunk specific sections ==========
+				for lm in range(lmax, lmin, window):
+					print(yr, lm, pd.Timestamp.now())
+					fntmp  =  tpath+"HansenActiveFire_%d_%d.nc" % (yr, lm)
+					if not os.path.isfile(fntmp): 
+						def _dsSlice(fnout, yr, lm, window, shapes, afr):
+							# ========== open the file ==========
+							ds_in = xr.open_dataset(fnout, chunks={'latitude': 1000}).sel(
+								dict(latitude =slice(int(lm), int(lm)+window)))#.compute()
 
 
-					_dsSlice(fnout, yr, lm, window, shapes, afr)
-				filenames.append(fntmp)
+							# ========== build a mask ==========
+							# mask = maskre.mask(dsbool.longitude.values, dsbool.latitude.values)
+							# ipdb.set_trace()
+							transform = transform_from_latlon(ds_in['latitude'], ds_in['longitude'])
+							out_shape = (len(ds_in['latitude']), len(ds_in['longitude']))
+							raster    = features.rasterize(shapes, out_shape=out_shape,
+							                            fill=0, transform=transform,
+							                            dtype="int16", **kwargs)
 
-			# ========== open multiple files at once ==========
-			dsout = xr.open_mfdataset(filenames, concat_dim="latitude")
+							# ========== build a boolean array ==========
+							raster = raster.astype(bool)
+							with ProgressBar():
+								dsbool = (ds_in == (yr-2000) or ds_in == (yr-2000+1)).compute()
+
+							dsbool *= raster
+
+							# ========== Save the file out ==========
+							encoding = ({"lossyear":{'shuffle':True,'zlib':True,'complevel':5}})
+
+							dsbool.to_netcdf(fntmp, format = 'NETCDF4',encoding=encoding, unlimited_dims = ["time"])
+
+
+						_dsSlice(fnout, yr, lm, window, shapes, afr)
+					filenames.append(fntmp)
+
+				# ========== open multiple files at once ==========
+				dsout = xr.open_mfdataset(filenames, concat_dim="latitude")
+				
+				# ========== Set the date ==========
+				dsout["time"] = date["time"]
+
+				# ========== rename the variable to somehting sensible ==========
+				dsout = dsout.rename({"lossyear":"fireloss"})			
+
+				# Check its the same size as the sliced up ds
+				# ========== Save the file out ==========
+				encoding = ({"fireloss":{'shuffle':True,'zlib':True,'complevel':5}})
+				print ("Starting write of combined data for %d at:" % yr, pd.Timestamp.now())
+
+				with ProgressBar():
+					dsout.to_netcdf(Fyout, format = 'NETCDF4',encoding=encoding, unlimited_dims = ["time"])
+				# cleanup the excess files
+
+				for fnr in filenames:
+					if os.path.isfile(fnr):
+						os.remove(fnr)
 			
-			# ========== Set the date ==========
-			dsout["time"] = date["time"]
+			Annfn.append(Fyout)
+			# with ProgressBar():
+			# 	dsbool = dsbool.compute()
+			
+			# ipdb.set_trace()
 
-			# ========== rename the variable to somehting sensible ==========
-			dsout = dsout.rename({"lossyear":"fireloss"})			
+		dsfin = xr.open_mfdataset(
+			Annfn, concat_dim="time", 
+			chunks={'latitude': 10000, 'longitude':10000})#.any(dim="time")
 
-			# Check its the same size as the sliced up ds
-			# ========== Save the file out ==========
-			encoding = ({"fireloss":{'shuffle':True,'zlib':True,'complevel':5}})
-			print ("Starting write of combined data for %d at:" % yr, pd.Timestamp.now())
+		# date   = datefixer(2018, 12, 31)
 
-			with ProgressBar():
-				dsout.to_netcdf(Fyout, format = 'NETCDF4',encoding=encoding, unlimited_dims = ["time"])
-			# cleanup the excess files
-
-			for fnr in filenames:
-				if os.path.isfile(fnr):
-					os.remove(fnr)
+		attr  = dsfin.attrs
+		# ++++++++++ Highly recomended ++++++++++ 
+		attr["FileName"]            = fn_out
+		attr["title"]               = "ActiveFireMask"
+		attr["summary"]             = "Activefire forestloss mask" 
+		attr["Conventions"]         = "CF-1.7"
 		
+		# ++++++++++ Data Provinance ++++++++++ 
+		attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s" % (
+			str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
+		attr["history"]            += dsfin.history
+		ds_out = dsfin.any(dim="time")
+		ds_out = ds_out.expand_dims({"time":[pd.Timestamp("2018-12-31")]})
+		ds_out.attrs = attr
+		encoding = ({"fireloss":{'shuffle':True,'zlib':True,'complevel':5}})
 
-		# with ProgressBar():
-		# 	dsbool = dsbool.compute()
-		
-		# ipdb.set_trace()
+		delayed_obj = ds_out.to_netcdf(
+			fn_out, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
+		print("Starting write of ActiveFireMask data at", pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
 
 
 	ipdb.set_trace()
+	return fn_out
 
 #==============================================================================
 def datefixer(year, month, day):
@@ -223,6 +261,8 @@ def datefixer(year, month, day):
 		tm, calendar=dates["calendar"], units=dates["units"])
 
 	return dates
+
+
 def transform_from_latlon(lat, lon):
     lat = np.asarray(lat)
     lon = np.asarray(lon)

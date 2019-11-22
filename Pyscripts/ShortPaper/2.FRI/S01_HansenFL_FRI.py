@@ -79,7 +79,7 @@ def main():
 	region = "SIBERIA"
 
 	# ========== select and analysis scale ==========
-	mwbox     = [2, 5]#, 1, 10] #in decimal degrees
+	mwbox     = [2, 5, 10] #in decimal degrees
 	BPT       = 0.4
 
 	# ========== Set up the filename and global attributes =========
@@ -101,13 +101,13 @@ def main():
 	ds_dm = _Hansenfile(ppath, pptex, "datamask")
 
 	# ========== Load in a test dataset and fix the time ==========
-	ds_test = xr.open_dataset("./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc").isel(time=-1)
-	ds_test["time"] = ds_tc["time"] 
+	# ds_test = xr.open_dataset("./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc").isel(time=-1)
+	# ds_test["time"] = ds_tc["time"] 
 	
 	# ========== subset the dataset in to match the forest cover ==========
-	ds_testSUB = ds_test.sel(dict(
-		latitude =slice(ds_tc.latitude.max().values,  ds_tc.latitude.min().values), 
-		longitude=slice(ds_tc.longitude.min().values, ds_tc.longitude.max().values)))
+	# ds_testSUB = ds_test.sel(dict(
+	# 	latitude =slice(ds_tc.latitude.max().values,  ds_tc.latitude.min().values), 
+	# 	longitude=slice(ds_tc.longitude.min().values, ds_tc.longitude.max().values)))
 
 
 	# ========== Loop over the datasets ==========
@@ -877,18 +877,18 @@ def datasets():
 		"rename":None,#{'latitude': 1000},
 		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
-	data["MODIS"] = ({
-		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc",
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
-		"rename":None,#{'latitude': 1000},
-		})
-	data["COPERN_BA"] = ({
-		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
-		'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
+	# data["MODIS"] = ({
+	# 	"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBA.nc",
+	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1},
+	# 	"rename":None,#{'latitude': 1000},
+	# 	})
+	# data["COPERN_BA"] = ({
+	# 	'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/M0044633/c_gls_BA300_201812200000_GLOBE_PROBAV_V1.1.1.nc",
+	# 	'var':"BA_DEKAD", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":2014, "end":2019,"rasterio":False, "chunks":None, 
+	# 	"rename":{"lon":"longitude", "lat":"latitude"}
+	# 	})
 	# data["MODISaqua"] = ({
 	# 	"fname":"./data/veg/MODIS/aqua/processed/MYD13Q1_A*_final.nc",
 	# 	'var':"ndvi", "gridres":"250m", "region":"SIBERIA", "timestep":"16day", 
