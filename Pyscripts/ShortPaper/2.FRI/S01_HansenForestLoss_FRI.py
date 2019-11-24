@@ -70,7 +70,7 @@ import myfunctions.corefunctions as cf
 def main():
 	# sys.exit()
 
-	force = True
+	force = False
 	# ========== Create the dates ==========
 	dates  = datefixer(2018, 12, 31)
 	data   = datasets()
@@ -79,7 +79,7 @@ def main():
 	region = "SIBERIA"
 
 	# ========== select and analysis scale ==========
-	mwbox     = [2, 5, 10] #in decimal degrees
+	mwbox     = [1, 2, 5, 10] #in decimal degrees
 	BPT       = 0.4
 
 	# ========== Set up the filename and global attributes =========
@@ -87,13 +87,14 @@ def main():
 	pptex = ({"treecover2000":"FC2000", "lossyear":"lossyear", "datamask":"mask"})
 	fpath        = "%s/FRI/" %  ppath
 	cf.pymkdir(fpath)
+	dscf = 5000
 
 	# ========== Setup the paths ==========
-	def _Hansenfile(ppath, pptex, ft):
+	def _Hansenfile(ppath, pptex, ft, dscf=dscf):
 		dpath  = "%s/%s/" % (ppath, pptex[ft])
 		datafn = "%sHansen_GFC-2018-v1.6_%s_%s.nc" % (dpath, ft, region)
 		# fnout  = "%sHansen_GFC-2018-v1.6_forestmask_%s.nc" % (dpath, region)
-		return xr.open_dataset(datafn, chunks={'latitude': 5000, "longitude":5000})
+		return xr.open_dataset(datafn, chunks={'latitude': dscf, "longitude":dscf})
 
 
 
@@ -113,7 +114,7 @@ def main():
 		# Add in the loss year
 		DS_af =  xr.open_dataset(
 			'/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/HansenMODIS_activefiremask.nc', 
-			chunks={'latitude': 5000, "longitude": 5000}).sel(dict(latitude=slice(la[0], la[1]),longitude=slice(la[2], la[3])))
+			chunks={'latitude': dscf, "longitude": dscf}).sel(dict(latitude=slice(la[0], la[1]),longitude=slice(la[2], la[3])))
 		for mwb in  mwbox:
 
 			CLEAN = []
@@ -125,10 +126,10 @@ def main():
 
 				for fncc in cleanup:
 					CLEAN.append(fncc)
-				ipdb.set_trace()
+			ipdb.set_trace()
 
 			print("perform the cleanup")
-			ipdb.set_trace()
+			# ipdb.set_trace()
 			for fnc in CLEAN:
 				if os.path.isfile(fnc):
 					os.remove(fnc)
@@ -158,17 +159,17 @@ def dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, ds_af,  fpath, mwb, region, dates, 
 	if ds_af is None:
 		print("starting %s %d without MODIS Active Fire masking at:" % (dsn, mwb), pd.Timestamp.now())
 		# +++++ Coursened and masked HGFC which is dsn and mwb independant +++++
-		tnam0 = "%sHansen_GFC-2018-v1.6_regrided_FRI_firstmask_%stmp.nc" % (fpath, region)
+		tnam0 = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_firstmask_%stmp.nc" % (fpath, dsn, region)
 		# +++++ the lon smoothed MWB tmp file +++
-		tname = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_lon%ddegMW_%stmp.nc" % (fpath, dsn, mwb, region)
+		tname = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_lonMASK%ddegMW_%stmp.nc" % (fpath, dsn, mwb, region)
 		# +++++ Final file name +++++
 		fnout = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_%ddegMW_%s.nc" % (fpath, dsn, mwb, region)
 	else:
 		print("starting %s %d with MODIS Active Fire masking at:" % (dsn, mwb), pd.Timestamp.now())
 		# +++++ Coursened and masked HGFC which is dsn and mwb independant +++++
-		tnam0 = "%sHansen_GFC-2018-v1.6_regrided_FRI_firstmask_%stmpMAF.nc" % (fpath, region)
+		tnam0 = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_firstmask_%stmpMAF.nc" % (fpath, dsn, region)
 		# +++++ the lon smoothed MWB tmp file +++
-		tname = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_lon%ddegMW_%stmpMAF.nc" % (fpath, dsn, mwb, region)
+		tname = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_lonMASK%ddegMW_%stmp.nc" % (fpath, dsn, mwb, region)
 		# +++++ Final file name +++++
 		fnout = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_%ddegMW_%sMAF.nc" % (fpath, dsn, mwb, region)
 		# tnMSK = "%sHansen_GFC-2018-v1.6_regrided_%s_FRI_LONMSK%ddegMW_%stmp.nc" % (fpath, dsn, mwb, region)
@@ -183,7 +184,7 @@ def dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, ds_af,  fpath, mwb, region, dates, 
 			SF    = int(rat[0])
 			GSF   = np.round(dsgrid.attrs["res"][0]/ds_tc["treecover2000"].attrs["res"][0]).astype(int)
 
-			ASF   = np.round(mwb /(np.array(ds_tc["treecover2000"].attrs["res"])[0]*GSF))
+			ASF   = np.round(mwb /(np.array(ds_tc["treecover2000"].attrs["res"])[0]*GSF)).astype(int)
 
 			PF    = np.round(((ASF*GSF)/2)**2)
 			# RollF = int(SF/4 - 0.5) # the minus 0.5 is correct for rolling windows
@@ -196,24 +197,24 @@ def dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, ds_af,  fpath, mwb, region, dates, 
 		# ===== Create a masksum =====
 		# This is so i can count the number of values that are valid in each location
 		# This is inperfect but it ended up being the only way i could deal with the memory usage
-		warn.warn("Uncomment the mask once testing is complete")
 		mask_sum = ds_dm.chunk({'latitude': 1000, "longitude":1000}).astype("int32").coarsen(dim={"latitude":GSF, "longitude":GSF}, boundary="pad").sum()
 		mask_sum = mask_sum.reindex({"longitude":dsgrid.longitude, "latitude":dsgrid.latitude}, method="nearest")
 		mask_sum = tempNCmaker(
 			mask_sum, tnMSK, "datamask", 
 			chunks={'time':1, 'longitude': 1000, 'latitude': 1000}, skip=True)
 
-		mask_sum = mask_sum.chunk({'time':1, 'longitude': 5000, 'latitude': 5000})
+		mask_sum = mask_sum.chunk({'time':1, 'longitude': 1000, 'latitude': 1000})
 		mask_sum = mask_sum.rolling({"longitude":ASF}, center = True, min_periods=1).sum()
 		mask_sum = mask_sum.rolling({"latitude":ASF}, center = True, min_periods=1).sum()
-		# with ProgressBar():print(mask_sum.mean().compute())
-		mask_sum = (mask_sum > PF)
+		mask_sum = (mask_sum > PF).rename({"datamask":"lossfrac"})
+		mask_sum = tempNCmaker(
+			mask_sum, tname, "AnBF", 
+			chunks={'time':1, 'longitude': 1000, 'latitude': 1000}, skip=True)
+		
 
 		# ========== Calculate the amount of forest that was lost due to fire ==========
 		if not ds_af is None:
 			ds_ly = ds_ly.where(ds_af.rename({"fireloss":"lossyear"}).lossyear, 0)
-
-
 		ba_ly = (ds_ly > 0).astype("float32")#.chunk({'latitude': 500, "longitude":500})
 
 		# ========== implement the masks ==========
@@ -221,66 +222,51 @@ def dsFRIcal(dsn, data, ds_tc, ds_ly, ds_dm, ds_af,  fpath, mwb, region, dates, 
 		ba_ly = ba_ly.where((ds_dm == 1.0).rename({"datamask":"lossyear"})) # mask out the non data pixels
 		
 		# +++++ Coursen the resolution in order to make analysis more memory efficent +++++
-		ba_ly = ba_ly.coarsen(dim={"latitude":2, "longitude":2}, boundary="pad").mean()
+		ba_ly = ba_ly.coarsen(dim={"latitude":GSF, "longitude":GSF}, boundary="pad").mean()
 		ba_ly.attrs = global_attrs
-		ba_ly.attrs["res"] = ([
-			abs(np.round(np.unique(np.diff(ba_ly.longitude.values))[0], decimals=4)),
-			abs(np.round(np.unique(np.diff(ba_ly.latitude.values))[0], decimals=4))])
-		ba_ly = tempNCmaker(ba_ly, tnam0, "lossyear", chunks={'latitude': 1}, skip=True)
+		ba_ly.attrs["res"] = (ds_tc["treecover2000"].attrs["res"] * GSF)
 
+		ba_ly = ba_ly.reindex({"longitude":dsgrid.longitude, "latitude":dsgrid.latitude}, method="nearest")
+		MW_lons = tempNCmaker(ba_ly, tnam0, "lossyear", chunks={'longitude': 2000, 'latitude': 2000}, skip=True)
+		# MW_lons.attrs["res"] = (ds_tc["treecover2000"].attrs["res"] * GSF)
+		
 		# +++++ make a new working scale factor +++++
-		NSF = np.round(mwb /ba_ly.attrs["res"][0]).astype(int)
+		NSF = np.round(mwb /MW_lons.attrs["res"][0]).astype(int)
 		
 		# +++++ Moving window Smoothing +++++
-		MW_lons = ba_ly.rolling({"longitude":NSF}, center = True, min_periods=RollF).mean()#.astype("float32")
-		MW_lons = MW_lons.reindex({"longitude":dsgrid.longitude}, method="nearest")
-		MW_lons = tempNCmaker(MW_lons, tname, "lossyear", chunks={'longitude': 1000})
-
-		ipdb.set_trace()
-		sys.exit()
-
-		# +++++ Apply the second smooth +++++
-		MW_FC    = MW_lons.rolling({"latitude":NSF}, center = True, min_periods=RollF).mean()
-		MW_FC_RI = MW_FC.reindex({"latitude":DAin_sub.latitude}, method="nearest")
+		MW_lons = MW_lons.chunk({'time':1, 'longitude': 2000, 'latitude': 2000})
+		MW_lons = MW_lons.rolling({"longitude":NSF}, center = True, min_periods=RollF).mean()#.astype("float32")
+		MW_lons = MW_lons.rolling({"latitude":NSF}, center = True, min_periods=RollF).mean()
 
 
 		# +++++ Fix the metadata +++++
-		MW_FC_RI       = MW_FC_RI.rename({"lossyear":"lossfrac"})
-		MW_FC_RI.attrs = global_attrs
-		MW_FC_RI.attrs["history"]  = "%s: Fraction of burnt forest after a %d degree spatial smoothing, then resampled to match %s grid resolution using %s" % ((str(pd.Timestamp.now())), mwb, dsn, __file__) +MW_FC_RI.attrs["history"]
-		MW_FC_RI.attrs["FileName"] = fnout
-		MW_FC_RI.lossfrac.attrs    = ds_ly.lossyear.attrs	
-		MW_FC_RI.latitude.attrs    = ds_ly.latitude.attrs		
-		MW_FC_RI.longitude.attrs   = ds_ly.longitude.attrs
+		MW_lons       = MW_lons.rename({"lossyear":"AnBF"})
+		MW_lons.attrs = global_attrs
+		MW_lons.attrs["history"]  = "%s: Fraction of burnt forest after a %d degree spatial smoothing, then resampled to match %s grid resolution using %s" % ((str(pd.Timestamp.now())), mwb, dsn, __file__) +MW_lons.attrs["history"]
+		MW_lons.attrs["FileName"] = fnout
+		MW_lons.AnBF.attrs        = ds_ly.lossyear.attrs	
+		MW_lons.latitude.attrs    = ds_ly.latitude.attrs		
+		MW_lons.longitude.attrs   = ds_ly.longitude.attrs
 
+		# ========== perform the masking ==========
+		mask    = landseamaks(dsn)
+		MW_lons = MW_lons.where(mask_sum["lossfrac"].values)
+		MW_lons = MW_lons.where(mask["mask"].values == 1)
 
-		# ========== Create the new layers ==========
-		ipdb.set_trace()
-		MW_FC_RI = MW_FC_RI.where(mask_sum["mask"].values > ((SF/2)**2))
-		MW_FC_RI["FRI"] = (1/MW_FC_RI["lossfrac"].where(MW_FC_RI["lossfrac"]> 0)) * 18
+		# ===== Deal with the locations with no fire history =====
+		MW_lons = MW_lons.where(MW_lons > 0, 0.00001)
+		
 
+		# ===== Calculate a FRI =====
+		MW_lons["FRI"] = 1.0/MW_lons["AnBF"]
+		# MW_lons["FRI"] = (1/MW_lons["lossfrac"].where(MW_lons["lossfrac"]> 0)) * 18
+		MW_lons        = MW_lons.chunk({'time':1, 'longitude': 5000, 'latitude': 5000})
 
-		ipdb.set_trace()
+		print("Starting write of %s %d degree gridded data at:" % (dsn, mwb), pd.Timestamp.now())
+		MW_lons = tempNCmaker(
+			MW_lons, fnout, ["AnBF", "FRI"], 
+			chunks={'longitude': 10000, 'latitude': 10000}, skip=False)
 
-
-		encoding = OrderedDict()
-		for ky in ["lossfrac", "FRI"]:
-			encoding[ky] = 	 ({'shuffle':True,
-				# 'chunksizes':[1, ensinfo.lats.shape[0], 100],
-				'zlib':True,
-				'complevel':5})
-
-		delayed_obj = MW_FC_RI.to_netcdf(fnout, 
-			format         = 'NETCDF4', 
-			encoding       = encoding,
-			unlimited_dims = ["time"],
-			compute=False)
-
-		print("Starting write of %s gridded data at:" % dsn, pd.Timestamp.now())
-		with ProgressBar():
-			results = delayed_obj.compute()
-
-	
 		# cleanup.append(tnam0)
 		cleanup.append(tname)	
 		# cleanup.append(tnMSK)
@@ -323,6 +309,16 @@ def tempNCmaker(ds, fntmp, vname, pchunk=1000, chunks={'longitude': 1000, "latit
 
 #==============================================================================
 #==============================================================================
+
+def landseamaks(dsn):
+
+	# ========== create the mask fielname ==========
+	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsn
+	masknm = "%s_landseamask.nc" % dsn
+	raw_mask = xr.open_dataset(ppath+masknm)
+	return raw_mask
+
+
 #==============================================================================
 #==============================================================================
 def dsloader(data, dsn, dates):

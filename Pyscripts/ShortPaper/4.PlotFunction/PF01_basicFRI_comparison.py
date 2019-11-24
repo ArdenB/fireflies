@@ -87,7 +87,7 @@ def main():
 	# ========== Setup the params ==========
 
 	mwbox   = [1, 2, 5]
-	dsnames = ["COPERN_BA", "MODIS", "esacci"]#
+	dsnames = ["COPERN_BA", "MODIS", "esacci", "HansenGFL-MAF"]#"HansenGFL", 
 	formats = [".png", ".pdf"] # None
 	# mask    = True
 
@@ -99,10 +99,17 @@ def main():
 		# ========== Setup the dataset ==========
 		datasets = OrderedDict()
 		for dsnm in dsnames:
-			# +++++ make a path +++++
-			ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsnm
-			fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
-			
+			if not dsnm.startswith("HansenGFL"):
+				# +++++ make a path +++++
+				ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsnm
+				fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+			else:
+				ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/FRI/"
+				fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
+				if dsnm == "HansenGFL":
+					fname += ".nc"
+				else:
+					fname += "MAF.nc"
 			# +++++ open the datasets +++++
 			datasets[dsnm] = xr.open_dataset(ppath+fname)
 			# ipdb.set_trace()
