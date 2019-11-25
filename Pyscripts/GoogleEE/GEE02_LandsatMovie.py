@@ -451,7 +451,7 @@ def geom_builder(site = "Burn2015 UP"):
 			sitenm.append(nm)
 			latit.append(pointdt[pointdt.Name == nm].geometry.y.values[0])
 			longi.append(pointdt[pointdt.Name == nm].geometry.x.values[0])
-			year.append(2018)
+			year.append(2019)
 
 	# ========== add 2018 ==========
 	fd18 = pd.read_csv("./data/field/2018data/siteDescriptions18.csv")
