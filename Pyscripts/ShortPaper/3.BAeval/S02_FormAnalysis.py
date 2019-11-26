@@ -114,21 +114,67 @@ def main():
 	for site in site_coords.name.values:
 		out = DisturbanceCounter(site, df, site_coords)
 		if not out is None:
-			sitesummary[site] = out			
+			sitesummary[site] = out
+			DisturbanceSeries(site, df, site_coords)			
 
 	dfsum = pd.DataFrame(sitesummary).transpose()
 	dfsum["RECRU"] = fd.loc[dfsum.index].Recruitment.values
-	plt.figure(1)
-	dfsum.boxplot(column="MeanSitefire", by="RECRU")
-	plt.figure(2)
-	dfsum.boxplot(column="MeanSiteDist", by="RECRU")
-	plt.show()
+	# dfsum.boxplot(column="MeanSitefire", by="RECRU")
+	# plt.figure(2)
+	# dfsum.boxplot(column="MeanSiteDist", by="RECRU")
+	# plt.show()
 	ipdb.set_trace()
 	# ========== Get out some basic infomation ==========
 
 # ==============================================================================
-# Data interrogation
+# Time Series builder
 # ==============================================================================
+
+def DisturbanceSeries(site, df, site_coords, skipdec=True):
+	"""
+	Function to i1nterogate the disturbances and return some from of time series
+	args : 
+		site:			str
+			name of the site
+		df:				pd.dataframe
+			the results of the google form
+		site_coords:	pd.dataframe
+			the site_coords i've created so far
+	"""
+
+	# ========== subset the dataset so only site data is present ==========
+	dfs = df[df.site == site]
+
+	
+	# ========== Check the number of obs ==========
+	if dfs.shape[0] == 0:
+		return None
+	elif skipdec and (dfs.SiteConif.values.sum() == 0):
+		# +++++ site is not conifereous forest +++++
+		return None
+	else:
+		print(site, dfs.shape[0], ~(dfs.SiteConif.values.sum() == 0))
+	
+	# # ========== Loop over each of the events ==========
+	dates    = dfs[(ky.startswith("Date") for ky in dfs.columns)]
+	frame    = dfs[(ky.startswith("Frame") for ky in dfs.columns)]
+	IsFire   = dfs[(ky.startswith("IsFire") for ky in dfs.columns)]
+	SiteDis  = dfs[(ky.startswith("SiteImpactd") for ky in dfs.columns)]
+	StandRep = dfs[(ky.startswith("StandRep") for ky in dfs.columns)]
+	
+		
+	# if dfs.shape[0] > 1:
+	# 	ipdb.set_trace()
+	# else:
+	# 	ipdb.set_trace()	
+	
+	ipdb.set_trace()
+	
+
+# ==============================================================================
+# Borad data interrogation
+# ==============================================================================
+
 def DisturbanceCounter(site, df, site_coords, skipdec=True):
 	"""
 	Function to i1nterogate the disturbances
@@ -173,16 +219,20 @@ def DisturbanceCounter(site, df, site_coords, skipdec=True):
 	# ========== Check the number of obs ==========
 	if dfs.shape[0] == 0:
 		return None
-	else:
-		print(site, dfs.shape[0], ~(dfs.SiteConif.values.sum() == 0))
-	
-
-	Info = OrderedDict()
-	if dfs.SiteConif.values.sum() == 0:
+	elif skipdec and (dfs.SiteConif.values.sum() == 0):
 		# +++++ site is not conifereous forest +++++
 		return None
+	else:
+		print(site, dfs.shape[0], ~(dfs.SiteConif.values.sum() == 0))
 
-	elif dfs.shape[0] > 1:
+
+	Info = OrderedDict()
+	# if skipdec:
+	# 	if dfs.SiteConif.values.sum() == 0:
+	# 		# +++++ site is not conifereous forest +++++
+	# 		return None
+
+	if dfs.shape[0] > 1:
 		# ========== Loop over the user obs ==========
 		obs = []
 		for index, row in dfs.iterrows():
@@ -202,6 +252,7 @@ def DisturbanceCounter(site, df, site_coords, skipdec=True):
 		vals, kys   = _rowcounter(row)
 		distnum[:4] = vals
 		distnum[-1] = dfs.SiteConif.values.mean()
+	
 	# ========== convert the results to a pandas series ==========
 	# +++++ Make the keys +++++
 	fullkys = []
@@ -210,9 +261,11 @@ def DisturbanceCounter(site, df, site_coords, skipdec=True):
 			fullkys.append(vari+ky)
 	fullkys.append("SiteConif")
 	return pd.Series(distnum, index=fullkys)
+
 # ==============================================================================
 # Raw Data correction and processing 
 # ==============================================================================
+
 def renamer(df):
 	"""Function to rename my dataframe columns """
 
@@ -235,7 +288,20 @@ def renamer(df):
 		elif col.startswith("Was the site impacted?"):
 			rename[col] = "SiteImpacted%02d" % distcount
 			df[col]     = df[col].map({'Yes': 1,'yes': 1,'No': 0, 'no': 0})
+		elif col.startswith("What was the frame number?"):
+			rename[col] = "Frame%02d" % distcount
+		elif col.startswith("When did the event happen?"):
+			rename[col] = "Date%02d" % distcount
+			df[col]     = pd.to_datetime(df[col])
+		elif col.startswith("If fire, was it stand replacing?"):
+			rename[col] = "StandRep%02d" % distcount
+			df[col]     = df[col].map({
+				'Yes': 1,'Yes at the Site, no in other places in the box': 1,
+				'No': 0, 'No at the site, yes in other parts of the box': 0})
+		elif col.startswith("Any Additional Comments"):
 			distcount  += 1 #add to the disturbance counter
+			
+			# ipdb.set_trace()
 
 	# rename[""]
 	# rename[""]
@@ -247,7 +313,7 @@ def renamer(df):
 
 	# ========== Fix column values ==========
 	df["SiteConif"] = df["SiteConif"].map({'Yes': 1,'yes': 1,'No': 0, 'no': 0})
-
+	# ipdb.set_trace()
 	return df
 
 def dfchecker(df, site_coords):
@@ -263,7 +329,6 @@ def dfchecker(df, site_coords):
 
 	# ========== Fix the percentages ==========
 	# df.replace("<25%", "<30%")
-
 
 def Field_data(df, site_coords):
 	"""
@@ -391,5 +456,6 @@ def Field_data(df, site_coords):
 	return pd.DataFrame(info).transpose()
 
 # ==============================================================================
+
 if __name__ == '__main__':
 	main()
