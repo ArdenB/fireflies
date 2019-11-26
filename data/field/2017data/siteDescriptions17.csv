@@ -1,0 +1,67 @@
+site number,recruitment,forestry,strtY,strtX,endY,endX,altitude (m),soil type,soil moisture,relief,aspect,forest type,fire type,estimated fire year
+1,poor,Chitinsky,51.82801,113.16932,51.82904,113.17165,739,light loam,mesic,W  5°,W,Burned (total tree mortality) site with Calamagrostis as dominant vegetation /Гарь вейниковая,Crown and surface high-severity  2000,2000
+2,sufficient,Chitinsky,51.82407,113.17407,51.82336,113.17673,751,sandy loam loamy,dry,flat on a hill,flat,Burned (total tree mortality) site with Carex as dominant vegetation /Гарь осоковая,Crown and surface high-severity  2000,2000
+3,sufficient,Chitinsky,51.80869,113.16696,51.81003,113.16885,812,sandy loam,mesic,W  10°,W,Burned (total tree mortality) site,Crown fire in 2000  Surface high-severity fire in 2008  surface low-severity fire in 2017,2000 and 2008 and 2017
+4,singular,Chitinsky,51.80652,113.16624,51.80747,113.16393,804,sandy loam,mesic,SW  7°,SW,Burned (total tree mortality) site,fire in 2000  did not burned in 2017,2000
+5,sufficient,Chitinsky,51.79773,113.14449,51.79634,113.14275,806,light loam wet,mesic,W 8°  S SW 10°,W,Burned (total tree mortality) site with litter as dominant ground cover/Гарь мрт,Fire in 2000  surface low-severity fire in 2017,2000 and 2017
+6,sufficient,Chitinsky,51.80075,113.13951,51.80154,113.137,781,light loam,mesic,W  3°,W,Burned (total tree mortality) site with grasses as dominant vegetation /Гарь ртр,Fires in 2000 and 2008  did not burn in 2017,2000 and 2008
+7,poor,Chitinsky,51.80824,113.14183,51.80878,113.13911,718,light loam,dry,W  5°,W,Burned (total tree mortality) site/Гарь вейн,Fires in 2000  2008  and 2017,2000 and 2008 and 2017
+8,sufficient,Beklemichevsky,52.0775,112.42139,52.07705,112.42417,1083,loam,mesic,SW 12°,SW,Burned (total tree mortality) site /Гарь ртр,Fire in 2000-2003?,2000 and 2003
+9,poor to sufficient,Beklemichevsky,52.04379,112.49216,52.04276,112.49455,1034,sandy loam,dry,S-SW 12-15°,SW,Burned (total tree mortality) site /Гарь сухотравн.,Crown fire in 2007,2007
+10,sufficient (see stand inventory),Ononsky Tsasycheiskoe,50.49187,114.89437,50.49226,114.89712,691,sandy loam,dry,less than 5°  plain,flat,Burned (total tree mortality) site /Гарь сухотравн.,Fire in 2000,2000
+11,poor,Ononsky Tsasycheiskoe,50.4821,114.8744527778,50.48211,114.87723,688,sandy loam,dry,less than 5°  plain,flat,Burned (total tree mortality) site /Гарь вейн.,High-severity fire in 2000,2000
+12,singular,Ononsky Tsasycheiskoe,50.48057,115.00641,50.47878,115.00647,680,sandy loam,mesic,less than 5°  plain,flat,Burned (total tree mortality) site /Гарь вейн.,High-severity fire in 2000,2000
+13,sufficient,Duldurginskoe,50.76357,113.4734,50.76293,113.47085,893,medium loam,mesic,S  >10°,S,Burned (total tree mortality) site /Гарь ртр.,High-severity crown fire in 2007,2007
+14,sufficient,Duldurginskoe Tantanaiskoe,50.69094,113.66161,50.68975,113.65961,885,medium loam,mesic,>20°  W (25°-30°)  E,na,Burned (total tree mortality) site /Гарь ,High-severity surface fire to crown fire in 2003,2003
+15,sufficient,Duldurginskoe Tantanaiskoe,50.69936,113.67699,50.69954,113.67973,863,medium loam,mesic,SW  S-SE  >20°,na,Burned (total tree mortality) site /Гарь вейн-схтр.,Fire in 2003 and in 2015,2003 and 2015
+16,abundant,Olenguiski,51.30713,113.59789,51.30758,113.60064,916,medium loam,mesic,S 25°,S,Burned (total tree mortality) site /Гарь ртр.,Fire in ~2003,2003
+17,abundant,Olenguiski,51.30963,113.62407,51.3111,113.62257,886,light loam,mesic,SW 15-20°,SW,Burned (total tree mortality) site /Гарь вейн-ртр.,Fire in 2003,2003
+18,sufficient,Karimskoe,51.42294,113.75581,51.42432,113.75398,780,loam,mesic,NW 5°,NW,Burned (total tree mortality) site /Гарь ртр.,Fire in 2003,2003
+19,sufficient,Chitinskii,52.14943,113.55487,52.15085,113.55312,743,sandy loam,dry,plain,flat,Burned (total tree mortality) site /Гарь вейн.,Fires in 2000  and 2015,2000 and 2015
+20,singular,Chitinskii,52.15602,113.57073,52.15466,113.57261,750,sandy loam,dry,plain,flat,Burned (total tree mortality) site /Гарь сухотр.,Surface fires in 2000 (01)  crown fire in 2015,2000012015
+21,sufficient,Olenguiskoe,51.8032,113.78547,51.80202,113.78333,697,light loam,mesic,<5°,flat,Burned (total tree mortality) site /Гарь вейн.,Fire in 2003,2003
+22,sufficient,Olenguiskoe,51.81608,113.77681,51.81635,113.77958,778, loam,mesic,SW-S  20-25°,SW,Burned (total tree mortality) site /Гарь вейн.-кипр.,Fire in 2007,2007
+23,poor (see also stand inventory),Tataurovskoye,51.5596,112.8302,51.56086,112.83224,795,sandy loam,dry,SW  10-15°,SW,Burned (total tree mortality) site /Гарь ,Fires in 2000,2000
+24,sufficient (see also stand inventory),Tataurovskoye,51.55526,112.81967,51.5537,112.81822,838,sandy loam,mesic,SW  >20°,SW,Burned (total tree mortality) site /Гарь,Fire in 2000,2000
+25,sufficient,Yletovskoye,51.4453,112.29165,51.44704,112.29086,743,medium loam,mesic,S  5-10°,S,Burned (total tree mortality) site /Гарь рдд.,Fires in 2003,2003
+26,sufficient,Ingodinskoe Cheremchovskoe,51.43754,112.27673,51.43898,112.27845,946,loam,mesic,SW  15°,SW,Burned (total tree mortality) site /Гарь вейн.-ртр,Fires in 2003,2003
+27,sifficient,Ingodinsky,51.08725,112.09067,51.08893,112.09122,854,sandy loam,dry,S  5-7°,S,Burned (total tree mortality) site /Гарь вейн.-ртр,Crown fire in 2000,2000
+28,abundunt (see also stand inventory),Ingodinsky,51.0898,112.09745,51.08969,112.10012,870,sandy loam,dry,S  <5°,S,Burned (total tree mortality) site /Гарь ртр.,Crown fire in 2000,2000
+29,abundunt (see also stand inventory),Ingodinsky,51.09841,112.11642,51.09744,112.11882,837,sandy loam,dry,S  3°,S,Burned (total tree mortality) site /Гарь ртр.,Crown fire in 2000,2000
+30,sufficient,Ingodinsky,50.97824,111.37939,50.97693,111.37749,947,sandy loam,mesic,3°,flat,Burned (total tree mortality) site /Гарь вейн.-ртр.,Fires in 1998,1998
+31,sufficient,Ingodinsky,50.97673,111.36148,50.97493,111.361,952,loam,mesic,,na,Burned (total tree mortality) site /Гарь ртр.,Fires in 1998  2003,1998 and 2003
+32,abundunt,Ingodinsky,50.9679,111.18074,50.96626,111.17966,1019,medium loam,mesic,plain,flat,Burned (total tree mortality) site /Гарь голубичн.,Crown fire in 2003,2003
+33,abundunt,Ingodinsky,50.98063,111.35197,50.98242,111.35203,969,light loam,mesic,3-5°,flat,Burned (total tree mortality) site /C рдд.,Fire in 1996,1996
+34,abundunt,Chimenskoe,51.02689,110.72186,51.02776,110.71943,954,medium loam,mesic,SE-S  17°,SE,Burned (total tree mortality) site /Гарь вейн.,Fire in 1998,1998
+35,sufficient,Chiloksky,51.03169,110.71307,51.03299,110.71116,972,sandy loam,dry,S  15 - 17°,S,Burned (total tree mortality) site /Гарь вейн.,Fire in 2003,2003
+36,sufficient,Chiloksky,51.22273,110.69997,51.22436,110.70089,865,sandy loam,mesic,,na,Burned (total tree mortality) site /Гарь вейн.,Fire in 2000,2000
+37,singular,Chiloksky,51.23702,110.71194,51.23873,110.71274,869,sandy loam,dry,S  10-12°,S,Burned (total tree mortality) site /Гарь вейн.,Fires in 2000  and 2011(?),2000 and 2011
+38,sufficient,Chiloksky,51.32791,110.59996,51.32954,110.599,881,sandy loam light loam,mesic,W  10-15°,W,Burned (total tree mortality) site /Гарь вейн.,Fire in 1998,1998
+39,abundunt,Chiloksky,51.39292,110.24579,51.39263,110.24294,840,ligh loam wet,mesic,W  5-10°,W,Burned (total tree mortality) site /Гарь вейн.,Fires in 2003,2003
+40,abundant,Petrovsk-Zabaikal'skoe,51.23512,109.20583,51.23349,109.20695,804,light loam,mesic,SE  3-5°,SE,Burned (total tree mortality) site /Гарь ртр.-вейн.,Fires in 2007,2007
+41,sufficient,Petrovsk-Zabaikal'skoe,51.23378,109.23389,51.23403,109.23675,786,light loam,mesic,S  5-7°,S,Burned (total tree mortality) site /Гарь кипр.,Fire in 2006,2006
+42,poor to sufficient,Petrovskoe,51.22337,109.20078,51.22216,109.19856,838,sandy loam,mesic,SE >10°  SW >15°,na,Burned (total tree mortality) site /Гарь вейн.,Fire in 2005,2005
+43,singular,Petrovsk-Zabaikal'skoe,51.20239,109.11719,51.20177,109.11454,840,sandy loam,dry,SW  12°,SW,Burned (total tree mortality) site /Гарь вейн.-ртр.,Fire in 2003,2003
+44,singular to poor,Petrovsk-Zabaikal'skoe,51.19102,109.03867,51.19237,109.03677,877,sandy loam,dry,SW-W  10-15°,SW,Burned (total tree mortality) site /Гарь ртр.-кипр.,Fire in 2005,2005
+45,abundant,Petrovsk-Zabaikal'skoe,51.17917,109.00581,51.17823,109.00344,878,light loam,mesic,SW  10°,SW,Burned (total tree mortality) site /Гарь вейн.,Fire in 2005,2005
+46,abundunt,Petrovsk-Zabaikal'skoe,51.16435,108.94665,51.16335,108.94894,862,light loam,mesic,SW  15°,SW,Burned (total tree mortality) site /Гарь вейн.,Fire in 2006,2006
+47,sufficient,/Buryatia,51.70553,108.65841,51.70725,108.659,643,sands,dry,SW 5-7°,SW,Burned site with dry grass/Гарь сухотр.,Fire in 2000,2000
+48,abundant,Gorodskoe Ulan-Udinskoe,51.88027,107.62601,51.87856,107.62675,820,sandy loam,mesic,SW  15-20°,SW,Burned site / C вейн.,Fire in 2003 (High-intensity),2003
+49,sufficient,Gorodskoe Ulan-Udinskoe,51.8935,107.64349,51.8944,107.64594,737,sandy loam,dry,S  7°,S,Burned site with dry grass /Гарь сухотр.,Fire in 2003 ,2003
+50,poor to sufficient,Gorodskoe Ulan-Udinskoe,51.91373,107.64417,51.91403,107.64699,861,sandy loam,dry,S 25°  SW 30°,S,Burned site /Гарь вейн.-ртр.,Fire in 2003,2003
+51,sufficient,Gorodskoe Ulan-Udinskoe,51.88124,107.68571,51.88296,107.68674,790,sandy loam,dry,SW   <10°,SW,Burned site,Fire in 2000 (High-intensity),2000
+52,sufficient,Gorodskoe Ulan-Udinskoe,51.87859,107.69296,51.87688,107.69651,760,sandy loam,dry,SW  >20°,SW,Burned site /Гарь вейн.,Fire in 2002,2002
+53,poor,Chorinsky,52.12364,109.89384,52.12428,109.89646,682,sands,dry,W  3°,W,Burned site with dry grass /Гарь сухотр.,Fire in 1999,1999
+54,sufficient,Chorinsky,52.11794,110.00671,52.11647,110.00837,736,sands,dry,SE  7°,SE,Burned site with total tree mortality /Гарь вейн.,Fire in 1999 ,1999
+55,sufficient,Chorinsky,52.09956,110.00513,52.09782,110.00574,809,sandy loam,dry,SE  5°,SE,Burned site with dry grass /Гарь сухотр.,Fire in 1999 ,1999
+56,singular (see also stand inventory),Chorinsky,52.08427,110.02306,52.0859,110.02424,814,sands,dry,S (SE  SW) 15-20°,na,Burned site with dry grass / Гарь сухотр.,Fire in 1999 ,1999
+57,sufficent (see also stand inventory),Chorinsky,52.28836,109.95036,52.28881,109.95316,793,sand\xd0\xbd loam,dry,SW  5-10°,SW,Burned site with dry grass/ Гарь сухотр.,Fire in 1998,1998
+58,poor,Pribaikalskoe,52.16964,107.60428,52.116886,107.60155,554,light loam,mesic,SW  3°,flat,Burned site /Гарь вейн.,Crown fire in 2003 ,2003
+59,poor to sufficient,Pribaikalskoe,52.16885,107.61069,52.16859,107.6136,549,sandy loam,dry,SW  3°,flat,Burned site/Гарь вейн.,Fire in 2003,2003
+60,sufficient,Pribaikalskoe,52.1679,107.62495,52.16625,107.62596,570,sandy loam,dry,W  >20-25-30°,W,Burned site with dry grass /Гарь сухотр.,Fire in 2003,2003
+61,abundant,Pribaikalskoe,52.17246,107.6533,52.1723,107.65112,568,sandy loam,dry,W  3°,W,Burned site / Гарь вейн.,Fire before 2000,2000
+62,abundant,Pribaikalskoe,52.17199,107.70095,52.17021,107.70146,547,light loam,dry,S 10,S,Burned site / C мрт.,Fire in 1996 or earlier,1996
+63,sufficient,Zaigraevskoe,51.81009,108.397,51.80907,108.39928,717,sandy loam,dry,,na,Burned site / Гарь вейн.,Fire in 2003,2003
+64,singular,Zaigraevskoe,51.91724,108.33486,51.91554,108.33559,701,sandy loam,dry,NE  3°,NE,Burned site/ Гарь вейн.,Fire in 2002 ,2002
+65,sufficient,Zaigraevskoe,51.9179,108.32952,51.91865,108.32591,714,sandy loam,dry,SE  3°,SE,Burned site /Гарь вейн.-ртр.,Fire in 2002,2002
+66,singular,Zaigraevskoe,51.91623,108.32292,51.91506,108.32546,728,loam,dry,SE  3-10°,SE,Burned site / Гарь сухотр.,Fire in 2002,2002
