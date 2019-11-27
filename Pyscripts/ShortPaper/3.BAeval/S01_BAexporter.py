@@ -95,28 +95,17 @@ print("xarray version : ", xr.__version__)
 # ==============================================================================
 
 def main():
+	# ========== Read in the Site data ==========
+	cordname    = "./data/other/GEE_sitelist.csv"
+	site_coords = pd.read_csv(cordname, index_col=0)
+
+	# ========== Find the save lists ==========
+	spath, dpath = syspath()
+	data = datasets(dpath)
+
 	# ========== Set the site up ==========
-	# site   = "G10T1-50" #
-	# site   = "TestBurn
-	site   = "G5T1-50"
-	region = "SIBERIA"
-
-		# ========== Create the system specific paths ==========
-	sysname = os.uname()[1]
-	if sysname == 'DESKTOP-CSHARFM':
-		# LAPTOP
-		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
-		dpath = "/mnt/e"
-
-	elif sysname == "owner":
+	for site in site_coords.name.values:
 		ipdb.set_trace()
-		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
-	elif sysname == "ubuntu":
-		# Work PC
-		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
-		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
-
-	for site in ["G5T1-50", "TestBurn", "G10T1-50"]:
 		print(site)
 		# ========== Get infomation about that site ==========
 		fnames, SF, dft, dfg = SiteInfo(site)
@@ -397,6 +386,53 @@ def SiteInfo(site):
 		dfg = pd.read_csv("./data/other/tmp/LANDSAT_5_7_8_%s_NRGB_gridinfo.csv" % site, index_col=0, parse_dates=True)     
 	return fnames, SF, dft, dfg
 
+def datasets(dpath):
+	# ========== set the filnames ==========
+	data= OrderedDict()
+	data["COPERN_BA"] = ({
+		'fname':dpath + "COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
+		})
+	data["MODIS"] = ({
+		"fname":dpath + "MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		})
+	data["esacci"] = ({
+		"fname":dpath + "esacci/processed/esacci_FireCCI_*_burntarea.nc",
+		'var':"BA", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 1000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
+	data["HansenGFL"] = ({
+		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc",
+		'var':"lossyear", "gridres":"25m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 1000},
+		"rename":None, 
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
+
+
+def syspath():
+			# ========== Create the system specific paths ==========
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-CSHARFM':
+		# LAPTOP
+		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+		# dpath = "/mnt/e"
+		ipdb.set_trace()
+	elif sysname == "owner":
+		ipdb.set_trace()
+		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+	elif sysname == "ubuntu":
+		# Work PC
+		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/"
+		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+	return spath, dpath
 # ==============================================================================
 
 if __name__ == '__main__':
