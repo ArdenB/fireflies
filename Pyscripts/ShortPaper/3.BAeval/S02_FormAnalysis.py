@@ -29,7 +29,7 @@ sys.path.append(os.getcwd())
 # Import packages
 import numpy as np
 import pandas as pd
-import geopandas as gpd
+# import geopandas as gpd
 import argparse
 import datetime as dt
 import warnings as warn
@@ -61,7 +61,7 @@ import palettable
 # import fiona
 # fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
 # fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
-import geopy.distance as geodis
+# import geopy.distance as geodis
 
 # import moviepy.editor as mpe
 # import skvideo.io     as skv
@@ -82,7 +82,13 @@ import socket
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 # # Import debugging packages 
-import ipdb
+# try:
+# 	import ipdb
+# except Exception as e:
+# 	print(str(e))
+# 	warn.warn("failed to import ipdb")
+import pdb as ipdb
+# ipdb.set_trace()
 
 # +++++ Import my packages +++++
 import myfunctions.corefunctions as cf 
@@ -106,7 +112,7 @@ def main():
 	dfchecker(df, site_coords)
 
 	# ========== Pull out the field data ==========
-	fd = Field_data(df, site_coords)
+	fd = Field_data(df, site_coords, force=True)
 
 	# ========== Find the save lists ==========
 	spath, dpath = syspath()
@@ -126,12 +132,14 @@ def main():
 
 	# # dfsum.boxplot(column="PostFLdist", by="RECRU")
 	# # dfsum.boxplot(column="PostFLfire", by="RECRU")
-	# ax2 = sns.swarmplot(y="PostFLdist", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
-	# plt.figure(2)
-	# ax3 = sns.swarmplot(y="PostFLfire", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
-	# plt.show()
+	ax2 = sns.swarmplot(y="PostFLdist", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
+	plt.figure(2)
+	ax3 = sns.swarmplot(y="PostFLfire", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
+	plt.show()
+
+	ipdb.set_trace()
 	# ========== WOrk out how the histories compare ==========
-	SiteHistScore(siteseries, site_coords, data, fd)
+	dtscore, dtsum = SiteHistScore(siteseries, site_coords, data, fd)
 	ipdb.set_trace()
 	# ========== Get out some basic infomation ==========
 
@@ -191,7 +199,100 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 			ipdb.set_trace()
 		return dfSH
 	
-	
+	def _SiteScorere(siteseries, yrst, dsn, dfsh):
+		Accuracy = OrderedDict()
+		for site in siteseries.keys():
+			# score
+			FP = 0
+			FN = 0
+			CD = 0
+			DD = 0
+			# Manual clas
+			dfSEN = siteseries[site]
+
+			# +++++ from the disturbance data +++++
+			dfda  = dfsh.loc[site].dropna().values
+
+			if not dsn == 'HansenGFL':
+				# ++++++++++ Manual Clasification ++++++++++
+				# Get the burns as years
+				bnyr = pd.DatetimeIndex(dfSEN.date[np.logical_and(dfSEN.Fire ==1, dfSEN.SImp ==1)].values).year.values
+				# get the ones in the correct range
+				bnyr = bnyr[bnyr >= yrst]
+				for year in np.unique(np.hstack([bnyr, dfda])):
+					if year in dfda and year in bnyr:
+						CD += 1
+					elif (year+1 in dfda and year in bnyr):
+						if year+1 in bnyr:
+							FP += 1
+						else:
+							DD += 1
+
+					elif(year-1 in dfda and year in bnyr):
+						if year-1 in bnyr:
+							FP += 1
+						else:
+							DD += 1
+					elif year in dfda:
+						FP += 1
+					elif year in bnyr:
+						FN += 1
+					else:
+						ipdb.set_trace()
+				# print("GEEclas:", bnyr, "BAdata:", dfda, [CD, DD, FP, FN])
+			else:
+				year = np.NaN
+				# +++++ Loop over each row of the manual classification +++++
+				for index, row in dfSEN.iterrows():
+					# ++++++++++ look for the first time the ssite loses forest cover +++++
+					if row.PostStLs == 1:
+						# +++++ Get the year of the loss +++++
+						year = pd.Timestamp(row.date).year
+						# +++++ Check if it in the reange of the disturbance data +++++
+						if (year >= yrst):
+							if dfda.size == 0:
+								# +++++ RS data missed loss +++++
+								FN += 1
+							elif year == dfda: 
+								# +++++ RS correctly captured loss +++++
+								CD += 1
+							elif ((year+1) == dfda) or ((year-1) == dfda):
+								# +++++ Delayed detection +++++
+								DD += 1
+							else:
+								FN += 1
+								FP += 1
+						elif (year+1 == data[dsn]["start"]):
+							if dfda.size == 0:
+								pass
+							elif (year+1) == dfda:
+								# +++++ Delayed detection +++++
+								DD += 1
+							elif not dfda.size == 0:
+								FP += 1
+						else:
+							if not dfda.size == 0:
+								FP += 1
+						break
+				if any([FP > 1, FN > 1, CD > 1, DD>1]):
+					warn.warn("Something weird here")
+					ipdb.set_trace()
+
+
+			if all([FP == 0, FN == 0, CD == 0, DD==0]):
+				FP = np.NAN
+				FN = np.NAN
+				CD = np.NAN
+				DD = np.NAN
+			
+			Accuracy[site]= ({
+				"CorrectDetection": CD,"DelayedDetection": DD, "FalseNegative":FN, 
+				"FalsePositive":FP, "TotalDetection":np.sum([CD, DD, FN, FP])})
+
+
+		# ========== Add the results of the dataset to the dictionary ===========
+		acu = pd.DataFrame(Accuracy).transpose()
+		return acu
 	# ========== get the coords ==========
 	cords = OrderedDict()
 	for index, row in site_coords.iterrows():
@@ -208,65 +309,29 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 		dfsh = _datasetopener(data, dsn, dfc)
 		dfsh = dfsh.replace(0, np.NaN)
 		# ========== loop over the sites ==========
-
-		Accuracy = OrderedDict()
-		for site in siteseries.keys():
-			# score
-			FP = 0
-			FN = 0
-			CD = 0
-			# Manual clas
-			dfSEN = siteseries[site]
-
-			# from the data
-			dfda  = dfsh.loc[site].dropna().values
-			if not dsn == 'HansenGFL':
-				# Get the burns as years
-				bnyr = pd.DatetimeIndex(dfSEN.date[np.logical_and(dfSEN.Fire ==1, dfSEN.SImp ==1)].values).year.values
-				# get the ones in the correct range
-				bnyr = bnyr[bnyr >= data[dsn]["start"]]
-				for year in np.unique(np.hstack([bnyr, dfda])):
-					if year in dfda and year in bnyr:
-						CD += 1
-					elif year in dfda:
-						FP += 1
-					elif year in bnyr:
-						FN += 1
-			else:
-				year = np.NaN
-				for index, row in dfSEN.iterrows():
-					if row.PostStLs == 1:
-						year = pd.Timestamp(row.date).year
-						if (year >= data[dsn]["start"]):
-							if year == dfda: 
-								CD += 1
-								continue
-							elif dfda.size == 0:
-								FN += 1
-						else:
-							if not dfda.size:
-								FP += 1
-				if any([FP > 1, FN > 1, CD > 1]):
-					ipdb.set_trace()
-
-
-
-
-			if all([FP == 0, FN == 0, CD == 0]):
-				FP = np.NAN
-				FN = np.NAN
-				CD = np.NAN
-			
-			Accuracy[site]= ({
-				"CorrectDetection": CD, "FalseNegative":FN, 
-				"FalsePositive":FP, "TotalDetection":np.sum([CD, FN, FP])})
-
-
-
-		acu = pd.DataFrame(Accuracy).transpose()
+		acu = _SiteScorere(siteseries, data[dsn]["start"], dsn, dfsh)
 		dfscore[dsn] = acu
 
-	ipdb.set_trace()
+	# =========== pull out the Forestry Estimates ==========
+	acu = _SiteScorere(siteseries, 1987, "ForestryEst", fd[["FBurn01","FBurn02","FBurn03","FBurn04"]])
+	dfscore["ForestryEst"] = acu
+
+	# ========== Process the datasets to get some form of accuracy estimate ==========
+	processed = OrderedDict()
+	for dsn in dfscore:
+		# ========== loop over the datasets ==========
+		dfds = dfscore[dsn].dropna()
+
+		# ========== Pull out the results ===========
+		processed[dsn] = ( dfds[dfds.columns.values].div(
+			dfds.TotalDetection, axis=0) * 100).mean(axis=0).drop("TotalDetection")
+
+	# ========== Convert to dataframe ==========
+	dfps = pd.DataFrame(processed).transpose()
+	ax = dfps.plot.bar()
+	plt.show()
+	return dfscore, dfps
+
 # ==============================================================================
 # Time Series builder
 # ==============================================================================
@@ -590,10 +655,16 @@ def dfchecker(df, site_coords):
 	# ========== Fix the percentages ==========
 	# df.replace("<25%", "<30%")
 
-def Field_data(df, site_coords):
+def Field_data(df, site_coords, force=False):
 	"""
 	# Aim of this function is to look at the field data and pull out the RF status 
 	"""
+	if os.path.isfile("./data/field/ProcessedFD.csv") and not force:
+		dfds = pd.read_csv("./data/field/ProcessedFD.csv", index_col=0)
+		return dfds
+	else:
+		import geopy.distance as geodis
+
 	def _fireyear(val):
 		# ========== setup the item to return ==========
 		years    = np.zeros(4)
@@ -632,7 +703,7 @@ def Field_data(df, site_coords):
 					years[nx//4] = year
 				else:
 					ipdb.set_trace()
-				return years
+			return years
 		else:
 			ipdb.set_trace()
 			return np.NAN
@@ -717,7 +788,9 @@ def Field_data(df, site_coords):
 		
 		info[row["name"]] = siteinfo
 	# ========== Create and Ordered Dict for important info ==========
-	return pd.DataFrame(info).transpose()
+	dfds = pd.DataFrame(info).transpose()
+	dfds.to_csv("./data/field/ProcessedFD.csv", header=True)
+	return dfds
 
 # ==============================================================================
 # Containers for infomation
@@ -770,6 +843,11 @@ def syspath():
 		# Work PC
 		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/"
 		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+	elif sysname == 'arden-H97N-WIFI':
+		spath = "/mnt/FCBE3028BE2FD9C2/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/media/arden/Harbinger/Data51/BurntArea/"
+	else:
+		ipdb.set_trace()
 	return spath, dpath
 
 # ==============================================================================
