@@ -82,12 +82,13 @@ import socket
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 # # Import debugging packages 
-# try:
-# 	import ipdb
+if not os.uname()[1] =='arden-H97N-WIFI':
+	import ipdb
+else:
+	import pdb as ipdb
 # except Exception as e:
 # 	print(str(e))
 # 	warn.warn("failed to import ipdb")
-import pdb as ipdb
 # ipdb.set_trace()
 
 # +++++ Import my packages +++++
@@ -121,7 +122,7 @@ def main():
 	# ========== Get some site specific infomation ==========
 	siteseries  = OrderedDict()
 	for site in site_coords.name.values:
-		out = DisturbanceSeries(site, df, site_coords)			
+		out = DisturbanceSeries(site, df, site_coords, spath)			
 		# out = DisturbanceCounter(site, df, site_coords)
 		if not out is None:
 			siteseries[site]  =  out
@@ -132,14 +133,15 @@ def main():
 
 	# # dfsum.boxplot(column="PostFLdist", by="RECRU")
 	# # dfsum.boxplot(column="PostFLfire", by="RECRU")
+	# ========== WOrk out how the histories compare ==========
+	dtscore, dtsum = SiteHistScore(siteseries, site_coords, data, fd)
+	ipdb.set_trace()
+	
 	ax2 = sns.swarmplot(y="PostFLdist", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
 	plt.figure(2)
 	ax3 = sns.swarmplot(y="PostFLfire", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
 	plt.show()
 
-	ipdb.set_trace()
-	# ========== WOrk out how the histories compare ==========
-	dtscore, dtsum = SiteHistScore(siteseries, site_coords, data, fd)
 	ipdb.set_trace()
 	# ========== Get out some basic infomation ==========
 
@@ -336,7 +338,7 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 # Time Series builder
 # ==============================================================================
 
-def DisturbanceSeries(site, df, site_coords, skipdec=True):
+def DisturbanceSeries(site, df, site_coords, spath, skipdec=True):
 	"""
 	Function to i1nterogate the disturbances and return some from of time series
 	args : 
@@ -347,11 +349,18 @@ def DisturbanceSeries(site, df, site_coords, skipdec=True):
 		site_coords:	pd.dataframe
 			the site_coords i've created so far
 	"""
-	def _standloss(dfs, dates, frame, IsFire, SiteDis, StandRep, site):
+	def _standloss(dfs, dates, frame, IsFire, SiteDis, StandRep, site, spath):
 
 		# ========== Container to hold the standloss guesses ==========
 		stloss = []
 		for index, row in dfs.iterrows():
+			# ========== check if the dates are accessable ==========
+
+			datecsv = spath + "%s/LANDSAT_5_7_8_%s_SNRGB_timeinfo.csv" % (site, site)
+			if os.path.isfile(datecsv):
+				dft = pd.read_csv(datecsv, index_col=0, parse_dates=True)
+			else:
+				dft = None	
 			for event in range(0, frame.loc[index].values.shape[0]):
 				evinfo = OrderedDict()
 				evinfo["Frame"] = frame.loc[index][event]
@@ -359,7 +368,19 @@ def DisturbanceSeries(site, df, site_coords, skipdec=True):
 				evinfo["Fire"]  = IsFire.loc[index][event]
 				evinfo["SImp"]  = 1.0
 				evinfo["Agree"] = row["Name"]
-				warn.warn("\n\n\n\n\n\nFrame date checking is needed here!!!!!!!!!\n\n\n\n")
+
+				# ========== Check the dates ==========
+				if not dft is None and not np.isnan(frame.loc[index][event]):
+					tme = pd.Timestamp(dft.loc[frame.loc[index][event]].date[:10])
+					if tme == evinfo["date"]:
+						pass
+					elif abs(tme - evinfo["date"]) <pd.Timedelta("90 days"): 
+						evinfo["date"] = tme
+					else:
+						print("The date is incorrect", tme, evinfo["date"])
+						warn.warn("\n\n\n\n\n\nFrame date checking is needed here!!!!!!!!!\n\n\n\n")
+						ipdb.set_trace()
+				
 				if np.isnan(frame.loc[index][event]):
 					evinfo["Agree"]    = None
 					evinfo["SImp"]     = np.NaN
@@ -453,7 +474,7 @@ def DisturbanceSeries(site, df, site_coords, skipdec=True):
 	StandRep = dfs[(ky.startswith("StandRep") for ky in dfs.columns)]
 	
 	# ========== Find the stand loss event ==========
-	dfSite  = _standloss(dfs, dates, frame, IsFire, SiteDis, StandRep, site)
+	dfSite  = _standloss(dfs, dates, frame, IsFire, SiteDis, StandRep, site, spath)
 
 	if dfs.shape[0] > 1:
 		dfSite = _eventGroup(dfs, dfSite, frame)
@@ -739,16 +760,16 @@ def Field_data(df, site_coords, force=False):
 
 	def _fdfix(RFinfo):
 		
-		RFinfo.RF[    RFinfo["RF"].str.contains("poor")] = "PR"  #"no regeneration"
-		RFinfo.RF[    RFinfo["RF"].str.contains("no regeneration")] = "RF" 
+		RFinfo["RF"][RFinfo["RF"].str.contains("poor")] = "PR"  #"no regeneration"
+		RFinfo["RF"][RFinfo["RF"].str.contains("no regeneration")] = "RF" 
 		
-		RFinfo.RF[RFinfo["RF"].str.contains("singular")] = "IR"  
+		RFinfo["RF"][RFinfo["RF"].str.contains("singular")] = "IR"  
 		
 		for repstring in ["sufficient", "sufficent", "sifficient"]:
-			RFinfo.RF[RFinfo["RF"].str.contains(repstring)] = "IR" 
+			RFinfo["RF"][RFinfo["RF"].str.contains(repstring)] = "IR" 
 		
 		for repstring in ["abundunt", "abundant"]:
-			RFinfo.RF[RFinfo["RF"].str.contains(repstring)] = "AR" 
+			RFinfo["RF"][RFinfo["RF"].str.contains(repstring)] = "AR" 
 		
 		return RFinfo
 
