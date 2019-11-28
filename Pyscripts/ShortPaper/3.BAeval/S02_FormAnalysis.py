@@ -179,10 +179,16 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 			siteh = OrderedDict()
 
 			for nx in range(0, dfc.shape[0]):
-				siteh[dfc["name"][nx]] = hist[nx, nx].values + 2000.0
+				if hist[nx, nx].values == 0:
+					siteh[dfc["name"][nx]] = {"FL":np.NaN}
+				else:
+					siteh[dfc["name"][nx]] = {"FL":hist[nx, nx].values + 2000.0}
 
 		# ========== Return the results ==========
-		dfSH = pd.DataFrame(siteh).transpose()
+		try:
+			dfSH = pd.DataFrame(siteh).transpose()
+		except:
+			ipdb.set_trace()
 		return dfSH
 	
 	
@@ -226,16 +232,36 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 						FP += 1
 					elif year in bnyr:
 						FN += 1
-				if all([FP == 0, FN == 0, CD == 0]):
-					FP = np.NAN
-					FN = np.NAN
-					CD = np.NAN
-				
-				Accuracy[site]= ({
-					"CorrectDetection": CD, "FalseNegative":FN, 
-					"FalsePositive":FP, "TotalDetection":np.sum([CD, FN, FP])})
 			else:
-				ipdb.set_trace()
+				year = np.NaN
+				for index, row in dfSEN.iterrows():
+					if row.PostStLs == 1:
+						year = pd.Timestamp(row.date).year
+						if (year >= data[dsn]["start"]):
+							if year == dfda: 
+								CD += 1
+								continue
+							elif dfda.size == 0:
+								FN += 1
+						else:
+							if not dfda.size:
+								FP += 1
+				if any([FP > 1, FN > 1, CD > 1]):
+					ipdb.set_trace()
+
+
+
+
+			if all([FP == 0, FN == 0, CD == 0]):
+				FP = np.NAN
+				FN = np.NAN
+				CD = np.NAN
+			
+			Accuracy[site]= ({
+				"CorrectDetection": CD, "FalseNegative":FN, 
+				"FalsePositive":FP, "TotalDetection":np.sum([CD, FN, FP])})
+
+
 
 		acu = pd.DataFrame(Accuracy).transpose()
 		dfscore[dsn] = acu
@@ -700,6 +726,13 @@ def Field_data(df, site_coords):
 def datasets(dpath):
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	data["HansenGFL"] = ({
+		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc",
+		'var':"lossyear", "gridres":"25m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 10000, 'latitude': 10000},
+		"rename":None, 
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
 	data["COPERN_BA"] = ({
 		'fname':dpath + "COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
 		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
@@ -709,7 +742,7 @@ def datasets(dpath):
 	data["MODIS"] = ({
 		"fname":dpath + "MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
 		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'longitude': 1000, 'latitude': 10000},
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
 		})
 	data["esacci"] = ({
@@ -719,18 +752,11 @@ def datasets(dpath):
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
 		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
-	data["HansenGFL"] = ({
-		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc",
-		'var':"lossyear", "gridres":"25m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 10000, 'latitude': 10000},
-		"rename":None, 
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
-		})
 	return data
 
 
 def syspath():
-			# ========== Create the system specific paths ==========
+	# ========== Create the system specific paths ==========
 	sysname = os.uname()[1]
 	if sysname == 'DESKTOP-CSHARFM':
 		# LAPTOP
@@ -738,8 +764,8 @@ def syspath():
 		# dpath = "/mnt/e"
 		ipdb.set_trace()
 	elif sysname == "owner":
-		ipdb.set_trace()
 		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/d/Data51/BurntArea/"
 	elif sysname == "ubuntu":
 		# Work PC
 		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/"
