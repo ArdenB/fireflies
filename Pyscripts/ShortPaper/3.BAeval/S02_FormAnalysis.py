@@ -332,8 +332,12 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 
 	# ========== Convert to dataframe ==========
 	dfps = pd.DataFrame(processed).transpose()
-	ax = dfps.plot.bar()
+	cmapHex = palettable.colorbrewer.diverging.PuOr_4_r.hex_colors
+	ax = dfps.plot.bar(rot=0, color=cmapHex)
+	ax.legend(["Correct", "Delayed", "False Negative", "False Positive"])
+	plt.ylabel("% of detections")
 	plt.show()
+	ipdb.set_trace()
 	return dfscore, dfps
 
 # ==============================================================================
