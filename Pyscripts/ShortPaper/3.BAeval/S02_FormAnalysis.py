@@ -82,6 +82,8 @@ import socket
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 # # Import debugging packages 
+# import ipdb
+# ipdb.set_trace()
 if not os.uname()[1] =='arden-H97N-WIFI':
 	import ipdb
 else:
