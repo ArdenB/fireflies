@@ -116,6 +116,8 @@ def main():
 
 	# ========== Pull out the field data ==========
 	fd = Field_data(df, site_coords, force=True)
+	# FieldHyptest(fd)
+	# ipdb.set_trace()
 
 	# ========== Find the save lists ==========
 	spath, dpath = syspath()
@@ -138,14 +140,35 @@ def main():
 	# ========== WOrk out how the histories compare ==========
 	dtscore, dtsum = SiteHistScore(siteseries, site_coords, data, fd)
 	ipdb.set_trace()
-	
-	ax2 = sns.swarmplot(y="PostFLdist", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
-	plt.figure(2)
-	ax3 = sns.swarmplot(y="PostFLfire", x="RECRU", data=dfsum, order=["AR", "IR", "PR", "RF"])
-	plt.show()
+	try :
+		ax2 = sns.swarmplot(y="PostFLdist", x="RECRU", data=dfsum, order=["AR", "IR", "RF"])
+		plt.figure(2)
+		ax3 = sns.swarmplot(y="PostFLfire", x="RECRU", data=dfsum, order=["AR", "IR", "RF"])
+		plt.show()
+	except:
+		ipdb.set_trace()
 
-	ipdb.set_trace()
 	# ========== Get out some basic infomation ==========
+	ipdb.set_trace()
+# ==============================================================================
+# Field data investigation
+# ==============================================================================
+def FieldHyptest(fd):
+	
+	"""Script for looking at the field data"""
+	
+	fds = ~np.isnan(fd[["FBurn01", "FBurn02", "FBurn03", "FBurn04"]].astype(float))
+
+	# ========= Build the plot ===========
+	cmapHex = palettable.colorbrewer.qualitative.Set1_3_r.hex_colors
+		
+	ax  =  sns.swarmplot(y=fds.sum(axis=1), x=fd["Recruitment"], order=["AR", "IR", "RF"], palette=cmapHex)
+	plt.ylabel("Number of Fire events")
+	plt.xlabel("Recuitment pathway")
+	plt.show()
+	
+	# Produce the plot 
+	ipdb.set_trace()
 
 # ==============================================================================
 # BA product scorer 
@@ -766,7 +789,7 @@ def Field_data(df, site_coords, force=False):
 
 	def _fdfix(RFinfo):
 		
-		RFinfo["RF"][RFinfo["RF"].str.contains("poor")] = "PR"  #"no regeneration"
+		RFinfo["RF"][RFinfo["RF"].str.contains("poor")] = "RF"  #"no regeneration"
 		RFinfo["RF"][RFinfo["RF"].str.contains("no regeneration")] = "RF" 
 		
 		RFinfo["RF"][RFinfo["RF"].str.contains("singular")] = "IR"  

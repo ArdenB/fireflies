@@ -86,8 +86,9 @@ def main(args):
 
 	# ========== Set an overwrite =========
 	force = False
-	cordf = False #force the creation of a new maskter coord list
+	cordf = True #force the creation of a new maskter coord list
 	tsite = args.site
+	cordg = True
 
 	# ========== Create the system specific paths ==========
 	sysname = os.uname()[1]
@@ -136,7 +137,7 @@ def main(args):
 				# ========== Get the start time ==========
 				t0 = pd.Timestamp.now()
 
-				if is.path.isfile("%s%s/raw/failed_geotifs.npy" % (spath, tsite)):
+				if os.path.isfile("%s%s/raw/failed_geotifs.npy" % (spath, tsite)):
 
 					fails = np.load("%s%s/raw/failed_geotifs.npy" % (spath, tsite))
 
@@ -154,9 +155,10 @@ def main(args):
 
 					td = pd.Timestamp.now() - t0
 					print("\n Data for %s sent sent for cloud processing. it took " % coords["name"], td)
-
-		
-
+		elif cordg:
+			print("Building a new cords file for %s" % coords["name"])
+			ipdb.set_trace()
+			coords.to_csv("%s%s/%s_%s_gridinfo.csv" % (spath, coords["name"], program, coords["name"]), header=True)
 		elif os.path.isfile(checkfile) and not force:
 			print("Data has already been exported for %s" % coords["name"])
 			if cordf:
@@ -463,7 +465,7 @@ def geom_builder(site = "Burn2015 UP"):
 		year.append(2018)	
 	
 	# ========== add 2017 ==========
-	fd17 = pd.read_csv("./data/field/2018data/siteDescriptions17.csv")
+	fd17 = pd.read_csv("./data/field/2017data/siteDescriptions17.csv")
 	fd17.sort_values(by=["site number"],inplace=True) 
 	for nx, row in fd17.iterrows():
 		stnm = "Site%02d" % row["site number"]
@@ -546,18 +548,18 @@ def geom_builder(site = "Burn2015 UP"):
 		# ========== Work out the edges of the grid box ==========
 		latstep = abs(np.unique(np.round(np.diff(ds_gr.latitude.values), decimals=9)))/2.0
 		lonstep = abs(np.unique(np.round(np.diff(ds_gr.longitude.values), decimals=9)))/2.0
-
 		if boxs == 3:
-			coords["lon%s_max" % ident] = gr_bx.longitude.values + lonstep
-			coords["lon%s_min" % ident] = gr_bx.longitude.values - lonstep
-			coords["lat%s_max" % ident] = gr_bx.latitude.values  + latstep
-			coords["lat%s_min" % ident] = gr_bx.latitude.values  - latstep
+			coords["lon%s_max" % ident] = float((gr_bx.longitude.values + (lonstep*2)) + lonstep)
+			coords["lon%s_min" % ident] = float((gr_bx.longitude.values - (lonstep*2)) - lonstep)
+			coords["lat%s_max" % ident] = float((gr_bx.latitude.values  + (latstep*2)) + latstep)
+			coords["lat%s_min" % ident] = float((gr_bx.latitude.values  - (latstep*2)) - latstep)
+			# ipdb.set_trace()
 
 		elif boxs == 5:
-			coords["lon%s_max" % ident] = (gr_bx.longitude.values + 2*(lonstep*2)) + lonstep
-			coords["lon%s_min" % ident] = (gr_bx.longitude.values - 2*(lonstep*2)) - lonstep
-			coords["lat%s_max" % ident] = (gr_bx.latitude.values  + 2*(latstep*2)) + latstep
-			coords["lat%s_min" % ident] = (gr_bx.latitude.values  - 2*(latstep*2)) - latstep
+			coords["lon%s_max" % ident] = float((gr_bx.longitude.values + 2*(lonstep*2)) + lonstep)
+			coords["lon%s_min" % ident] = float((gr_bx.longitude.values - 2*(lonstep*2)) - lonstep)
+			coords["lat%s_max" % ident] = float((gr_bx.latitude.values  + 2*(latstep*2)) + latstep)
+			coords["lat%s_min" % ident] = float((gr_bx.latitude.values  - 2*(latstep*2)) - latstep)
 
 
 		sitinfoLS[site] = coords
@@ -665,6 +667,9 @@ def datasets():
 	elif sysname == "ubuntu":
 		# Work PC
 		dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
+	elif sysname == "owner":
+		# spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/d/Data51"
 	else:
 		warn.warn("Paths not created for this computer. System" + sysname)
 		# dpath =  "/media/ubuntu/Seagate Backup Plus Drive"
@@ -779,12 +784,15 @@ else:
 	# ========== Add additional arguments ==========
 	parser.add_argument(
 		"-s", "--site", type=str, default=None, help="Site to work with ")
+
 	# parser.add_argument(
-	# 	"--gparts", type=int, default=None,   
-	# 	help="the max partnumber that has not been redone")
+	# 	"-x", "--cordforce", action="store_true",
+	# 	help="just produce the cordinates without sending things to google earth engine")
+
 	parser.add_argument(
 		"-f", "--force", action="store_true",
 		help="the max partnumber that has not been redone")
+	
 	args = parser.parse_args() 
 	
 	# ========== Call the main function ==========
