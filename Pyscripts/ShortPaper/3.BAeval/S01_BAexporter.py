@@ -111,6 +111,7 @@ def main():
 	
 	# ========== Determine if i show the plots ==========
 	plot = False
+	# plot = True
 
 
 	# ========== Set the site up ==========
@@ -122,8 +123,9 @@ def main():
 		# cf.pymkdir(path)
 
 		# ========== Make the hansen forest maps ==========
-		for dsn in ["MODIS", "esacci"]:
+		for dsn in ["esacci", "MODIS"]:
 			MODISbox(dsn, path, dfg, site, data, dpath, plot)
+			# ipdb.set_trace()
 
 		# esacci(path, dfg, site, data, dpath, plot)
 
@@ -147,6 +149,8 @@ def MODISbox(dsn, path, dfg, site, data, dpath, plot):
 		# ========== fiz a time issue ==========
 		if dsn == "COPERN_BA":
 			ds["time"] = pd.date_range('2014-06-30', periods=6, freq='A')
+		elif dsn == "esacci":
+			ds = ds.sortby("latitude", ascending=False)
 	else:
 		# ========== open the dataset ==========
 		ds = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])

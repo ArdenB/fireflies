@@ -116,7 +116,7 @@ def main():
 
 	# ========== Pull out the field data ==========
 	fd = Field_data(df, site_coords, force=True)
-	# FieldHyptest(fd)
+	FieldHyptest(fd)
 	# ipdb.set_trace()
 
 	# ========== Find the save lists ==========
