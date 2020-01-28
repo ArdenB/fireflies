@@ -74,7 +74,7 @@ import myfunctions.PlotFunctions as pf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 # # Import debugging packages 
-import ipdb
+import pdb as ipdb
 
 print("numpy version  : ", np.__version__)
 print("pandas version : ", pd.__version__)
@@ -94,6 +94,8 @@ def main():
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/"
 	cf.pymkdir(plotdir)
+	# compath = "/media/ubuntu/Seagate Backup Plus Drive"
+	compath = "/mnt/e"
 
 	for mwb in mwbox:
 		# ========== Setup the dataset ==========
@@ -101,16 +103,17 @@ def main():
 		for dsnm in dsnames:
 			if not dsnm.startswith("HansenGFL"):
 				# +++++ make a path +++++
-				ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsnm
+				ppath = compath + "/Data51/BurntArea/%s/FRI/" %  dsnm
 				fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
 			else:
-				ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/FRI/"
+				ppath = compath + "/Data51/BurntArea/HANSEN/FRI/"
 				fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
 				if dsnm == "HansenGFL":
 					fname += ".nc"
 				else:
 					fname += "MAF.nc"
 			# +++++ open the datasets +++++
+			# ipdb.set_trace()
 			datasets[dsnm] = xr.open_dataset(ppath+fname)
 			# ipdb.set_trace()
 		
