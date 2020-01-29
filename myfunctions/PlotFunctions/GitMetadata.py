@@ -47,7 +47,7 @@ def gitmetadata():
 		# 	# Get the current git hash
 		# 	git_hash = git.Repo(repo_dir).heads[0].commit # get the current head
 	except git.exc.InvalidGitRepositoryError:
-		print('To record the git hash, must run script from top of directory tree in git repo')
+		print('git is raising a InvalidGitRepositoryError. returning unknown for git repo')
 		git_hash = 'unknown'
 	except TypeError:
 		print('To record the git hash, must run script from top of directory tree in git repo')
