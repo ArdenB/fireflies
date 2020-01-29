@@ -74,7 +74,8 @@ import myfunctions.PlotFunctions as pf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 # # Import debugging packages 
-import pdb as ipdb
+# import pdb as ipdb
+import ipdb
 
 print("numpy version  : ", np.__version__)
 print("pandas version : ", pd.__version__)
@@ -88,14 +89,14 @@ def main():
 
 	mwbox   = [1, 2, 5]
 	dsnames = ["COPERN_BA", "MODIS", "esacci", "HansenGFL-MAF"]#, "HansenGFL"
-	formats = [".png", ".pdf"] # None
+	formats = [".png"]#, ".pdf"] # None
 	# mask    = True
 
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/"
 	cf.pymkdir(plotdir)
 	# compath = "/media/ubuntu/Seagate Backup Plus Drive"
-	compath = "/mnt/e"
+	compath = syspath()
 
 	for mwb in mwbox:
 		# ========== Setup the dataset ==========
@@ -119,12 +120,12 @@ def main():
 		
 		for var in ["FRI", "AnBF"]:
 			for mask in [True, False]:
-				plotmaker(datasets, var, mwb, plotdir, formats, mask)
+				plotmaker(datasets, var, mwb, plotdir, formats, mask, compath)
 
 			ipdb.set_trace()
 
 #==============================================================================
-def plotmaker(datasets, var, mwb, plotdir, formats, mask):
+def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
@@ -140,7 +141,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask):
 	# ========== Loop over the figure ==========
 	for ax, dsn, in zip(axs, datasets):
 		# make the figure
-		im = _subplotmaker(ax, var, dsn, datasets, mask)
+		im = _subplotmaker(ax, var, dsn, datasets, mask, compath)
 		ax.set_aspect('equal')
 
 	# ========== Make the final figure adjusments ==========
@@ -169,7 +170,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask):
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def _subplotmaker(ax, var, dsn, datasets, mask, region = "SIBERIA"):
+def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA"):
 	
 	# ========== Get the data for the frame ==========
 	frame = datasets[dsn][var].isel(time=0)
@@ -178,7 +179,7 @@ def _subplotmaker(ax, var, dsn, datasets, mask, region = "SIBERIA"):
 	# ========== mask ==========
 	if mask:
 		# +++++ Setup the paths +++++
-		stpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/ForestExtent/%s/" % dsn
+		stpath = compath +"/Data51/ForestExtent/%s/" % dsn
 		fnmask = stpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMaskV2.nc" % (dsn, region)
 
 		# +++++ Check if the mask exists yet +++++
@@ -271,6 +272,22 @@ def _subplotmaker(ax, var, dsn, datasets, mask, region = "SIBERIA"):
 	ax.set_title(dsn)
 
 	return im
+
+
+def syspath():
+	# ========== Create the system specific paths ==========
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-UA7CT9Q':
+		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/h"
+	elif sysname == "ubuntu":
+		ipdb.set_trace()
+		# Work PC
+		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/"
+		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+	else:
+		ipdb.set_trace()
+	return dpath
 
 #==============================================================================
 if __name__ == '__main__':

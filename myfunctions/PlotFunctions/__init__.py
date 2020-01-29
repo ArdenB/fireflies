@@ -6,7 +6,7 @@ if sys.version.startswith("2.7"):
 	from GitMetadata import gitmetadata
 	from HistogramMaker import histmaker
 	from ReplaceHexColors import ReplaceHexColor
-elif sys.version.startswith("3.7"):
+elif sys.version.startswith("3."):
 	from myfunctions.PlotFunctions.MapMaker import mapmaker
 	from myfunctions.PlotFunctions.MappingClass import mapclass
 	from myfunctions.PlotFunctions.ReplaceColor import ReplaceColor
