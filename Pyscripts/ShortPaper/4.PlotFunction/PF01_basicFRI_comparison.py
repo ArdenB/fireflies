@@ -115,7 +115,7 @@ def main():
 					fname += "MAF.nc"
 			# +++++ open the datasets +++++
 			# ipdb.set_trace()
-			datasets[dsnm] = xr.open_dataset(ppath+fname)
+			datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
 			# ipdb.set_trace()
 		
 		for var in ["FRI", "AnBF"]:
@@ -160,7 +160,8 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
 		# ========== loop over the formats ==========
 		for fmt in formats:
 			plt.savefig(plotfname+fmt)#, dpi=dpi)
-
+	print("Starting plot show at:", pd.Timestamp.now())
+	
 	plt.show()
 	if not (plotfname is None):
 		maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
@@ -172,8 +173,13 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
 #==============================================================================
 def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA"):
 	
+
+	# ========== open the dataset ==========
+	ds_dsn = xr.open_dataset(datasets[dsn])
+	# ipdb.set_trace()
+
 	# ========== Get the data for the frame ==========
-	frame = datasets[dsn][var].isel(time=0)
+	frame = ds_dsn[var].isel(time=0)
 	bounds = [-10.0, 180.0, 70.0, 40.0]
 
 	# ========== mask ==========
@@ -281,9 +287,8 @@ def syspath():
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		dpath = "/mnt/h"
 	elif sysname == "ubuntu":
-		ipdb.set_trace()
 		# Work PC
-		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/"
+		dpath = "/media/ubuntu/Seagate Backup Plus Drive"
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	else:
 		ipdb.set_trace()
