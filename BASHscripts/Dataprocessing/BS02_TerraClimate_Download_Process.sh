@@ -1,5 +1,5 @@
 #!/bin/sh
-for i in {1958..2019};
+for i in {1958..2018};
 do
         #merge the files using cdo
         echo $i
