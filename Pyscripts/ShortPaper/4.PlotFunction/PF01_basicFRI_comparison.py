@@ -125,6 +125,7 @@ def main():
 			ipdb.set_trace()
 
 #==============================================================================
+
 def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
 	"""Function builds a basic stack of maps """
 
