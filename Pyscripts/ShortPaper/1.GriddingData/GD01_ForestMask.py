@@ -101,121 +101,14 @@ def main():
 	broadMask(dpath, region, minTC, nfval, force, data, dates)
 
 	# ========== Create the landsea mask ==========
-	def landwatermask(dpath, region, maxNF, nfval, force, data):
-		"""
-		Logic build a basic land sea datamask at every resolution
-			if a dataset has its own mask great, if not just use the MODIS one
-		"""
-		print("starting Landwater Masking at:", pd.Timestamp.now())
-		ppath = dpath + "/Data51/masks/landwater"
-		cf.pymkdir(ppath)
-		cf.pymkdir(ppath+"/tmp")
-
-
-		# =========== MODIS gets processed first ===========
-		def _modislandwater(ppath, force):
-			# THIS FUNCTION IS JUST FOR MODIS
-			if not os.path.isfile(ppath+"/MODIS_landwater.nc") or force:
-				rawmaskfn = dpath +"/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
-
-				# +++++ load the data +++++
-				ds_Rmask = xr.open_dataset(rawmaskfn, chunks={"time":1}).rename({"lat":"latitude", "lon":"longitude"})
-
-				# +++++ get the values +++++
-				with ProgressBar():
-					ds_mask = (
-						ds_Rmask.isel(time=-1).drop(
-							["QC", "crs"]).rename({"LW":"landwater"}) == 2.0).astype("float32").compute()
-				# ========== fix the metadata ==========
-				ds_mask.attrs = GlobalAttributes(ds_Rmask, "MODIS", fname="", title="LandWaterMask")
-				ds_mask.attrs["summary"] = "Land water mask for BA data"
-				dts = datefixer(2018, 12, 31)
-				ds_mask["time"] = dts["time"]
-
-				ds_tmp = tempNCmaker(ds_mask.coarsen(latitude=3, longitude=3).median(), ppath+"/tmp/MODIS_landwater.nc", "landwater", 
-					pchunk=None, chunks=None, skip=False, 
-					pro = "MODIS land water mask")
-				
-				ds_mask = ds_mask.where(ds_mask==1)
-
-				ds = tempNCmaker(ds_mask, ppath+"/MODIS_landwater.nc", "landwater", 
-					pchunk=None, chunks=None, skip=False, 
-					pro = "MODIS land water mask")
-			else:
-				ds = xr.open_dataset(ppath+"/MODIS_landwater.nc")
-			return ds
-		# ===== Fetch the modis mask =====
-		ds_mod = _modislandwater(ppath, force)
-
-		# ========== Loop over each dataset ==========
-		for dsn in data:
-			if dsn == 'MODIS':
-				# The broad mask is alread at this resolution
-				continue
-			elif dsn in ["TerraClimate"]: #, "GIMMS"
-				print("Upscaling %s started at:" % dsn, pd.Timestamp.now())
-
-				def _upscaler(ppath, dsn, data, ds_mod, force):
-					# Functiuon for scaling up datasets
-					# ds_ref = xr.open_dataset(data[dsn]["fname"])
-
-					fntmp = ppath+"/tmp/%s_landwater.nc" % dsn
-					fnout = ppath+"/%s_landwater.nc" % dsn
-
-					if not os.path.isfile(fntmp) or force:
-						cdo = Cdo()
-						
-						griddes = (ppath+"/tmp/griddes_%s" % dsn)
-						# create a grid 
-						subp.call("cdo griddes %s > %s" % (data[dsn]["fname"], griddes), shell=True)
-						# remap the data
-						print("remapcon2 of %s started at:" % dsn, pd.Timestamp.now())
-						cdo.remapcon2(griddes, input=ppath+"/tmp/MODIS_landwater.nc",  
-							output=fntmp, options = "-P 8")
-
-					# ==========c open the file out ==========
-					ds_tmp = xr.open_dataset(fntmp)
-					try:
-						ds_tmp = ds_tmp.rename({"lat":"latitude", "lon":"longitude"})
-					except:pass
-
-					# ==========c make the file boolean ==========
-					ds_tmp - ds_tmp
-
-
-					ipdb.set_trace()
-				
-				ds_out = _upscaler(ppath, dsn, data, ds_mod, force)
-				ipdb.set_trace()
-			else:
-				ipdb.set_trace()
-				print("Upscaling %s started at:" % dsn, pd.Timestamp.now())
-				# ========== reindex the mask ==========
-				def _downscaler(ppath, dsn, data, ds_mod, force):
-					ds_ref = xr.open_dataset(data[dsn]["fname"])
-					ds_mask = ds_mod.reindex({
-						"longitude":ds_ref.longitude, 
-						"latitude":ds_ref.latitude}, method="nearest")
-					ipdb.set_trace()
-
-				ipdb.set_trace()
-
-
-
-		ipdb.set_trace()
-		sys.exit()
-
-
-	# ========== Create the second mask ==========
 	landwatermask(dpath, region, maxNF, nfval, force, data)
-
-
-	# force  =  True
+	
+	# ========== Create the original masks ==========
+	warn.warn("Stuff beyond this point i have not vetted as well")
 	ds    = HansenCoarsenLoad(ppath, region, maxNF, nfval, force, data)
 
 	# ds    = ds.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-15, 180.0)))
 	ipdb.set_trace()
-	sys.exit()
 
 	# ========== Loop over the datasets ==========
 	cleanup = []
@@ -256,6 +149,123 @@ def main():
 #==============================================================================
 # The middle grids
 #==============================================================================
+def landwatermask(dpath, region, maxNF, nfval, force, data):
+	"""
+	Logic build a basic land sea datamask at every resolution
+		if a dataset has its own mask great, if not just use the MODIS one
+	"""
+	print("starting Landwater Masking at:", pd.Timestamp.now())
+	ppath = dpath + "/Data51/masks/landwater"
+	cf.pymkdir(ppath)
+	cf.pymkdir(ppath+"/tmp")
+
+
+	# =========== MODIS gets processed first ===========
+	def _modislandwater(ppath, force):
+		# THIS FUNCTION IS JUST FOR MODIS
+		if not os.path.isfile(ppath+"/MODIS_landwater.nc") or force:
+			rawmaskfn = dpath +"/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+
+			# +++++ load the data +++++
+			ds_Rmask = xr.open_dataset(rawmaskfn, chunks={"time":1}).rename({"lat":"latitude", "lon":"longitude"})
+
+			# +++++ get the values +++++
+			with ProgressBar():
+				ds_mask = (
+					ds_Rmask.isel(time=-1).drop(
+						["QC", "crs"]).rename({"LW":"landwater"}) == 2.0).astype("float32").compute()
+			# ========== fix the metadata ==========
+			ds_mask.attrs = GlobalAttributes(ds_Rmask, "MODIS", fname="", title="LandWaterMask")
+			ds_mask.attrs["summary"] = "Land water mask for BA data"
+			dts = datefixer(2018, 12, 31)
+			ds_mask["time"] = dts["time"]
+
+			ds_tmp = tempNCmaker(ds_mask.coarsen(latitude=3, longitude=3).median(), ppath+"/tmp/MODIS_landwater.nc", "landwater", 
+				pchunk=None, chunks=None, skip=False, 
+				pro = "MODIS land water mask")
+			
+			ds_mask = ds_mask.where(ds_mask==1)
+
+			ds = tempNCmaker(ds_mask, ppath+"/MODIS_landwater.nc", "landwater", 
+				pchunk=None, chunks=None, skip=False, 
+				pro = "MODIS land water mask")
+		else:
+			ds = xr.open_dataset(ppath+"/MODIS_landwater.nc", chunks= {'latitude': 1000, 'longitude':1000})
+		return ds
+	# ===== Fetch the modis mask =====
+	ds_mod = _modislandwater(ppath, force)
+
+	# ========== Loop over each dataset ==========
+	for dsn in data:
+		if dsn == 'MODIS':
+			# The broad mask is alread at this resolution
+			continue
+		elif dsn in ["TerraClimate", "COPERN", "GIMMS"]:
+			print("Upscaling %s started at:" % dsn, pd.Timestamp.now())
+
+			def _upscaler(ppath, dsn, data, ds_mod, force):
+				# Functiuon for scaling up datasets
+				# ds_ref = xr.open_dataset(data[dsn]["fname"])
+
+				fntmp = ppath+"/tmp/%s_landwater.nc" % dsn
+				fnout = ppath+"/%s_landwater.nc" % dsn
+				if not os.path.isfile(fnout) or force:
+					if not os.path.isfile(fntmp) or force:
+						cdo = Cdo()
+						
+						griddes = (ppath+"/tmp/griddes_%s" % dsn)
+						# create a grid 
+						subp.call("cdo griddes %s > %s" % (data[dsn]["fname"], griddes), shell=True)
+						# remap the data
+						print("remapcon2 of %s started at:" % dsn, pd.Timestamp.now())
+						cdo.remapcon2(griddes, input=ppath+"/tmp/MODIS_landwater.nc",  
+							output=fntmp, options = "-P 8")
+
+					# ==========c open the file out ==========
+					ds_tmp = xr.open_dataset(fntmp)
+					try:
+						ds_tmp = ds_tmp.rename({"lat":"latitude", "lon":"longitude"})
+					except:pass
+
+					# ==========c make the file boolean ==========
+					ds_tmp = (ds_tmp>.5).astype("float32").where(ds_tmp == 1)
+					ds_tmp["time"] = ds_mod.time
+					ds_tmp.attrs = ds_mod.attrs
+					ds_ref = tempNCmaker(ds_tmp, fnout, "landwater", 
+						pchunk=None, chunks=None, skip=False, pro = "%s land water mask" % dsn)
+				else:
+					print("A land water mask alread exists")
+			ds_out = _upscaler(ppath, dsn, data, ds_mod, force)
+		
+		elif dsn in ["COPERN_BA", "esacci"]:
+			print("Upscaling %s started at:" % dsn, pd.Timestamp.now())
+			# ========== reindex the mask ==========
+			def _downscaler(ppath, dsn, data, ds_mod, force):
+				if not os.path.isfile(ppath+"/%s_landwater.nc" %dsn) or force:
+
+					ds_ref = xr.open_dataset(data[dsn]["fname"])
+
+					ds_mask = ds_mod.reindex({
+						"longitude":ds_ref.longitude, 
+						"latitude":ds_ref.latitude}, method="nearest")
+					ds_mask = ds_mask.transpose('time', 'latitude', 'longitude')
+
+					ds_ref = tempNCmaker(ds_mask, ppath+"/%s_landwater.nc" %dsn, "landwater", 
+						pchunk=None, chunks= {'latitude': 1000, 'longitude':1000}, skip=False, 
+						pro = "%s land water mask" % dsn)
+				else:
+					print("A land water mask alread exists")
+
+			_downscaler(ppath, dsn, data, ds_mod, force)
+
+		else:
+			ipdb.set_trace()
+	# ========== Cleanup at the end ==========
+	subp.call("rm -rf %s " % ((ppath+"/tmp/")), shell=True) 
+
+	ipdb.set_trace()
+	sys.exit()
+
 def _broadmaskGridder(ppath, region, ds, box, data, dsn, dates, force):
 	"""
 	Function to regrid and build masks for all the datasets
@@ -602,6 +612,7 @@ def tempNCmaker(ds, fntmp, vname, pchunk=1000, chunks={'longitude': 1000, "latit
 		print("Starting write of %s data at" % pro, pd.Timestamp.now())
 		with ProgressBar():
 			results = delayed_obj.compute()
+	
 	dsout = xr.open_dataset(fntmp, chunks=chunks) 
 	return dsout
 
