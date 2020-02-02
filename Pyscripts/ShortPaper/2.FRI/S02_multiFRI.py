@@ -36,7 +36,7 @@ from collections import OrderedDict
 import warnings as warn
 from netCDF4 import Dataset, num2date, date2num 
 from scipy import stats
-import rasterio
+# import rasterio
 import xarray as xr
 from dask.diagnostics import ProgressBar
 from numba import jit
@@ -59,8 +59,8 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import ipdb
 # from rasterio.warp import transform
 from shapely.geometry import Polygon
-import geopandas as gpd
-from rasterio import features
+# import geopandas as gpd
+# from rasterio import features
 from affine import Affine
 # +++++ Import my packages +++++
 import myfunctions.corefunctions as cf 
@@ -71,28 +71,29 @@ import myfunctions.corefunctions as cf
 
 def main():
 	# ========== Setup the paths ==========
-	data = datasets()
+	dpath = syspath()
+	data  = datasets(dpath)
 	
 	# ========== select and analysis scale ==========
 	mwbox = [1, 2, 5]#, 1, 10] #in decimal degrees
-	force = True
-	# force = False
+	# force = True
+	force = False
 	for dsn in data:
 		# ========== Set up the filename and global attributes =========
-		ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/%s/FRI/" %  dsn
+		ppath = dpath + "/Data51/BurntArea/%s/FRI/" %  dsn
 		cf.pymkdir(ppath)
 		
 		# ========== Get the dataset =========
-		ds, mask = dsloader(data, dsn, ppath, force)
+		ds, mask = dsloader(data, dsn, ppath, dpath, force)
 
 		# ========== Calculate the annual burn frewuency =========
 		# force = False
 		ds_ann = ANNcalculator(data, dsn, ds, mask, force, ppath)
 
-		# force = True
+		force = True
 		# ========== work out the FRI ==========
 		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
-		force = False
+		# force = False
 		
 	ipdb.set_trace()
 
@@ -111,7 +112,8 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 	
 	# ========== work out the ration ==========
 	pix    =  abs(np.unique(np.diff(ds_ann.latitude.values))[0]) 
-	ds_ann = ds_ann.chunk({"latitude":1000, "longitude":-1})
+	ds_ann = ds_ann.chunk({"latitude":500, "longitude":-1})
+	ipdb.set_trace()
 
 	# ========== Build a cleanup list ==========
 	cleanup = []
@@ -133,25 +135,25 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		# ===== Create a masksum =====
 		# This is so i can count the number of values that are valid in each location
-		mask_sum = mask.rolling({"longitude":SF}, center = True, min_periods=1).sum()
-		mask_sum = mask_sum.rolling({"latitude":SF}, center = True, min_periods=1).sum()
 
 		# ===== Calculate the Moving window =====
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
-		# warn.warn("Implement some form of masking here")
-		dsan_lons = dsan_lons.where(mask["mask"].values == 1)
-
-		# ========== Mask out bad pixels ==========
+		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 500}, readchunks={'longitude': 1000}, skip=False)
+		
+		# dsan_lons = dsan_lons.where(mask["mask"].values == 1)
 		# ds_con = ds_con.where(mask.mask.values == 1)
-		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 1000}, readchunks={'longitude': 1000}, skip=False)
+		# ========== Mask out bad pixels ==========
+		warn.warn("This bit here is where i can save some ram i think")
+		mask_sum = mask.rolling({"longitude":SF}, center = True, min_periods=1).sum()
+		mask_sum = mask_sum.rolling({"latitude":SF}, center = True, min_periods=1).sum()
 
 		# ===== Calculate the Moving window in the other dim =====
 		ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
-		ds_out = ds_out.where(mask["mask"].values == 1) #Mask out water
-		ds_out = ds_out.where(mask_sum["mask"].values > ((SF/2)**2)) #Mask out points that lack data
+		ds_out = ds_out.where(mask["landwater"].values == 1) #Mask out water
+		ds_out = ds_out.where(mask_sum["landwater"].values > ((SF/2)**2)) #Mask out points that lack data
 		
 		# ===== Deal with the locations with no fire history =====
-		ds_out = ds_out.where(ds_out > 0, 0.00001)
+		ds_out = ds_out.where(ds_out > 0, 0.000001)
 		
 		# ===== Calculate a FRI =====
 		ds_out["FRI"] = 1.0/ds_out["AnBF"]
@@ -162,7 +164,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		# ===== Save the file out =====
 		ds_out = tempNCmaker(
-			ds_out, ppath, fname, ["AnBF", "FRI"], {'longitude': 1000}, 
+			ds_out, ppath, fname, ["AnBF", "FRI"], {'longitude': 500}, 
 			readchunks=data[dsn]["chunks"], skip=False, name="%s %d degree MW" % (dsn, mwb))
 
 		cleanup.append(ppath+tname)
@@ -215,7 +217,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 		attrs = GlobalAttributes(ds_flat, dsn, fnameout=ppath+tname)
 
 		# ========== add some form of mask here ==========
-		ds_flat = ds_flat.where(mask["mask"].values == 1).astype("float32")
+		ds_flat = ds_flat.where(mask["landwater"].values == 1).astype("float32")
 
 		# ========== create a date ==========
 		dates    = datefixer(data[dsn]["end"], 12, 31)
@@ -267,7 +269,7 @@ def tempNCmaker(ds, tmppath, tmpname, vname, writechunks, readchunks={'longitude
 	dsout = xr.open_dataset(fntmp, chunks=readchunks) 
 	return dsout
 
-def dsloader(data, dsn, ppath, force):
+def dsloader(data, dsn, ppath, dpath, force):
 	"""Takes in infomation about datasets and loads a file
 	args
 		data: Ordered dict
@@ -295,38 +297,38 @@ def dsloader(data, dsn, ppath, force):
 	else:
 		ds = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
 	
-	mask = landseamaks(data, dsn, ppath, ds, force )
+	mask = landseamaks(data, dsn, ppath, dpath, ds, force )
 
 	return ds, mask
 
-def landseamaks(data, dsn, ppath, ds, force, chunks=None ):
-
+def landseamaks(data, dsn, ppath, dpath, ds, force, chunks=None ):
 	# ========== create the mask fielname ==========
-	masknm = "%s_landseamask.nc" % dsn
+	# masknm = ppath + "%s_landseamask.nc" % dsn
+	masknm = dpath+"/Data51/masks/landwater/%s_landwater.nc" % dsn
 
-	if dsn == "esacci":
-		chunks = data[dsn]["chunks"]
+	# if dsn == "esacci":
+	# 	chunks = data[dsn]["chunks"]
 
-	raw_mask = xr.open_dataset(ppath+masknm, chunks=chunks)
+	raw_mask = xr.open_dataset(masknm, chunks=chunks)
 	return raw_mask
 
-def datasets():
+def datasets(dpath):
 	# ========== set the filnames ==========
 	data= OrderedDict()
 	data["COPERN_BA"] = ({
-		'fname':"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+		'fname':dpath+"/Data51/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
 		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
 		"start":2014, "end":2019,"rasterio":False, "chunks":None, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
 	data["MODIS"] = ({
-		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		"fname":dpath+"/Data51/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
 		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000},
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
 		})
 	data["esacci"] = ({
-		"fname":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
+		"fname":dpath+"/Data51/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
 		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 1000},
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
@@ -423,6 +425,20 @@ def GlobalAttributes(ds, dsn, fnameout=""):
 	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
 	return attr	
 
+
+def syspath():
+	# ========== Create the system specific paths ==========
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-UA7CT9Q':
+		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/h"
+	elif sysname == "ubuntu":
+		# Work PC
+		dpath = "/media/ubuntu/Seagate Backup Plus Drive"
+		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+	else:
+		ipdb.set_trace()
+	return dpath	
 #==============================================================================
 
 if __name__ == '__main__':
