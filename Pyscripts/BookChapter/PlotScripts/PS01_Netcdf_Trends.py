@@ -70,14 +70,15 @@ def main():
 		# ========== Load the data ==========
 		ds   = xr.open_dataset(resinfo[dst]["fname"])
 		# ========== Load the mask for the correct grid ==========
-		mask = xr.open_dataset(
-		"./data/other/ForestExtent/BorealForestMask_%s.nc"%(resinfo[dst]["grid"]))
+		# mask = xr.open_dataset(
+		# "./data/other/ForestExtent/BorealForestMask_%s.nc"%(resinfo[dst]["grid"]))
+		mask = None
 		
 		# ========== Build the map ==========
 		xr_mapmaker(dst, ds, mask, resinfo[dst])
 
 		# ========== Get the stats ==========
-		statsmaker(dst, ds, mask, resinfo[dst])
+		# statsmaker(dst, ds, mask, resinfo[dst])
 
 #==============================================================================
 
@@ -96,7 +97,7 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 
 	"""
 	# ========== make my map detiles object ==========
-	mapdet = pf.mapclass("boreal")
+	mapdet = pf.mapclass("siberia")
 
 	# ========== add infomation to mapdet ==========
 	mapdet.var      = "slope" #the thing to be plotted
@@ -114,7 +115,7 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 	mapdet.cmax  = vmax # the max of the colormap
 	mapdet.ticks = ticks
 	mapdet.dpi   = 500 
-	mapdet.save  = True
+	mapdet.save  = False
 	# mapdet.cblabel  = "Trend in %s (%s)" % (dsinfo["param"], dsinfo["units"]) 
 	mapdet.cblabel  = "%s" % (dsinfo["units"]) 
 	mapdet.plotpath = "./plots/bookchapter/firstdraft/"
