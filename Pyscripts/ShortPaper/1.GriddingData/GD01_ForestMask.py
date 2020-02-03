@@ -874,10 +874,14 @@ def syspath():
 	sysname = os.uname()[1]
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
-		dpath = "/mnt/h"
+		# dpath = "/mnt/h"
+		dpath = "/mnt/d"
 	elif sysname == "ubuntu":
 		# Work PC
 		dpath = "/media/ubuntu/Seagate Backup Plus Drive"
+		warn.warn("This systom path points to an external harddrive not the local disk")
+		ipdb.set_trace()
+
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	else:
 		ipdb.set_trace()
