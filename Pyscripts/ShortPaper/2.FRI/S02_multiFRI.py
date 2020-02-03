@@ -71,8 +71,8 @@ import myfunctions.corefunctions as cf
 
 def main():
 	# ========== Setup the paths ==========
-	dpath = syspath()
-	data  = datasets(dpath)
+	dpath, chunksize = syspath()
+	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
 	mwbox = [1]#, 2, 5]#, 1, 10] #in decimal degrees
@@ -84,16 +84,13 @@ def main():
 		cf.pymkdir(ppath)
 		
 		# ========== Get the dataset =========
-		ds = dsloader(data, dsn, ppath, dpath, force)
-		mask = landseamaks(data, dsn, ppath, dpath, ds, force )
+		mask = landseamaks(data, dsn, dpath, force )
 
 		# ========== Calculate the annual burn frewuency =========
-		force = False
-		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath)
+		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize)
 
 		# ========== work out the FRI ==========
-		force = True
-		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
+		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
 		# force = False
 		
 	ipdb.set_trace()
@@ -104,7 +101,7 @@ def main():
 
 
 #==============================================================================
-def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
+def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 	""""""
 	""" Function to caluclate the FRI at different resolutions """
 	
@@ -113,7 +110,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 	
 	# ========== work out the ration ==========
 	pix    =  abs(np.unique(np.diff(ds_ann.latitude.values))[0]) 
-	ds_ann = ds_ann.chunk({"latitude":100, "longitude":-1})
+	ds_ann = ds_ann.chunk({"latitude":chunksize, "longitude":-1})
 
 	# ========== Build a cleanup list ==========
 	cleanup = []
@@ -155,16 +152,10 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 		mask_sum = xr.open_dataset(tpath+tMnme)
 		# This is so i can count the number of values that are valid in each location
 
-		# ===== Calculate the Moving window =====
+		# ===== Calculate the Moving window on dim 1 =====
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
-		ipdb.set_trace()
-
-		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 100}, readchunks={'longitude': 100}, skip=False)
-		ipdb.set_trace()
+		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': chunksize}, readchunks={'longitude': chunksize}, skip=False)
 		
-		# dsan_lons = dsan_lons.where(mask["mask"].values == 1)
-		# ds_con = ds_con.where(mask.mask.values == 1)
-
 		# ===== Calculate the Moving window in the other dim =====
 		ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
 		
@@ -183,7 +174,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		# ===== Save the file out =====
 		ds_out = tempNCmaker(
-			ds_out, ppath, tMnme, ["AnBF", "FRI"], {'longitude': 100}, 
+			ds_out, ppath, tMnme, ["AnBF", "FRI"], {'longitude': chunksize}, 
 			readchunks=data[dsn]["chunks"], skip=False, name="%s %d degree MW" % (dsn, mwb))
 
 
@@ -208,7 +199,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 			os.remove(file)
 	ipdb.set_trace()
 
-def ANNcalculator(data, dsn, mask,force, ppath, dpath):
+def ANNcalculator(data, dsn, mask,force, ppath, dpath, chunksize):
 	""" Function to calculate the FRI 
 	args
 		data: 	Ordered dict
@@ -326,7 +317,7 @@ def dsloader(data, dsn, ppath, dpath, force):
 
 	return ds
 
-def landseamaks(data, dsn, ppath, dpath, ds, force, chunks=None ):
+def landseamaks(data, dsn, dpath, force, chunks=None ):
 	# ========== create the mask fielname ==========
 	# masknm = ppath + "%s_landseamask.nc" % dsn
 	masknm = dpath+"/masks/landwater/%s_landwater.nc" % dsn
@@ -337,26 +328,26 @@ def landseamaks(data, dsn, ppath, dpath, ds, force, chunks=None ):
 	raw_mask = xr.open_dataset(masknm, chunks=chunks)
 	return raw_mask
 
-def datasets(dpath):
+def datasets(dpath, chunksize):
 	# ========== set the filnames ==========
 	data= OrderedDict()
 	data["COPERN_BA"] = ({
 		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
 		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': 500, 'latitude': 500}, 
+		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
 
 	data["MODIS"] = ({
 		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
 		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 500, 'latitude': 500},
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
 		})
 	data["esacci"] = ({
 		"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
 		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 500, 'latitude': 500},
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
 		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
@@ -459,17 +450,20 @@ def syspath():
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h/Data51"
 		dpath = "/mnt/d/Data51"
+		chunksize = 65
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
 		dpath = "/media/ubuntu/Harbinger/Data51"
+		chunksize = 65
 		
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
+		chunksize = 150
 	else:
 		ipdb.set_trace()
-	return dpath	
+	return dpath, chunksize	
 #==============================================================================
 
 if __name__ == '__main__':
