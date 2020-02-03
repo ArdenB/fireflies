@@ -151,7 +151,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 			_maskmaker(SF, mask, tpath, tMnme)
 		
 		print("Mask reload:", pd.Timestamp.now())
-		# xr.open_dataset(tpath+tMnme)
+		mask_sum = xr.open_dataset(tpath+tMnme)
 		# This is so i can count the number of values that are valid in each location
 
 		# ===== Calculate the Moving window =====
@@ -163,12 +163,12 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		# ===== Calculate the Moving window in the other dim =====
 		ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
-		ds_out = ds_out.where(mask["landwater"].values == 1) #Mask out water
-		ds_out = ds_out.where(mask_sum["landwater"].values == 1) #Mask out points that lack data
 		
 		# ========== Mask out bad pixels ==========
 		# ===== Deal with the locations with no fire history =====
 		ds_out = ds_out.where(ds_out > 0, 0.000001)
+		ds_out = ds_out.where(mask["landwater"].values == 1) #Mask out water
+		ds_out = ds_out.where(mask_sum["landwater"].values == 1) #Mask out points that lack data
 		
 		# ===== Calculate a FRI =====
 		ds_out["FRI"] = 1.0/ds_out["AnBF"]
@@ -183,9 +183,9 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 			readchunks=data[dsn]["chunks"], skip=False, name="%s %d degree MW" % (dsn, mwb))
 
 
+		# ipdb.set_trace()
 		cleanup.append(tpath+tname)
 		cleanup.append(tpath+tMnme)
-		# ipdb.set_trace()
 
 		# if mwb ==  1:
 		# 	print("\n Making some figures to check the %s %d degree results" % (dsn, mwb))
