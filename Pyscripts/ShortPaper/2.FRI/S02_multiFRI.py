@@ -184,7 +184,8 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 
 		cleanup.append(tpath+tname)
-		ipdb.set_trace()
+		cleanup.append(tpath+tMnme)
+		# ipdb.set_trace()
 
 		# if mwb ==  1:
 		# 	print("\n Making some figures to check the %s %d degree results" % (dsn, mwb))
