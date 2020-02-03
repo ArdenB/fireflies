@@ -75,7 +75,7 @@ def main():
 	data  = datasets(dpath)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1, 2, 5]#, 1, 10] #in decimal degrees
+	mwbox = [1]#, 2, 5]#, 1, 10] #in decimal degrees
 	# force = True
 	force = False
 	for dsn in data:
@@ -179,13 +179,12 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		# ===== Save the file out =====
 		ds_out = tempNCmaker(
-			ds_out, ppath, tname2, ["AnBF", "FRI"], {'longitude': 500}, 
+			ds_out, ppath, tMnme, ["AnBF", "FRI"], {'longitude': 500}, 
 			readchunks=data[dsn]["chunks"], skip=False, name="%s %d degree MW" % (dsn, mwb))
 
-		ipdb.set_trace()
-		ipdb.set_trace()
 
 		cleanup.append(tpath+tname)
+		ipdb.set_trace()
 
 		# if mwb ==  1:
 		# 	print("\n Making some figures to check the %s %d degree results" % (dsn, mwb))
