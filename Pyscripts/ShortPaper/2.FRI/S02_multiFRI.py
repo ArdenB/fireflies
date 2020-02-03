@@ -174,7 +174,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 
 		# ===== Save the file out =====
 		ds_out = tempNCmaker(
-			ds_out, ppath, tMnme, ["AnBF", "FRI"], {'longitude': chunksize}, 
+			ds_out, ppath, fname, ["AnBF", "FRI"], {'longitude': chunksize}, 
 			readchunks=data[dsn]["chunks"], skip=False, name="%s %d degree MW" % (dsn, mwb))
 
 
