@@ -61,7 +61,7 @@ import ipdb
 from shapely.geometry import Polygon
 # import geopandas as gpd
 # from rasterio import features
-from affine import Affine
+# from affine import Affine
 # +++++ Import my packages +++++
 import myfunctions.corefunctions as cf 
 # import MyModules.PlotFunctions as pf
@@ -92,7 +92,7 @@ def main():
 
 		force = True
 		# ========== work out the FRI ==========
-		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
+		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
 		# force = False
 		
 	ipdb.set_trace()
