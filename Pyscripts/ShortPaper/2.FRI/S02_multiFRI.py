@@ -88,12 +88,12 @@ def main():
 		mask = landseamaks(data, dsn, ppath, dpath, ds, force )
 
 		# ========== Calculate the annual burn frewuency =========
-		# force = False
-		force = True
+		force = False
 		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath)
 
 		# ========== work out the FRI ==========
-		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
+		force = True
+		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
 		# force = False
 		
 	ipdb.set_trace()
@@ -153,11 +153,13 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 		
 		print("Mask reload:", pd.Timestamp.now())
 		mask_sum = xr.open_dataset(tpath+tMnme)
+		ipdb.set_trace()
 		# This is so i can count the number of values that are valid in each location
 
 		# ===== Calculate the Moving window =====
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
 		ipdb.set_trace()
+
 		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 500}, readchunks={'longitude': 500}, skip=True)
 		
 		# dsan_lons = dsan_lons.where(mask["mask"].values == 1)
