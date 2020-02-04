@@ -84,12 +84,13 @@ def main():
 		cf.pymkdir(ppath)
 		
 		# ========== Get the dataset =========
-		ds, mask = dsloader(data, dsn, ppath, dpath, force)
+		ds = dsloader(data, dsn, ppath, dpath, force)
+		mask = landseamaks(data, dsn, ppath, dpath, ds, force )
 
 		# ========== Calculate the annual burn frewuency =========
 		# force = False
 		force = True
-		ds_ann = ANNcalculator(data, dsn, ds, mask, force, ppath)
+		ds_ann = ANNcalculator(data, dsn, mask, force, ppath)
 
 		# ========== work out the FRI ==========
 		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
@@ -205,7 +206,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 			os.remove(file)
 	ipdb.set_trace()
 
-def ANNcalculator(data, dsn, ds, mask,force, ppath):
+def ANNcalculator(data, dsn, mask,force, ppath):
 	""" Function to calculate the FRI 
 	args
 		data: 	Ordered dict
@@ -226,6 +227,8 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 
 
 	if not os.path.isfile(tpath+tname) or force:
+		# ========== load the data ==========
+		ds = dsloader(data, dsn, ppath, dpath, force)
 		# ========== calculate the sum ==========
 		dates   = datefixer(data[dsn]["end"], 12, 31)
 		ds_flat = ds.mean(dim="time", keep_attrs=True).expand_dims({"time":dates["CFTime"]}).rename({data[dsn]["var"]:"AnBF"})
@@ -316,9 +319,9 @@ def dsloader(data, dsn, ppath, dpath, force):
 	else:
 		ds = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
 	
-	mask = landseamaks(data, dsn, ppath, dpath, ds, force )
+	
 
-	return ds, mask
+	return ds
 
 def landseamaks(data, dsn, ppath, dpath, ds, force, chunks=None ):
 	# ========== create the mask fielname ==========
