@@ -75,7 +75,7 @@ def main():
 	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1]#, 2, 5]#, 1, 10] #in decimal degrees
+	mwbox = [2, 5]#, 1, 10] #in decimal degrees
 	# force = True
 	force = False
 	for dsn in data:
