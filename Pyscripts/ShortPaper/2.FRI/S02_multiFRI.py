@@ -157,7 +157,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 		# ===== Calculate the Moving window =====
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
 		ipdb.set_trace()
-		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 500}, readchunks={'longitude': 500}, skip=False)
+		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 500}, readchunks={'longitude': 500}, skip=True)
 		
 		# dsan_lons = dsan_lons.where(mask["mask"].values == 1)
 		# ds_con = ds_con.where(mask.mask.values == 1)
@@ -334,17 +334,17 @@ def landseamaks(data, dsn, ppath, dpath, ds, force, chunks=None ):
 def datasets(dpath):
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	data["COPERN_BA"] = ({
-		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
-		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': 500, 'latitude': 500}, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
 	data["MODIS"] = ({
 		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
 		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 500, 'latitude': 500},
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		})
+	data["COPERN_BA"] = ({
+		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': 500, 'latitude': 500}, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
 	data["esacci"] = ({
 		"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
