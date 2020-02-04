@@ -132,6 +132,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 				# ===== get the ratio =====
 		SF = np.round(mwb /pix).astype(int)
+		ipdb.set_trace()
 
 		# # ===== Create a masksum =====
 		warn.warn("I need to reimplement the mask here:")
