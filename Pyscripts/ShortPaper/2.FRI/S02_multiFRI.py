@@ -90,7 +90,7 @@ def main():
 		# ========== Calculate the annual burn frewuency =========
 		# force = False
 		force = True
-		ds_ann = ANNcalculator(data, dsn, mask, force, ppath)
+		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath)
 
 		# ========== work out the FRI ==========
 		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
@@ -206,7 +206,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 			os.remove(file)
 	ipdb.set_trace()
 
-def ANNcalculator(data, dsn, mask,force, ppath):
+def ANNcalculator(data, dsn, mask,force, ppath, dpath):
 	""" Function to calculate the FRI 
 	args
 		data: 	Ordered dict
@@ -229,6 +229,7 @@ def ANNcalculator(data, dsn, mask,force, ppath):
 	if not os.path.isfile(tpath+tname) or force:
 		# ========== load the data ==========
 		ds = dsloader(data, dsn, ppath, dpath, force)
+		
 		# ========== calculate the sum ==========
 		dates   = datefixer(data[dsn]["end"], 12, 31)
 		ds_flat = ds.mean(dim="time", keep_attrs=True).expand_dims({"time":dates["CFTime"]}).rename({data[dsn]["var"]:"AnBF"})
