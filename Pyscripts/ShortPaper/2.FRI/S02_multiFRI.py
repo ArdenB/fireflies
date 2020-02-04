@@ -75,7 +75,7 @@ def main():
 	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [2, 5]#, 1, 10] #in decimal degrees
+	mwbox = [ 5]#, 1, 2, 5, 10] #in decimal degrees
 	# force = True
 	force = False
 	for dsn in data:
@@ -460,7 +460,7 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		chunksize = 100
+		chunksize = 20
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
