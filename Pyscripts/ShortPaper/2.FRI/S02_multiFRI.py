@@ -257,7 +257,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 	
 	else:
 		print("Opening existing Annual Burn Fraction file")
-		ds_flat = xr.open_dataset(ppath+tname, chunks=data[dsn]["chunks"])
+		ds_flat = xr.open_dataset(tpath+tname, chunks=data[dsn]["chunks"])
 
 	return ds_flat
 
@@ -334,17 +334,18 @@ def landseamaks(data, dsn, ppath, dpath, ds, force, chunks=None ):
 def datasets(dpath):
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	data["MODIS"] = ({
-		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 500, 'latitude': 500},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
-		})
 	data["COPERN_BA"] = ({
 		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
 		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
 		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': 500, 'latitude': 500}, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
+		})
+	
+	data["MODIS"] = ({
+		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': 500, 'latitude': 500},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
 		})
 	data["esacci"] = ({
 		"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
