@@ -113,7 +113,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 	
 	# ========== work out the ration ==========
 	pix    =  abs(np.unique(np.diff(ds_ann.latitude.values))[0]) 
-	ds_ann = ds_ann.chunk({"latitude":500, "longitude":-1})
+	ds_ann = ds_ann.chunk({"latitude":100, "longitude":-1})
 
 	# ========== Build a cleanup list ==========
 	cleanup = []
@@ -159,7 +159,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
 		ipdb.set_trace()
 
-		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 500}, readchunks={'longitude': 500}, skip=False)
+		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 100}, readchunks={'longitude': 100}, skip=False)
 		ipdb.set_trace()
 		
 		# dsan_lons = dsan_lons.where(mask["mask"].values == 1)
@@ -183,7 +183,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		# ===== Save the file out =====
 		ds_out = tempNCmaker(
-			ds_out, ppath, tMnme, ["AnBF", "FRI"], {'longitude': 500}, 
+			ds_out, ppath, tMnme, ["AnBF", "FRI"], {'longitude': 100}, 
 			readchunks=data[dsn]["chunks"], skip=False, name="%s %d degree MW" % (dsn, mwb))
 
 
