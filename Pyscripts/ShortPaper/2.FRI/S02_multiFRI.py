@@ -87,12 +87,12 @@ def main():
 		ds, mask = dsloader(data, dsn, ppath, dpath, force)
 
 		# ========== Calculate the annual burn frewuency =========
-		force = False
+		# force = False
+		force = True
 		ds_ann = ANNcalculator(data, dsn, ds, mask, force, ppath)
 
-		force = True
 		# ========== work out the FRI ==========
-		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
+		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data)
 		# force = False
 		
 	ipdb.set_trace()
@@ -225,7 +225,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 	tname = "%s_annual_burns.nc" % dsn
 
 
-	if not os.path.isfile(ppath+tname) or force:
+	if not os.path.isfile(tpath+tname) or force:
 		# ========== calculate the sum ==========
 		dates   = datefixer(data[dsn]["end"], 12, 31)
 		ds_flat = ds.mean(dim="time", keep_attrs=True).expand_dims({"time":dates["CFTime"]}).rename({data[dsn]["var"]:"AnBF"})
@@ -252,7 +252,7 @@ def ANNcalculator(data, dsn, ds, mask,force, ppath):
 
 
 		ds_flat = tempNCmaker(
-			ds_flat, ppath, tname, "AnBF", 
+			ds_flat, tpath, tname, "AnBF", 
 			data[dsn]["chunks"], skip=False, name="%s annual BA" % dsn)
 	
 	else:
@@ -340,7 +340,7 @@ def datasets(dpath):
 		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': 500, 'latitude': 500}, 
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
-	
+
 	data["MODIS"] = ({
 		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
 		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
