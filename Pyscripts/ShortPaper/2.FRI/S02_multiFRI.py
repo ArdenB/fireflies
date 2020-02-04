@@ -132,7 +132,6 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 				# ===== get the ratio =====
 		SF = np.round(mwb /pix).astype(int)
-		ipdb.set_trace()
 
 		# # ===== Create a masksum =====
 		warn.warn("I need to reimplement the mask here:")
@@ -148,7 +147,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 			mask_sum = None
 			
 
-		if not os.path.isfile(tMnme):
+		if not os.path.isfile(tpath + tMnme):
 			_maskmaker(SF, mask, tpath, tMnme)
 		
 		print("Mask reload:", pd.Timestamp.now())
@@ -157,6 +156,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data):
 
 		# ===== Calculate the Moving window =====
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
+		ipdb.set_trace()
 		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': 500}, readchunks={'longitude': 500}, skip=False)
 		
 		# dsan_lons = dsan_lons.where(mask["mask"].values == 1)
