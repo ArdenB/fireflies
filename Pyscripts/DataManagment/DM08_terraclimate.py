@@ -45,35 +45,36 @@ import myfunctions.corefunctions as cf
 
 def main():
 	clpath = "/srv/ccrc/data51/z3466821/Input_data/TerraClimate"
-	ppt    = xr.open_mfdataset(
-		clpath+"/TerraClimate_ppt_*.nc").drop(["crs", "station_influence"]).rename(
-		{"lat":"latitude", "lon":"longitude"})
+	for var in ["tmaan", "ppt"]:
+		ppt    = xr.open_mfdataset(
+			clpath+"/TerraClimate_%s_*.nc" % var).drop(["crs", "station_influence"]).rename(
+			{"lat":"latitude", "lon":"longitude"})
 
-	ppt_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-	ppt_sel.attrs["history"]  = "%s: Netcdf file created using %s (%s):%s by %s from terraclimate data" % (
-		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
-	
+		ppt_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+		ppt_sel.attrs["history"]  = "%s: Netcdf file created using %s (%s):%s by %s from terraclimate data" % (
+			str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
+		
 
 
-	ppt_sel.attrs["creator_name"]        = __author__
-	ppt_sel.attrs["creator_url"]         = "ardenburrell.com"
-	ppt_sel.attrs["creator_email"]       = __email__
-	ppt_sel.attrs["Institution"]         = "University of Leicester"
-	ppt_sel.attrs["date_created"]        = str(pd.Timestamp.now())
+		ppt_sel.attrs["creator_name"]        = __author__
+		ppt_sel.attrs["creator_url"]         = "ardenburrell.com"
+		ppt_sel.attrs["creator_email"]       = __email__
+		ppt_sel.attrs["Institution"]         = "University of Leicester"
+		ppt_sel.attrs["date_created"]        = str(pd.Timestamp.now())
 
-	fnout = clpath + "/TerraClimate_SIBERIA_ppt_1958to2018.nc"
+		fnout = clpath + "/TerraClimate_SIBERIA_%s_1958to2018.nc" % var
 
-	encoding =  ({"ppt":{'shuffle':True,'zlib':True,'complevel':5}})
-	delayed_obj = ppt_sel.to_netcdf(fnout, 
-		format         = 'NETCDF4', 
-		encoding       = encoding,
-		unlimited_dims = ["time"],
-		compute=False)
+		encoding =  ({"ppt":{'shuffle':True,'zlib':True,'complevel':5}})
+		delayed_obj = ppt_sel.to_netcdf(fnout, 
+			format         = 'NETCDF4', 
+			encoding       = encoding,
+			unlimited_dims = ["time"],
+			compute=False)
 
-	print("Starting write of ppt data at:" , pd.Timestamp.now())
-	with ProgressBar():
-		results = delayed_obj.compute()
-	ipdb.set_trace()
+		print("Starting write of ppt data at:" , pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
+		ipdb.set_trace()
 
 
 if __name__ == '__main__':

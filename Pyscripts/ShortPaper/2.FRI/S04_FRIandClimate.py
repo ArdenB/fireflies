@@ -82,6 +82,7 @@ def Content_Compare(dpath, clpath, dsn, data):
 		clpath+"/TerraClimate_SIBERIA_ppt_1958to2018.nc", chunks={"latitude": 100, "longitude": 1000})
 	tas = xr.open_dataset(
 		clpath+"/TerraClimate_SIBERIA_tmean_1958to2018.nc", chunks={"latitude": 100, "longitude": 1000})
+	
 	fri = xr.open_dataset(dpath+"/BurntArea/%s/FRI/%s_annual_burns_MW_1degreeBox_REMAPBIL.nc" %(dsn, dsn))
 
 	# ========== sloce the datasets =========
@@ -93,6 +94,7 @@ def Content_Compare(dpath, clpath, dsn, data):
 	for per in seasons:
 		if seasons == "Annual":
 			tas_mean = tas.mean(dim='time')
+			# resample("1Y").max()
 			ipdb.set_trace()
 
 	ipdb.set_trace()
