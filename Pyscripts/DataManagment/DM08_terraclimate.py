@@ -45,8 +45,12 @@ import myfunctions.corefunctions as cf
 
 def main():
 	clpath = "/srv/ccrc/data51/z3466821/Input_data/TerraClimate"
+	ppt    = xr.open_mfdataset(
+		clpath+"/TerraClimate_ppt_*.nc").drop(["crs", "station_influence"]).rename(
+		{"lat":"latitude", "lon":"longitude"})
+
+	ppd_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 	ipdb.set_trace()
-	ppt    = xr.open_mfdataset(clpath+"TerraClimate_ppt_*.nc")
 
 
 if __name__ == '__main__':
