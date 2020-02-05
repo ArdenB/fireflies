@@ -69,20 +69,47 @@ import myfunctions.corefunctions as cf
 def main():
 	# ========== Setup the paths ==========
 	dpath, clpath, chunksize = syspath()
+	data = datasets(dpath, 100)
 
 	# ========== Load the data ==========
-	Content_Compare(dpath, clpath)
+	for dsn in data:
+		Content_Compare(dpath, clpath, dsn)
 
 #==============================================================================
-def Content_Compare(dpath, clpath):
+def Content_Compare(dpath, clpath, dsn):
 	# ========== Open the datasets =========
-	# pre = 
+	pre = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_ppt_1958to2018.nc")
+	tas = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_tmean_1958to2018.nc")
+
 	ipdb.set_trace()
 
 
 #==============================================================================
 
+def datasets(dpath, chunksize):
+	# ========== set the filnames ==========
+	data= OrderedDict()
+	data["COPERN_BA"] = ({
+		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
+		})
 
+	data["MODIS"] = ({
+		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		})
+	data["esacci"] = ({
+		"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
+	return data
 def syspath():
 	# ========== Create the system specific paths ==========
 	sysname = os.uname()[1]
