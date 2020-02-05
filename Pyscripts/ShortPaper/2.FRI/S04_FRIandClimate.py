@@ -87,7 +87,7 @@ def Content_Compare(dpath, clpath, dsn, data):
 
 	# ========== sloce the datasets =========
 	pre = pre.sel(dict(time=slice(pd.to_datetime("%d-01-01" % data[dsn]["start"]), None)))
-	tas = tas.sel(dict(time=slice(pd.to_datetime("%d-01-01" % data[dsn]["start"]), None)))
+	# tas = tas.sel(dict(time=slice(pd.to_datetime("%d-01-01" % data[dsn]["start"]), None)))
 
 	# ========== Group the data =========
 	seasons = ["Annual", "DJF", "MAM", "JJA", "SON"]
