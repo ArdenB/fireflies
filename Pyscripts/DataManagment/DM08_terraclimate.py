@@ -49,7 +49,30 @@ def main():
 		clpath+"/TerraClimate_ppt_*.nc").drop(["crs", "station_influence"]).rename(
 		{"lat":"latitude", "lon":"longitude"})
 
-	ppd_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	ppt_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	ppt_sel.attrs["history"]  = "%s: Netcdf file created using %s (%s):%s by %s. FRI caluculated using %s data" % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__, dsn)
+	
+
+
+	ppt_sel.attrs["creator_name"]        = __author__
+	ppt_sel.attrs["creator_url"]         = "ardenburrell.com"
+	ppt_sel.attrs["creator_email"]       = __email__
+	ppt_sel.attrs["Institution"]         = "University of Leicester"
+	ppt_sel.attrs["date_created"]        = str(pd.Timestamp.now())
+
+	fnout = clpath + "/TerraClimate_ppt_1958to2018.nc"
+
+	encoding =  ({"ppt":{'shuffle':True,'zlib':True,'complevel':5}})
+	delayed_obj = ds.to_netcdf(fnout, 
+		format         = 'NETCDF4', 
+		encoding       = encoding,
+		unlimited_dims = ["time"],
+		compute=False)
+
+	print("Starting write of %s data at" % name, pd.Timestamp.now())
+	with ProgressBar():
+		results = delayed_obj.compute()
 	ipdb.set_trace()
 
 
