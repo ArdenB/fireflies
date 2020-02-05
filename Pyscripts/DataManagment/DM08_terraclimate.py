@@ -45,8 +45,8 @@ import myfunctions.corefunctions as cf
 
 def main():
 	clpath = "/srv/ccrc/data51/z3466821/Input_data/TerraClimate"
-	ppt    = xr.open_mfdataset(clpath+"TerraClimate_ppt_*.nc")
 	ipdb.set_trace()
+	ppt    = xr.open_mfdataset(clpath+"TerraClimate_ppt_*.nc")
 
 
 if __name__ == '__main__':
