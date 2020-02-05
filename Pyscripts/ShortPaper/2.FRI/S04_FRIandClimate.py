@@ -74,6 +74,7 @@ def main():
 	# ========== Load the data ==========
 	for dsn in data:
 		Content_Compare(dpath, clpath, dsn, data)
+		ipdb.set_trace()
 
 #==============================================================================
 def Content_Compare(dpath, clpath, dsn, data):
@@ -102,6 +103,7 @@ def Content_Compare(dpath, clpath, dsn, data):
 			pre_mean = pre_mean.expand_dims("time")
 			pre_mean["time"] = fri.time
 			ipdb.set_trace()
+	ipdb.set_trace()
 
 
 #==============================================================================
