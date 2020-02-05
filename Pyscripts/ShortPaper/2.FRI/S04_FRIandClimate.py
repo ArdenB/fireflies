@@ -96,7 +96,8 @@ def Content_Compare(dpath, clpath, dsn, data):
 	# 	if seasons == "Annual":
 	# tas_mean = tas.mean(dim='time')
 
-	pre_mean = pre.resample(time="1Y").sum().mean(dim='time').where(pre_mean > 0)
+	pre_mean = pre.resample(time="1Y").sum().mean(dim='time')
+	pre_mean = pre_mean.where(pre_mean > 0)
 	
 	print("Starting ppt mean calculation at" , pd.Timestamp.now())
 	with ProgressBar():
