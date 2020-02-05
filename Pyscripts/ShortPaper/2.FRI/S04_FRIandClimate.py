@@ -80,6 +80,7 @@ def Content_Compare(dpath, clpath, dsn):
 	# ========== Open the datasets =========
 	pre = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_ppt_1958to2018.nc")
 	tas = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_tmean_1958to2018.nc")
+	fri = xr.open_dataset(dpath+"/BurntArea/%s/FRI/%s_annual_burns_MW_1degreeBox_REMAPBIL.nc")
 
 	ipdb.set_trace()
 
