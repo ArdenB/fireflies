@@ -94,10 +94,14 @@ def Content_Compare(dpath, clpath, dsn, data):
 	for per in seasons:
 		if seasons == "Annual":
 			# tas_mean = tas.mean(dim='time')
-			# resample("1Y").max()
-			ipdb.set_trace()
+			pre_mean = pre.resample(time="1Y").sum().mean(dim='time').where(pre_mean > 0)
+			print("Starting ppt mean calculation at" , pd.Timestamp.now())
+			with ProgressBar():
+				pre_mean = pre_mean.compute()
 
-	ipdb.set_trace()
+			pre_mean = pre_mean.expand_dims("time")
+			pre_mean["time"] = fri.time
+			ipdb.set_trace()
 
 
 #==============================================================================
