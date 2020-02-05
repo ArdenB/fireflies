@@ -50,8 +50,8 @@ def main():
 		{"lat":"latitude", "lon":"longitude"})
 
 	ppt_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-	ppt_sel.attrs["history"]  = "%s: Netcdf file created using %s (%s):%s by %s. FRI caluculated using %s data" % (
-		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__, dsn)
+	ppt_sel.attrs["history"]  = "%s: Netcdf file created using %s (%s):%s by %s from terraclimate data" % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
 	
 
 
@@ -64,13 +64,13 @@ def main():
 	fnout = clpath + "/TerraClimate_ppt_1958to2018.nc"
 
 	encoding =  ({"ppt":{'shuffle':True,'zlib':True,'complevel':5}})
-	delayed_obj = ds.to_netcdf(fnout, 
+	delayed_obj = ppt_sel.to_netcdf(fnout, 
 		format         = 'NETCDF4', 
 		encoding       = encoding,
 		unlimited_dims = ["time"],
 		compute=False)
 
-	print("Starting write of %s data at" % name, pd.Timestamp.now())
+	print("Starting write of ppt data at:" , pd.Timestamp.now())
 	with ProgressBar():
 		results = delayed_obj.compute()
 	ipdb.set_trace()
