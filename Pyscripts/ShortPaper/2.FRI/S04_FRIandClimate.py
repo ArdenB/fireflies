@@ -91,18 +91,17 @@ def Content_Compare(dpath, clpath, dsn, data):
 	# tas = tas.sel(dict(time=slice(pd.to_datetime("%d-01-01" % data[dsn]["start"]), None)))
 
 	# ========== Group the data =========
-	seasons = ["Annual", "DJF", "MAM", "JJA", "SON"]
-	for per in seasons:
-		if seasons == "Annual":
-			# tas_mean = tas.mean(dim='time')
-			pre_mean = pre.resample(time="1Y").sum().mean(dim='time').where(pre_mean > 0)
-			print("Starting ppt mean calculation at" , pd.Timestamp.now())
-			with ProgressBar():
-				pre_mean = pre_mean.compute()
+	# seasons = ["Annual", "DJF", "MAM", "JJA", "SON"]
+	# for per in seasons:
+	# 	if seasons == "Annual":
+	# tas_mean = tas.mean(dim='time')
+	pre_mean = pre.resample(time="1Y").sum().mean(dim='time').where(pre_mean > 0)
+	print("Starting ppt mean calculation at" , pd.Timestamp.now())
+	with ProgressBar():
+		pre_mean = pre_mean.compute()
 
-			pre_mean = pre_mean.expand_dims("time")
-			pre_mean["time"] = fri.time
-			ipdb.set_trace()
+	pre_mean = pre_mean.expand_dims("time")
+	pre_mean["time"] = fri.time
 	ipdb.set_trace()
 
 
