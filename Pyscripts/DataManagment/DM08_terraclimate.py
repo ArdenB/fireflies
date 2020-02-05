@@ -64,14 +64,14 @@ def main():
 
 		fnout = clpath + "/TerraClimate_SIBERIA_%s_1958to2018.nc" % var
 
-		encoding =  ({"ppt":{'shuffle':True,'zlib':True,'complevel':5}})
+		encoding =  ({var:{'shuffle':True,'zlib':True,'complevel':5}})
 		delayed_obj = ppt_sel.to_netcdf(fnout, 
 			format         = 'NETCDF4', 
 			encoding       = encoding,
 			unlimited_dims = ["time"],
 			compute=False)
 
-		print("Starting write of ppt data at:" , pd.Timestamp.now())
+		print("Starting write of %s data at:" % var, pd.Timestamp.now())
 		with ProgressBar():
 			results = delayed_obj.compute()
 		ipdb.set_trace()
