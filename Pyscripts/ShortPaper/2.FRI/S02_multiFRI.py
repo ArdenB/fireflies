@@ -182,22 +182,10 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		cleanup.append(tpath+tname)
 		cleanup.append(tpath+tMnme)
 
-		# if mwb ==  1:
-		# 	print("\n Making some figures to check the %s %d degree results" % (dsn, mwb))
-		# 	plt.figure(1)
-		# 	ds_out.isel(time=0)["FRI"].plot.imshow(vmin=0, vmax=100)
-		# 	plt.show()
-		# 	ipdb.set_trace()
-
-		# 	plt.figure(2)
-		# 	ds_out.isel(time=0)["AnBF"].plot.imshow()
-		# 	plt.show()
-		# 	ipdb.set_trace()
 	print("Starting excess file cleanup at:", pd.Timestamp.now())
 	for file in  cleanup:
 		if os.path.isfile(file):
 			os.remove(file)
-	ipdb.set_trace()
 
 def ANNcalculator(data, dsn, mask,force, ppath, dpath, chunksize):
 	""" Function to calculate the FRI 
