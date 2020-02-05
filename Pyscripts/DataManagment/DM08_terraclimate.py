@@ -45,7 +45,7 @@ import myfunctions.corefunctions as cf
 
 def main():
 	clpath = "/srv/ccrc/data51/z3466821/Input_data/TerraClimate"
-	for var in ["tmaan", "ppt"]:
+	for var in ["tmean", "ppt"]:
 		if var == "ppt":
 			ppt    = xr.open_mfdataset(
 				clpath+"/TerraClimate_%s_*.nc" % var).drop(["crs", "station_influence"]).rename(
@@ -53,7 +53,6 @@ def main():
 
 			ppt_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 		else:
-			ipdb.set_trace()
 			ppt    = xr.open_mfdataset(
 				clpath+"/TerraClimate_SIBERIA_%s_*.nc" % var).drop(["crs", "station_influence"]).rename(
 				{"lat":"latitude", "lon":"longitude"})
