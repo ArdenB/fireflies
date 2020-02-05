@@ -68,12 +68,13 @@ import myfunctions.corefunctions as cf
 
 def main():
 	# ========== Setup the paths ==========
-	dpath, chunksize = syspath()
+	dpath, clpath, chunksize = syspath()
 
 	# ========== Load the data ==========
+	Content_Compare(dpath, clpath)
 
 #==============================================================================
-def Content_Compare(dpath):
+def Content_Compare(dpath, clpath):
 	# ========== Open the datasets =========
 	# pre = 
 	ipdb.set_trace()
