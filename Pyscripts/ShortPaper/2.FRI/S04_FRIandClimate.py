@@ -80,7 +80,7 @@ def Content_Compare(dpath, clpath, dsn, data):
 	# ========== Open the datasets =========
 	pre = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_ppt_1958to2018.nc")
 	tas = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_tmean_1958to2018.nc")
-	fri = xr.open_dataset(dpath+"/BurntArea/%s/FRI/%s_annual_burns_MW_1degreeBox_REMAPBIL.nc")
+	fri = xr.open_dataset(dpath+"/BurntArea/%s/FRI/%s_annual_burns_MW_1degreeBox_REMAPBIL.nc" %(dsn, dsn))
 
 	# ========== sloce the datasets =========
 	# pre = pre.sel(dict(time=slice(pd.timestame("%d-01-01"), None)))

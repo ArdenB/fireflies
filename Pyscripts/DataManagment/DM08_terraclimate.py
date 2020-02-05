@@ -61,7 +61,7 @@ def main():
 	ppt_sel.attrs["Institution"]         = "University of Leicester"
 	ppt_sel.attrs["date_created"]        = str(pd.Timestamp.now())
 
-	fnout = clpath + "/TerraClimate_ppt_1958to2018.nc"
+	fnout = clpath + "/TerraClimate_SIBERIA_ppt_1958to2018.nc"
 
 	encoding =  ({"ppt":{'shuffle':True,'zlib':True,'complevel':5}})
 	delayed_obj = ppt_sel.to_netcdf(fnout, 
