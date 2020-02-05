@@ -46,11 +46,17 @@ import myfunctions.corefunctions as cf
 def main():
 	clpath = "/srv/ccrc/data51/z3466821/Input_data/TerraClimate"
 	for var in ["tmaan", "ppt"]:
-		ppt    = xr.open_mfdataset(
-			clpath+"/TerraClimate_%s_*.nc" % var).drop(["crs", "station_influence"]).rename(
-			{"lat":"latitude", "lon":"longitude"})
+		if var == "ppt":
+			ppt    = xr.open_mfdataset(
+				clpath+"/TerraClimate_%s_*.nc" % var).drop(["crs", "station_influence"]).rename(
+				{"lat":"latitude", "lon":"longitude"})
 
-		ppt_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+			ppt_sel = ppt.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+		else:
+			ppt    = xr.open_mfdataset(
+				clpath+"/TerraClimate_SIBERIA_%s_*.nc" % var).drop(["crs", "station_influence"]).rename(
+				{"lat":"latitude", "lon":"longitude"})
+
 		ppt_sel.attrs["history"]  = "%s: Netcdf file created using %s (%s):%s by %s from terraclimate data" % (
 			str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
 		
