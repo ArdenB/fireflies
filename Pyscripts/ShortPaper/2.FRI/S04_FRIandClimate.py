@@ -78,12 +78,23 @@ def main():
 #==============================================================================
 def Content_Compare(dpath, clpath, dsn, data):
 	# ========== Open the datasets =========
-	pre = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_ppt_1958to2018.nc")
-	tas = xr.open_dataset(clpath+"/TerraClimate_SIBERIA_tmean_1958to2018.nc")
+	pre = xr.open_dataset(
+		clpath+"/TerraClimate_SIBERIA_ppt_1958to2018.nc", chunks={"latitude": 100, "longitude": 1000})
+	tas = xr.open_dataset(
+		clpath+"/TerraClimate_SIBERIA_tmean_1958to2018.nc", chunks={"latitude": 100, "longitude": 1000})
 	fri = xr.open_dataset(dpath+"/BurntArea/%s/FRI/%s_annual_burns_MW_1degreeBox_REMAPBIL.nc" %(dsn, dsn))
 
 	# ========== sloce the datasets =========
-	# pre = pre.sel(dict(time=slice(pd.timestame("%d-01-01"), None)))
+	pre = pre.sel(dict(time=slice(pd.to_datetime("%d-01-01" % data[dsn]["start"]), None)))
+	tas = tas.sel(dict(time=slice(pd.to_datetime("%d-01-01" % data[dsn]["start"]), None)))
+
+	# ========== Group the data =========
+	seasons = ["Annual", "DJF", "MAM", "JJA", "SON"]
+	for per in seasons:
+		if seasons == "Annual":
+			tas_mean = tas.mean(dim='time')
+			ipdb.set_trace()
+
 	ipdb.set_trace()
 
 
