@@ -494,6 +494,32 @@ def datasets():
 		"rename":{"lon":"longitude", "lat":"latitude"}
 		})
 	return data
+
+
+def syspath():
+	# ========== Create the system specific paths ==========
+	sysname = os.uname()[1]
+	if sysname == 'DESKTOP-UA7CT9Q':
+		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+		# dpath = "/mnt/h/Data51"
+		clpath = "/mnt/d/Data51/climate/TerraClimate"
+		dpath = "/mnt/d/Data51"
+		chunksize = 50
+	elif sysname == "ubuntu":
+		# Work PC
+		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
+		dpath = "/media/ubuntu/Harbinger/Data51"
+		chunksize = 50
+		
+		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+	elif 'ccrc.unsw.edu.au' in sysname:
+		dpath  = "/srv/ccrc/data51/z3466821"
+		clpath = "/srv/ccrc/data51/z3466821/Input_data/TerraClimate"
+		chunksize = 20
+	else:
+		ipdb.set_trace()
+	return dpath, clpath, chunksize	
+
 	
 #==============================================================================
 if __name__ == '__main__':

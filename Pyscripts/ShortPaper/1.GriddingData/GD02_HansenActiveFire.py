@@ -80,7 +80,7 @@ import myfunctions.corefunctions as cf
 
 def main():
 	# ==========
-	force = False
+	force = True#False
 	
 	# ========== Get the path ==========
 	spath = pathfinder()
@@ -90,23 +90,23 @@ def main():
 
 
 	# ========== Loop over the datasets ==========
-	HansenMasker(fnames, force, ymin=2001, ymax=2019, )
+	HansenMasker(fnames, force, spath, ymin=2001, ymax=2019, )
 	ipdb.set_trace()
 
 #==============================================================================
 
-def HansenMasker(fnames, force, ymin=2001, ymax=2019, **kwargs):
+def HansenMasker(fnames, force, spath, ymin=2001, ymax=2019, **kwargs):
 	"""Takes a list of file names and masks the hansen data"""
 	# ========== load the hansen ==========\
 	region = "SIBERIA"
 	# ========== Setup the loop ==========
-	ppath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN"
+	ppath = spath+"BurntArea/HANSEN"
 	ft    = "lossyear"
 
 	fn_out = ppath +"/HansenMODIS_activefiremask.nc"
 	if not os.path.isfile(fn_out) or force:
 
-		tpath = "/home/ubuntu/Documents/fireflies/data/tmp/"
+		tpath = "./data/tmp/"
 		cf.pymkdir(tpath)
 
 		# ========== Create the outfile name ==========
@@ -341,15 +341,16 @@ def pathfinder():
 		# LAPTOP
 		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/"
 
+	elif sysname == 'DESKTOP-UA7CT9Q':
+		dpath = "/mnt/d/Data51/"
 	elif sysname == "owner":
 		spath = "/mnt/d/Data51/"
 	elif sysname == "ubuntu":
 		# Work PC
-		spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/"
-
+		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/"
+		spath = "/media/ubuntu/Harbinger/Data51/"
 	return spath
 
-	
 
 #==============================================================================
 
