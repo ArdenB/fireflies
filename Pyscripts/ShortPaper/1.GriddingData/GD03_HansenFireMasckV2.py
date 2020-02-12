@@ -115,6 +115,8 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 	force = True
 	warn.warn("I've got a manual force in place, i will need to turn this of asap \n\n")
 	for yr, fnx in zip(range(ymin, ymax), fns_NC):
+		# if yr < 2005:
+		# 	continue
 		# ========== load in the hansen file ==========
 		fname = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc"
 		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
@@ -127,7 +129,7 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 		
 		ds_in = xr.open_dataset(fname)#, chunks={'latitude': 999, 'longitude':999})
 		ds_in = ds_in.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-		ds_in = ds_in.chunk({'latitude': 999, 'longitude':999})
+		ds_in = ds_in.chunk({'latitude': 20000, 'longitude':20000})
 
 		# ========== Open the resolution dataset ===========
 		ds_res = xr.open_dataset(fnx, chunks={'latitude': 100, 'longitude':100})
@@ -135,7 +137,7 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 		# ========== Find the places that were lost in each year ===========
 		ds_BOOL = (ds_in == yr-2000).astype("float32")
 		ds_BOOL["time"] = ds_res.time # time fix
-
+		ipdb.set_trace()
 		ds_BOOL = tempNCmaker(
 			ds_BOOL, fntmp, "lossyear", client, chunks={'latitude': 999, 'longitude':999}, 
 			skip=True, name="%d Forest Bool " % yr)
