@@ -115,7 +115,7 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 	force = True
 	warn.warn("I've got a manual force in place, i will need to turn this of asap \n\n")
 	for yr, fnx in zip(range(ymin, ymax), fns_NC):
-		if yr < 2005:
+		if yr < 2003:
 			continue
 		# ========== load in the hansen file ==========
 		fname = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc"
