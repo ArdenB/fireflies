@@ -63,10 +63,10 @@ import ipdb
 
 # ========== Import specific packages  ==========
 # from rasterio.warp import transform
-# from shapely.geometry import Polygon
-# import geopandas as gpd
-# from rasterio import features
-# from affine import Affine
+from shapely.geometry import Polygon
+import geopandas as gpd
+from rasterio import features
+from affine import Affine
 # import fiona as fi
 # import regionmask as rm
 # import matplotlib.path as mplPath
@@ -97,7 +97,7 @@ def main():
 	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin=2001, ymax=2019, dsn = "esacci")
 
 	# ========== Resample the Hansen ==========
-	fly_nm = Hansen_resizer(dpath, force, fns_NC, client, ymin=2010, ymax=2019, dsn = "esacci")
+	fly_nm = Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "esacci")
 	ipdb.set_trace()
 	# ========== Loop over the datasets ==========
 	# HansenMasker(fnames, force, dpath, ymin=2001, ymax=2019, )
@@ -110,29 +110,37 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 	take the Hansen data and resize it to match the datagrid
 	"""
 	forestlossnm = []
+	cf.pymkdir(dpath + "/BurntArea/HANSEN/lossyear/tmp/")
 	# ========== Loop over the datasets ==========	
-	# force = True
+	force = True
 	warn.warn("I've got a manual force in place, i will need to turn this of asap \n\n")
 	for yr, fnx in zip(range(ymin, ymax), fns_NC):
 		# ========== load in the hansen file ==========
 		fname = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc"
 		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
+		fntmp = dpath + "/BurntArea/HANSEN/lossyear/tmp/tmp_Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
 		
 		if os.path.isfile(fnout) and not force:
 			print("Valid existing value for %d:" % yr, pd.Timestamp.now())
 			forestlossnm.append(fnout)
 			continue
-
-		ds_in = xr.open_dataset(fname, chunks={'latitude': 1000, 'longitude':1000})
+		
+		ds_in = xr.open_dataset(fname)#, chunks={'latitude': 999, 'longitude':999})
 		ds_in = ds_in.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+		ds_in = ds_in.chunk({'latitude': 999, 'longitude':999})
 
 		# ========== Open the resolution dataset ===========
-		ds_res = xr.open_dataset(fnx, chunks={'latitude': 1000, 'longitude':1000})
+		ds_res = xr.open_dataset(fnx, chunks={'latitude': 100, 'longitude':100})
 
 		# ========== Find the places that were lost in each year ===========
 		ds_BOOL = (ds_in == yr-2000).astype("float32")
 		ds_BOOL["time"] = ds_res.time # time fix
 
+		ds_BOOL = tempNCmaker(
+			ds_BOOL, fntmp, "lossyear", client, chunks={'latitude': 999, 'longitude':999}, 
+			skip=True, name="%d Forest Bool " % yr)
+		continue
+		ipdb.set_trace()
 		# ========== Calculate the bounding box ===========
 		def _Scalingfactors(ds_in, ds_res):
 			# +++++ Find the resolution +++++
@@ -152,10 +160,10 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 		print("Start coarsening and reindex for %d at:" % yr, pd.Timestamp.now())
 		with ProgressBar():
 			ds_out = ds_BOOL.coarsen(
-				dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").mean(
-				).reindex_like(ds_res, method="nearest")#.compute()
+				dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").mean()
+				# ).reindex_like(ds_res, method="nearest")#.compute()
 
-		
+		ipdb.set_trace()
 		# ========== Fix the attributes ==========
 		ds_out.attrs = ds_in.attrs.copy()
 		ds_out.attrs["title"]   = "Regridded Annual Forest Loss"
@@ -168,7 +176,7 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 		# ++++++++++ Write the data out ++++++++++ 
 		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
 		ds_out = tempNCmaker(
-			ds_out, fnout, "lossyear", client, chunks={'latitude': 10000, 'longitude':1000}, 
+			ds_out, fnout, "lossyear", client, chunks={'latitude': 1000, 'longitude':1000}, 
 			skip=False, name="%d Forest loss " % yr)
 		forestlossnm.append(fnout)
 
