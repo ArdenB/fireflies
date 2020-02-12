@@ -63,11 +63,11 @@ import ipdb
 
 # ========== Import specific packages  ==========
 # from rasterio.warp import transform
-from shapely.geometry import Polygon
-import geopandas as gpd
-from rasterio import features
-from affine import Affine
-# import fiona as fi
+# from shapely.geometry import Polygon
+# import geopandas as gpd
+# from rasterio import features
+# from affine import Affine
+# # import fiona as fi
 # import regionmask as rm
 # import matplotlib.path as mplPath
 from rasterio import features
