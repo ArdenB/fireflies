@@ -97,7 +97,7 @@ def main():
 	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin=2001, ymax=2019, dsn = "esacci")
 
 	# ========== Resample the Hansen ==========
-	fly_nm = Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "esacci")
+	fly_nm = Hansen_resizer(dpath, force, fns_NC, client, ymin=2010, ymax=2019, dsn = "esacci")
 	ipdb.set_trace()
 	# ========== Loop over the datasets ==========
 	# HansenMasker(fnames, force, dpath, ymin=2001, ymax=2019, )
