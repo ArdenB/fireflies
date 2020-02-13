@@ -111,7 +111,7 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 	"""
 	forestlossnm = []
 	# ========== Loop over the datasets ==========	
-	force = True
+	# force = True
 	warn.warn("I've got a manual force in place, i will need to turn this of asap \n\n")
 	for yr, fnx in zip(range(ymin, ymax), fns_NC):
 		# ========== load in the hansen file ==========
