@@ -63,10 +63,10 @@ import ipdb
 
 # ========== Import specific packages  ==========
 # from rasterio.warp import transform
-from shapely.geometry import Polygon
-import geopandas as gpd
-from rasterio import features
-from affine import Affine
+# from shapely.geometry import Polygon
+# import geopandas as gpd
+# from rasterio import features
+# from affine import Affine
 # import fiona as fi
 # import regionmask as rm
 # import matplotlib.path as mplPath
@@ -96,7 +96,7 @@ def main():
 	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin=2001, ymax=2019, dsn = "esacci")
 
 	# ========== Resample the Hansen ==========
-	Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "esacci")
+	fly_nm = Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "esacci")
 	ipdb.set_trace()
 	# ========== Loop over the datasets ==========
 	# HansenMasker(fnames, force, dpath, ymin=2001, ymax=2019, )
