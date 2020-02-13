@@ -90,7 +90,8 @@ def main():
 	client = None
 
 	# ========== Make the files ==========
-	fnames = ActiveFireMask(dpath, force, client,)
+	# fnames = ActiveFireMask(dpath, force, client,)
+	fnames = None
 	
 	# ========== Build some netcdf versions ==========
 	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin=2001, ymax=2019, dsn = "esacci")
