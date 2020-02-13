@@ -110,13 +110,12 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 	take the Hansen data and resize it to match the datagrid
 	"""
 	forestlossnm = []
+	temp_filesnm = []
 	cf.pymkdir(dpath + "/BurntArea/HANSEN/lossyear/tmp/")
 	# ========== Loop over the datasets ==========	
 	force = True
 	warn.warn("I've got a manual force in place, i will need to turn this of asap \n\n")
 	for yr, fnx in zip(range(ymin, ymax), fns_NC):
-		if yr < 2003:
-			continue
 		# ========== load in the hansen file ==========
 		fname = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc"
 		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
@@ -138,10 +137,10 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 		ds_BOOL = (ds_in == yr-2000).astype("float32")
 		ds_BOOL["time"] = ds_res.time # time fix
 		ds_BOOL = tempNCmaker(
-			ds_BOOL, fntmp, "lossyear", client, chunks={'latitude': 999, 'longitude':999}, 
+			ds_BOOL, fntmp, "lossyear", client, chunks={'latitude': 9999, 'longitude':999}, 
 			skip=True, name="%d Forest Bool " % yr)
-		continue
-		ipdb.set_trace()
+		temp_filesnm.append(fntmp)
+
 		# ========== Calculate the bounding box ===========
 		def _Scalingfactors(ds_in, ds_res):
 			# +++++ Find the resolution +++++
@@ -161,10 +160,9 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 		print("Start coarsening and reindex for %d at:" % yr, pd.Timestamp.now())
 		with ProgressBar():
 			ds_out = ds_BOOL.coarsen(
-				dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").mean()
-				# ).reindex_like(ds_res, method="nearest")#.compute()
+				dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").mean(
+				).reindex_like(ds_res, method="nearest")#.compute()
 
-		ipdb.set_trace()
 		# ========== Fix the attributes ==========
 		ds_out.attrs = ds_in.attrs.copy()
 		ds_out.attrs["title"]   = "Regridded Annual Forest Loss"
@@ -182,6 +180,7 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 		forestlossnm.append(fnout)
 
 	ipdb.set_trace()
+	return forestlossnm, temp_filesnm
 	
 
 # def function():
