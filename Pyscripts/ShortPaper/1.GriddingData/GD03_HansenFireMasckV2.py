@@ -93,7 +93,7 @@ def main():
 	# fnames = ActiveFireMask(dpath, force, client,)
 	fnames = None
 	ymin   = 2001
-	ymax   = 2018
+	ymax   = 2019
 	
 	# ========== Build some netcdf versions ==========
 	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci")
@@ -103,21 +103,28 @@ def main():
 
 	# ========== Mask out the active fire  ==========
 	fn_afm = ActiveFireMasking(dpath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn = "esacci")
+
 	ipdb.set_trace()
+	for fn in tmpnm:
+		if os.path.isfile(fn):
+			os.remove(fn)
+
 
 	# ========== Build an Annual Stack  ==========
-	for fnms, masknk in zip([flyr_nm, fn_afm], ["withNO_AFmask", "withMODIS_AFmask"]):
-		finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci")
+	# for fnms, masknk in zip([flyr_nm, fn_afm], ["withNO_AFmask", "withMODIS_AFmask"]):
+	# 	finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci")
 
 #==============================================================================
-def finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci"):
-	# FUNCTION TO STACK THE RESULTS
-	date = datefixer(yrmax, 12, 31)
-	fnout = dpath+"/BurntArea/HANSEN/Hansen_GFC-2018-v1_FLfraction_%s_res_%s.nc" % (dsn, masknk)
+# def finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci"):
+# 	# FUNCTION TO STACK THE RESULTS
+# 	date = datefixer(yrmax, 12, 31)
+# 	fnout = dpath+"/BurntArea/HANSEN/Hansen_GFC-2018-v1_FLfraction_%s_res_%s.nc" % (dsn, masknk)
 
-	if os.path.isfile(fnout) and not force:
-		return fnout
-	pass
+# 	if os.path.isfile(fnout) and not force:
+# 		return fnout
+	
+
+	# ========== open the files ==========
 
 def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn = "esacci"):
 	# Funtion for building a new dataset 

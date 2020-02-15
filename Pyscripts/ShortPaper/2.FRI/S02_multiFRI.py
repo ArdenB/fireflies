@@ -75,16 +75,20 @@ def main():
 	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [ 5]#, 1, 2, 5, 10] #in decimal degrees
+	mwbox = [ 1, 2, 5]#$, 10] #in decimal degrees
 	# force = True
 	force = False
+	maskds = "esacci"
 	for dsn in data:
 		# ========== Set up the filename and global attributes =========
-		ppath = dpath + "/BurntArea/%s/FRI/" %  dsn
+		if dsn.startswint("HANSEN"):
+			ppath = dpath + "/BurntArea/HANSEN/FRI/"
+		else:
+			ppath = dpath + "/BurntArea/%s/FRI/" %  dsn
 		cf.pymkdir(ppath)
 		
 		# ========== Get the dataset =========
-		mask = landseamaks(data, dsn, dpath, force )
+		mask = landseamaks(data, dsn, dpath, force,  )
 
 		# ========== Calculate the annual burn frewuency =========
 		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize)
@@ -305,10 +309,13 @@ def dsloader(data, dsn, ppath, dpath, force):
 
 	return ds
 
-def landseamaks(data, dsn, dpath, force, chunks=None ):
+def landseamaks(data, dsn, dpath, force, chunks=None, maskds = "esacci"):
 	# ========== create the mask fielname ==========
 	# masknm = ppath + "%s_landseamask.nc" % dsn
-	masknm = dpath+"/masks/landwater/%s_landwater.nc" % dsn
+	if dsn.startswint("HANSEN"):
+		masknm = dpath+"/masks/landwater/%s_landwater.nc" % maskds
+	else:
+		masknm = dpath+"/masks/landwater/%s_landwater.nc" % dsn
 
 	# if dsn == "esacci":
 	# 	chunks = data[dsn]["chunks"]
@@ -337,20 +344,20 @@ def datasets(dpath, chunksize):
 		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
-	# data["GIMMS"] = ({
-	# 	"fname":"./data/veg/GIMMS31g/GIMMS31v1/timecorrected/ndvi3g_geo_v1_1_1982to2017_annualmax.nc",
-	# 	'var':"ndvi", "gridres":"8km", "region":"global", "timestep":"Annual", 
-	# 	"start":1982, "end":2017, "rasterio":False, "chunks":{'time': 36},
-	# 	"rename":None
-	# 	})
-	# data["COPERN"] = ({
-	# 	'fname':"./data/veg/COPERN/NDVI_AnnualMax_1999to2018_global_at_1km_compressed.nc",
-	# 	'var':"NDVI", "gridres":"1km", "region":"Global", "timestep":"AnnualMax",
-	# 	"start":1999, "end":2018,"rasterio":False, "chunks":{'time':1}, 
-	# 	"rename":{"lon":"longitude", "lat":"latitude"}
-	# 	})
+
+	data["HANSEN"] = ({
+		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
+		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, 
+		})
+	data["HANSEN_AFmask"] = ({
+		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, 
+		})
 	return data
 
 def datefixer(year, month, day):
