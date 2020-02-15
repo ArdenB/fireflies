@@ -290,7 +290,7 @@ def dsloader(data, dsn, ppath, dpath, force):
 		lat = []	#a test to make sure the sizes are correct
 		for fn in fnames:
 			dsin = xr.open_dataset(fn, chunks=data[dsn]["chunks"])
-			lat.append(dsin[var].shape[1] )
+			lat.append(dsin[data[dsn]["var"]].shape[1] )
 
 		# ========== open the dataset ==========
 		ds = xr.open_mfdataset(fnames, concat_dim="time", chunks=(data[dsn]["chunks"]))
