@@ -223,7 +223,11 @@ def ANNcalculator(data, dsn, mask,force, ppath, dpath, chunksize):
 		attrs = GlobalAttributes(ds_flat, dsn, fnameout=ppath+tname)
 
 		# ========== add some form of mask here ==========
-		ds_flat = ds_flat.where(mask["landwater"].values == 1).astype("float32")
+		try:
+			ds_flat = ds_flat.where(mask["landwater"].values == 1).astype("float32")
+		except Exception as e:
+			warn.warn(str(e))
+			ipdb.set_trace()
 
 		# ========== create a date ==========
 		dates    = datefixer(data[dsn]["end"], 12, 31)
