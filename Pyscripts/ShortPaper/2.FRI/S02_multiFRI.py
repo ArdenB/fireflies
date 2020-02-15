@@ -81,7 +81,7 @@ def main():
 	maskds = "esacci"
 	for dsn in data:
 		# ========== Set up the filename and global attributes =========
-		if dsn.startswint("HANSEN"):
+		if dsn.startswith("HANSEN"):
 			ppath = dpath + "/BurntArea/HANSEN/FRI/"
 		else:
 			ppath = dpath + "/BurntArea/%s/FRI/" %  dsn
@@ -312,7 +312,7 @@ def dsloader(data, dsn, ppath, dpath, force):
 def landseamaks(data, dsn, dpath, force, chunks=None, maskds = "esacci"):
 	# ========== create the mask fielname ==========
 	# masknm = ppath + "%s_landseamask.nc" % dsn
-	if dsn.startswint("HANSEN"):
+	if dsn.startswith("HANSEN"):
 		masknm = dpath+"/masks/landwater/%s_landwater.nc" % maskds
 	else:
 		masknm = dpath+"/masks/landwater/%s_landwater.nc" % dsn
