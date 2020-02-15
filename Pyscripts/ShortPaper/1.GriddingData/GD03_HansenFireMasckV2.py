@@ -92,20 +92,76 @@ def main():
 	# ========== Make the files ==========
 	# fnames = ActiveFireMask(dpath, force, client,)
 	fnames = None
+	ymin   = 2001
+	ymax   = 2018
 	
 	# ========== Build some netcdf versions ==========
-	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin=2001, ymax=2019, dsn = "esacci")
+	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci")
 
 	# ========== Resample the Hansen ==========
-	fly_nm = Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "esacci")
-	ipdb.set_trace()
-	# ========== Loop over the datasets ==========
-	# HansenMasker(fnames, force, dpath, ymin=2001, ymax=2019, )
+	flyr_nm, tmpnm = Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, dsn = "esacci")
 
+	# ========== Mask out the active fire  ==========
+	fn_afm = ActiveFireMasking(dpath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn = "esacci")
+	ipdb.set_trace()
+
+	# ========== Build an Annual Stack  ==========
+	for fnms, masknk in zip([flyr_nm, fn_afm], ["withNO_AFmask", "withMODIS_AFmask"]):
+		finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci")
 
 #==============================================================================
+def finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci"):
+	# FUNCTION TO STACK THE RESULTS
+	date = datefixer(yrmax, 12, 31)
+	fnout = dpath+"/BurntArea/HANSEN/Hansen_GFC-2018-v1_FLfraction_%s_res_%s.nc" % (dsn, masknk)
 
-def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "esacci"):
+	if os.path.isfile(fnout) and not force:
+		return fnout
+	pass
+
+def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn = "esacci"):
+	# Funtion for building a new dataset 
+	fnouts = []
+	# ========== Get the files ==========
+	for yr in range(ymin, ymax):
+		# +++++ setup an index number +++++
+		num  = int(yr- ymin)
+		date = datefixer(yr, 12, 31)
+		print(yr)
+
+		fnout = flyr_nm[num][:-3] + "_MODISAFmasked.nc"
+		if os.path.isfile(fnout) and not force:
+			fnouts.append(fnout)
+			continue
+
+
+		# +++++ open the active fire data +++++
+		if yr > ymin:
+			# This exists to allow the FL to be detected a year late
+			ds_af = xr.open_mfdataset(fns_NC[(num-1):(num+1)],  
+				combine='by_coords').chunk({'time':-1,'latitude': 10000, 'longitude':10000})
+			with ProgressBar():
+				ds_af = ds_af.any(dim="time", keep_attrs=True).compute()
+			
+			ds_af = ds_af.expand_dims("time", axis=0)
+			ds_af["time"] = date["time"]
+		else:
+			# open the active fire dataset
+			ds_af = xr.open_dataset(fns_NC[num], chunks=({'latitude': 10000, 'longitude':10000}))
+
+		# ========== open the hansen forest loss ==========
+		ds_fl = xr.open_dataset(flyr_nm[num], chunks=({'latitude': 10000, 'longitude':10000}))
+		attrs = ds_fl.attrs.copy()
+		
+		# ========== mask the data ==========
+		ds_masked = ds_fl.where( ds_af["ActiveFire"], 0)
+		
+		# ========== Write out the results ==========
+		ds_out = tempNCmaker(ds_masked, fnout, "lossyear", client, chunks={'latitude': 1000, 'longitude':1000}, skip=False, name="%d Forest loss wi AF mask " % yr)
+		fnouts.append(fnout)
+	return fnouts
+
+def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, dsn = "esacci"):
 	"""
 	take the Hansen data and resize it to match the datagrid
 	"""
@@ -113,7 +169,6 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 	temp_filesnm = []
 	cf.pymkdir(dpath + "/BurntArea/HANSEN/lossyear/tmp/")
 	# ========== Loop over the datasets ==========	
-	warn.warn("I've got a manual force in place, i will need to turn this of asap \n\n")
 	for yr, fnx in zip(range(ymin, ymax), fns_NC):
 		# if yr < 2011:
 		# 	continue
@@ -126,68 +181,64 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin=2001, ymax=2019, dsn = "es
 			print("Valid existing value for %d:" % yr, pd.Timestamp.now())
 			forestlossnm.append(fnout)
 			continue
-		
-		ds_in = xr.open_dataset(fname)#, chunks={'latitude': 999, 'longitude':999})
-		ds_in = ds_in.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-		ds_in = ds_in.chunk({'latitude': 10000, 'longitude':20000})
-
-		# ========== Open the resolution dataset ===========
-		ds_res = xr.open_dataset(fnx, chunks={'latitude': 100, 'longitude':100})
-
-		# ========== Find the places that were lost in each year ===========
-		ds_BOOL = (ds_in == yr-2000).astype("float32")
-		ds_BOOL["time"] = ds_res.time # time fix
-		ds_BOOL = tempNCmaker(
-			ds_BOOL, fntmp, "lossyear", client, chunks={'latitude': 9999, 'longitude':999}, 
-			skip=True, name="%d Forest Bool " % yr)
-		temp_filesnm.append(fntmp)
-
-		# ========== Calculate the bounding box ===========
-		def _Scalingfactors(ds_in, ds_res):
-			# +++++ Find the resolution +++++
-			res_lat = abs(np.unique(np.round(np.diff(ds_res.latitude.values), decimals=8)))[0]
-			din_lat = abs(np.unique(np.round(np.diff(ds_in.latitude.values), decimals=6))[0])
-
-			res_lon = abs(np.unique(np.round(np.diff(ds_res.longitude.values), decimals=8)))[0]
-			din_lon = abs(np.unique(np.round(np.diff(ds_in.longitude.values), decimals=6))[0])
+		else:
 			
-			# +++++ Find the scale factors +++++
-			SF_lat = int(np.round(res_lat/din_lat))
-			SF_lon = int(np.round(res_lon/din_lon))
+			ds_in = xr.open_dataset(fname)#, chunks={'latitude': 999, 'longitude':999})
+			ds_in = ds_in.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+			ds_in = ds_in.chunk({'latitude': 1000, 'longitude':10000})
 
-			return SF_lat, SF_lon
-		
-		SF_lat, SF_lon = _Scalingfactors(ds_in, ds_res)
-		print("Start coarsening and reindex for %d at:" % yr, pd.Timestamp.now())
-		with ProgressBar():
-			ds_out = ds_BOOL.coarsen(
-				dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").mean(
-				).reindex_like(ds_res, method="nearest")#.compute()
+			# ========== Open the resolution dataset ===========
+			ds_res = xr.open_dataset(fnx, chunks={'latitude': 100, 'longitude':100})
 
-		# ========== Fix the attributes ==========
-		ds_out.attrs = ds_in.attrs.copy()
-		ds_out.attrs["title"]   = "Regridded Annual Forest Loss"
-		ds_out.attrs["summary"] = "Forest loss for each year downsampled to workable resolution using xr.coarsen" 
-		
-		# ++++++++++ Data Provinance ++++++++++ 
-		ds_out.attrs["history"] = "%s: Netcdf file created using %s (%s):%s by %s" % (
-			str(pd.Timestamp.now()), __title__, __file__, __version__, __author__) + ds_out.attrs["history"]
+			# ========== Find the places that were lost in each year ===========
+			ds_BOOL = (ds_in == yr-2000).astype("float32")
+			ds_BOOL["time"] = ds_res.time # time fix
+			ds_BOOL = tempNCmaker(
+				ds_BOOL, fntmp, "lossyear", client, chunks={'latitude': 9999, 'longitude':999}, 
+				skip=True, name="%d Forest Bool " % yr)
+			temp_filesnm.append(fntmp)
 
-		# ++++++++++ Write the data out ++++++++++ 
-		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
-		ds_out = tempNCmaker(
-			ds_out, fnout, "lossyear", client, chunks={'latitude': 1000, 'longitude':1000}, 
-			skip=False, name="%d Forest loss " % yr)
-		forestlossnm.append(fnout)
+			# ========== Calculate the bounding box ===========
+			def _Scalingfactors(ds_in, ds_res):
+				# +++++ Find the resolution +++++
+				res_lat = abs(np.unique(np.round(np.diff(ds_res.latitude.values), decimals=8)))[0]
+				din_lat = abs(np.unique(np.round(np.diff(ds_in.latitude.values), decimals=6))[0])
 
-	ipdb.set_trace()
+				res_lon = abs(np.unique(np.round(np.diff(ds_res.longitude.values), decimals=8)))[0]
+				din_lon = abs(np.unique(np.round(np.diff(ds_in.longitude.values), decimals=6))[0])
+				
+				# +++++ Find the scale factors +++++
+				SF_lat = int(np.round(res_lat/din_lat))
+				SF_lon = int(np.round(res_lon/din_lon))
+
+				return SF_lat, SF_lon
+			
+			SF_lat, SF_lon = _Scalingfactors(ds_in, ds_res)
+			print("Start coarsening and reindex for %d at:" % yr, pd.Timestamp.now())
+			with ProgressBar():
+				ds_out = ds_BOOL.coarsen(
+					dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").mean(
+					).reindex_like(ds_res, method="nearest")#.compute()
+
+			# ========== Fix the attributes ==========
+			ds_out.attrs = ds_in.attrs.copy()
+			ds_out.attrs["title"]   = "Regridded Annual Forest Loss"
+			ds_out.attrs["summary"] = "Forest loss for each year downsampled to workable resolution using xr.coarsen" 
+			
+			# ++++++++++ Data Provinance ++++++++++ 
+			ds_out.attrs["history"] = "%s: Netcdf file created using %s (%s):%s by %s" % (
+				str(pd.Timestamp.now()), __title__, __file__, __version__, __author__) + ds_out.attrs["history"]
+
+			# ++++++++++ Write the data out ++++++++++ 
+			fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
+			ds_out = tempNCmaker(
+				ds_out, fnout, "lossyear", client, chunks={'latitude': 1000, 'longitude':1000}, 
+				skip=False, name="%d Forest loss " % yr)
+			forestlossnm.append(fnout)
+
 	return forestlossnm, temp_filesnm
 	
-
-# def function():
-# 	pass
-
-def MODIS_shptoNC(dpath, fnames, force, client, ymin=2001, ymax=2019, dsn = "esacci"):
+def MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci"):
 	""" 
 	Function to open the shape file and get the values into a raster at a workable 
 	resolu
@@ -240,7 +291,7 @@ def MODIS_shptoNC(dpath, fnames, force, client, ymin=2001, ymax=2019, dsn = "esa
 		fnames_nc.append(fnout)
 	return fnames_nc
 
-def ActiveFireMask(dpath, force, client, ymin=2001, ymax=2019):
+def ActiveFireMask(dpath, force, client, ymin, ymax):
 	def _annualfire(actfire, yr):
 		# ========== Convert to an equal area projection ==========
 		print("starting equal area reprojection at:	", pd.Timestamp.now())
