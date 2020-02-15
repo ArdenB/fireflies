@@ -75,7 +75,7 @@ def main():
 	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [ 1]# 2, 5]#$, 10] #in decimal degrees
+	mwbox = [ 1, 2, 5]#$, 10] #in decimal degrees
 	# force = True
 	force = False
 	maskds = "esacci"
