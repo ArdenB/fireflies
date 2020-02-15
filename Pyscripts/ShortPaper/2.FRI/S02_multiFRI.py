@@ -128,8 +128,6 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		# ========== Check if a valid file already exists ==========
 		if os.path.isfile(ppath+fname) and not force:
 			cleanup.append(ppath+tname)
-
-			ipdb.set_trace()
 			continue
 
 				# ===== get the ratio =====
