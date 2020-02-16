@@ -226,8 +226,10 @@ def ANNcalculator(data, dsn, mask,force, ppath, dpath, chunksize):
 		try:
 			ds_flat = ds_flat.where(mask["landwater"].values == 1).astype("float32")
 		except Exception as e:
-			warn.warn(str(e))
-			ipdb.set_trace()
+			# ========== Fix the Hansen mask ==========
+			mask = mask.sortby("latitude", ascending=False)
+			mask = mask.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+			ds_flat = ds_flat.where(mask["landwater"].values == 1).astype("float32")
 
 		# ========== create a date ==========
 		dates    = datefixer(data[dsn]["end"], 12, 31)
