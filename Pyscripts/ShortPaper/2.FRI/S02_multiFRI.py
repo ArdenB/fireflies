@@ -137,21 +137,22 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		SF = np.round(mwb /pix).astype(int)
 
 		# # ===== Create a masksum =====
-		warn.warn("I need to reimplement the mask here:")
+		# warn.warn("I need to reimplement the mask here:")
 		def _maskmaker(SF, mask, tpath, tMnme):
 			mask_sum = mask.rolling({"longitude":SF}, center = True, min_periods=1).sum()
 			print("Mask Role 1:", pd.Timestamp.now())
 			mask_sum = mask_sum.rolling({"latitude":SF}, center = True, min_periods=1).sum()
 			mask_sum = (mask_sum > ((SF/2)**2)).astype("int16")
 			print("Mask Role 2:", pd.Timestamp.now())
-
-			mask_sum = tempNCmaker(mask_sum, tpath, tMnme, "landwater", None, readchunks={'longitude': 500}, skip=False)
+			ipdb.set_trace()
+			mask_sum = tempNCmaker(mask_sum, tpath, tMnme, "landwater", 
+				None, readchunks={'longitude': 500}, skip=False)
 			mask_sum.close()
 			mask_sum = None
 			
 
-		if not os.path.isfile(tpath + tMnme):
-			_maskmaker(SF, mask, tpath, tMnme)
+		# if not os.path.isfile(tpath + tMnme):
+		_maskmaker(SF, mask, tpath, tMnme)
 		
 		print("Mask reload:", pd.Timestamp.now())
 		mask_sum = xr.open_dataset(tpath+tMnme)
@@ -454,8 +455,8 @@ def syspath():
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h/Data51"
 		dpath = "/mnt/d/Data51"
-		# chunksize = 50
-		chunksize = 5000
+		chunksize = 20
+		# chunksize = 5000
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
