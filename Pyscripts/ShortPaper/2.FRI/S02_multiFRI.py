@@ -326,7 +326,10 @@ def landseamaks(data, dsn, dpath, force, chunks=None, maskds = "esacci"):
 	# ========== create the mask fielname ==========
 	# masknm = ppath + "%s_landseamask.nc" % dsn
 	if dsn.startswith("HANSEN"):
+		print("starting mask reprocessing at:", pd.Timestamp.now())
 		masknm = dpath+"/masks/landwater/%s_landwater.nc" % maskds
+		mask = mask.sortby("latitude", ascending=False)
+		mask = mask.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 	else:
 		masknm = dpath+"/masks/landwater/%s_landwater.nc" % dsn
 
