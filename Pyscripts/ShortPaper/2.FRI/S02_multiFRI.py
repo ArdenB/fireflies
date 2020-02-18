@@ -327,15 +327,16 @@ def landseamaks(data, dsn, dpath, force, chunks=None, maskds = "esacci"):
 	if dsn.startswith("HANSEN"):
 		print("starting mask reprocessing at:", pd.Timestamp.now())
 		masknm = dpath+"/masks/landwater/%s_landwater.nc" % maskds
-		mask = mask.sortby("latitude", ascending=False)
-		mask = mask.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+		raw_mask = xr.open_dataset(masknm, chunks=chunks)
+		raw_mask = raw_mask.sortby("latitude", ascending=False)
+		raw_mask = raw_mask.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 	else:
 		masknm = dpath+"/masks/landwater/%s_landwater.nc" % dsn
-
+		raw_mask = xr.open_dataset(masknm, chunks=chunks)
 	# if dsn == "esacci":
 	# 	chunks = data[dsn]["chunks"]
 
-	raw_mask = xr.open_dataset(masknm, chunks=chunks)
+	# raw_mask = xr.open_dataset(masknm, chunks=chunks)
 	return raw_mask
 
 def datasets(dpath, chunksize):
