@@ -454,7 +454,7 @@ def syspath():
 		# dpath = "/mnt/h/Data51"
 		dpath = "/mnt/d/Data51"
 		# chunksize = 50
-		chunksize = 5000
+		# chunksize = 5000
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
@@ -464,7 +464,8 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		chunksize = 20
+		# chunksize = 20
+		chunksize = 5000
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
