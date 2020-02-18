@@ -91,12 +91,12 @@ def main():
 		mask = landseamaks(data, dsn, dpath, force,  )
 
 		# ========== Calculate the annual burn frewuency =========
-		force = True
+		# force = True|
 		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize)
 		# ipdb.set_trace()
 
 		# ========== work out the FRI ==========
-		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
+		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
 		# force = False
 		
 	ipdb.set_trace()
@@ -130,6 +130,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		# ========== Check if a valid file already exists ==========
 		if os.path.isfile(ppath+fname) and not force:
 			cleanup.append(ppath+tname)
+			cleanup.append(tpath+tMnme)
 			continue
 
 				# ===== get the ratio =====
@@ -253,7 +254,7 @@ def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize):
 	
 	else:
 		print("Opening existing Annual Burn Fraction file")
-		ds_flat = xr.open_dataset(tpath+tname, chunks=data[dsn]["chunks"])
+		ds_flat = xr.open_dataset(tpath+tname)#, chunks=data[dsn]["chunks"])
 
 	return ds_flat
 
@@ -454,7 +455,7 @@ def syspath():
 		# dpath = "/mnt/h/Data51"
 		dpath = "/mnt/d/Data51"
 		# chunksize = 50
-		# chunksize = 5000
+		chunksize = 5000
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
@@ -464,8 +465,8 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		# chunksize = 20
-		chunksize = 5000
+		chunksize = 20
+		# chunksize = 5000
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
