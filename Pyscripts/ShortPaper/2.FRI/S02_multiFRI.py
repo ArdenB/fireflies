@@ -158,7 +158,6 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		
 		print("Mask reload:", pd.Timestamp.now())
 		mask_sum = xr.open_dataset(tpath+tMnme)
-		ipdb.set_trace()
 		# This is so i can count the number of values that are valid in each location
 
 		# ===== Calculate the Moving window on dim 1 =====
