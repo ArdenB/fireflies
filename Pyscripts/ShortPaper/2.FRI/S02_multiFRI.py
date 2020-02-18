@@ -138,21 +138,23 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 
 		# # ===== Create a masksum =====
 		# warn.warn("I need to reimplement the mask here:")
-		def _maskmaker(SF, mask, tpath, tMnme):
+		def _maskmaker(SF, mask, tpath, tMnme, dsn):
 			mask_sum = mask.rolling({"longitude":SF}, center = True, min_periods=1).sum()
 			print("Mask Role 1:", pd.Timestamp.now())
 			mask_sum = mask_sum.rolling({"latitude":SF}, center = True, min_periods=1).sum()
 			mask_sum = (mask_sum > ((SF/2)**2)).astype("int16")
 			print("Mask Role 2:", pd.Timestamp.now())
-			ipdb.set_trace()
+			if dsn.startswith("HANSEN"):
+				mask_sum = mask_sum.sortby("latitude", ascending=False)
+				mask_sum = mask_sum.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 			mask_sum = tempNCmaker(mask_sum, tpath, tMnme, "landwater", 
 				None, readchunks={'longitude': 500}, skip=False)
 			mask_sum.close()
 			mask_sum = None
 			
 
-		# if not os.path.isfile(tpath + tMnme):
-		_maskmaker(SF, mask, tpath, tMnme)
+		if not os.path.isfile(tpath + tMnme):
+			_maskmaker(SF, mask, tpath, tMnme, dsn)
 		
 		print("Mask reload:", pd.Timestamp.now())
 		mask_sum = xr.open_dataset(tpath+tMnme)
