@@ -91,10 +91,12 @@ def main():
 		mask = landseamaks(data, dsn, dpath, force,  )
 
 		# ========== Calculate the annual burn frewuency =========
+		force = True
 		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize)
+		# ipdb.set_trace()
 
 		# ========== work out the FRI ==========
-		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
+		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
 		# force = False
 		
 	ipdb.set_trace()
@@ -189,7 +191,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		if os.path.isfile(file):
 			os.remove(file)
 
-def ANNcalculator(data, dsn, mask,force, ppath, dpath, chunksize):
+def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize):
 	""" Function to calculate the FRI 
 	args
 		data: 	Ordered dict
@@ -227,6 +229,7 @@ def ANNcalculator(data, dsn, mask,force, ppath, dpath, chunksize):
 			ds_flat = ds_flat.where(mask["landwater"].values == 1).astype("float32")
 		except Exception as e:
 			# ========== Fix the Hansen mask ==========
+			print("starting mask reprocessing at:", pd.Timestamp.now())
 			mask = mask.sortby("latitude", ascending=False)
 			mask = mask.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 			ds_flat = ds_flat.where(mask["landwater"].values == 1).astype("float32")
@@ -299,7 +302,7 @@ def dsloader(data, dsn, ppath, dpath, force):
 			lat.append(dsin[data[dsn]["var"]].shape[1] )
 
 		# ========== open the dataset ==========
-		ds = xr.open_mfdataset(fnames,combine="by_coords",chunks=(data[dsn]["chunks"]))
+		ds = xr.open_mfdataset(fnames, combine='nested', concat_dim="time",chunks=(data[dsn]["chunks"]))
 
 		
 		# ========== Add a simple dataset check ==========
@@ -331,25 +334,25 @@ def landseamaks(data, dsn, dpath, force, chunks=None, maskds = "esacci"):
 def datasets(dpath, chunksize):
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	data["COPERN_BA"] = ({
-		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
-		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
+	# data["COPERN_BA"] = ({
+	# 	'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+	# 	'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
+	# 	"rename":{"lon":"longitude", "lat":"latitude"}
+	# 	})
 
-	data["MODIS"] = ({
-		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
-		})
-	data["esacci"] = ({
-		"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
-		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
-		})
+	# data["MODIS"] = ({
+	# 	"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
+	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+	# 	})
+	# data["esacci"] = ({
+	# 	"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
+	# 	'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+	# 	})
 
 	data["HANSEN"] = ({
 		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
@@ -450,7 +453,8 @@ def syspath():
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h/Data51"
 		dpath = "/mnt/d/Data51"
-		chunksize = 50
+		# chunksize = 50
+		chunksize = 5000
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive/Data51"
