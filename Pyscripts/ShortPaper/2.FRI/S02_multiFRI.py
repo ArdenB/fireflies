@@ -75,11 +75,12 @@ def main():
 	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1, 2]#, 5]#, 10] #in decimal degrees
+	mwbox = [1]#, 2]#, 5]#, 10] #in decimal degrees
 	# force = True
 	force = False
 	maskds = "esacci"
 	for dsn in data:
+		print(dsn)
 		# ========== Set up the filename and global attributes =========
 		if dsn.startswith("HANSEN"):
 			ppath = dpath + "/BurntArea/HANSEN/FRI/"
@@ -96,7 +97,7 @@ def main():
 		# ipdb.set_trace()
 
 		# ========== work out the FRI ==========
-		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
+		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
 		# force = False
 		
 	ipdb.set_trace()
@@ -481,7 +482,7 @@ def syspath():
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
 		dpath= "/media/arden/Harbinger/Data51"
-		chunksize = 500
+		chunksize = 50
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
