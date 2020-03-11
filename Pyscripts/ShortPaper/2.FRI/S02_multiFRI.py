@@ -96,7 +96,7 @@ def main():
 		# ipdb.set_trace()
 
 		# ========== work out the FRI ==========
-		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
+		# FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
 		# force = False
 		
 	ipdb.set_trace()
@@ -481,7 +481,7 @@ def syspath():
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
 		dpath= "/media/arden/Harbinger/Data51"
-		chunksize = 50
+		chunksize = 500
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
