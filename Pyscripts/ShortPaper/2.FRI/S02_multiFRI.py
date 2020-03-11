@@ -477,7 +477,7 @@ def syspath():
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
 		dpath = "/mnt/f/Data51"
-		chunksize = 50
+		chunksize = 700
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
