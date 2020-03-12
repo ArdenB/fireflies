@@ -166,7 +166,9 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 
 		# ===== Calculate the Moving window on dim 1 =====
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
-		dsan_lons = tempNCmaker(dsan_lons, tpath, tname, "AnBF", {'latitude': chunksize}, readchunks={'longitude': chunksize}, skip=False)
+		dsan_lons = tempNCmaker(
+			dsan_lons, tpath, tname, "AnBF", 
+			{'latitude': chunksize}, readchunks={'longitude': chunksize}, skip=False)
 		
 		# ===== Calculate the Moving window in the other dim =====
 		ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
