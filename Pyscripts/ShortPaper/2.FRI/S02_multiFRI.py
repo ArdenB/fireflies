@@ -99,7 +99,7 @@ def main():
 		# ========== work out the FRI ==========
 		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
 		# force = False
-		print(dsn, " Complete at:", pd.Timestamp.Now())
+		print(dsn, " Complete at:", pd.Timestamp.now())
 		
 	ipdb.set_trace()
 
