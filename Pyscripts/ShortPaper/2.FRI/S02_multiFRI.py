@@ -476,7 +476,7 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		chunksize = 50
+		chunksize = 20
 		# chunksize = 5000
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
@@ -484,7 +484,7 @@ def syspath():
 		chunksize = 2000
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
-		dpath= "/media/arden/Harbinger/Data51"
+		dpath= "/media/arden/Harbingerq/Data51"
 		chunksize = 500
 	else:
 		ipdb.set_trace()
