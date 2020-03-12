@@ -75,7 +75,7 @@ def main():
 	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1]#, 2]#, 5]#, 10] #in decimal degrees
+	mwbox = [1, 2, 5]#, 10] #in decimal degrees
 	# force = True
 	force = False
 	maskds = "esacci"
@@ -482,7 +482,7 @@ def syspath():
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
 		dpath= "/media/arden/Harbinger/Data51"
-		chunksize = 50
+		chunksize = 500
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
