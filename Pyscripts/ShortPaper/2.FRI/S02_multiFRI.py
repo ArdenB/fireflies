@@ -156,7 +156,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 
 		if not os.path.isfile(tpath + tMnme):
 			_maskmaker(SF, mask, tpath, tMnme, dsn)
-			sys.exit()
+			# sys.exit()
 		
 		print("Mask reload:", pd.Timestamp.now())
 		mask_sum = xr.open_dataset(tpath+tMnme)
@@ -371,12 +371,12 @@ def datasets(dpath, chunksize):
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, 
 		})
-	# data["HANSEN_AFmask"] = ({
-	# 	"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
-	# 	'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
-	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
-	# 	"rename":None, 
-	# 	})
+	data["HANSEN_AFmask"] = ({
+		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, 
+		})
 	return data
 
 def datefixer(year, month, day):
@@ -475,8 +475,8 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		chunksize = 20
-		# chunksize = 5000
+		# chunksize = 20
+		chunksize = 5000
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
 		dpath = "/mnt/f/Data51"
