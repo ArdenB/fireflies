@@ -365,18 +365,18 @@ def datasets(dpath, chunksize):
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
 		})
 
-	data["HANSEN"] = ({
-		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
-		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
-		"rename":None, 
-		})
-	# data["HANSEN_AFmask"] = ({
-	# 	"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+	# data["HANSEN"] = ({
+	# 	"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
 	# 	'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
 	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 	# 	"rename":None, 
 	# 	})
+	data["HANSEN_AFmask"] = ({
+		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, 
+		})
 	return data
 
 def datefixer(year, month, day):
