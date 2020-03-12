@@ -75,7 +75,7 @@ def main():
 	data  = datasets(dpath, chunksize)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1, 2, 5]#, 10] #in decimal degrees
+	mwbox = [5]# 1, 2, , 10] #in decimal degrees
 	# force = True
 	force = False
 	maskds = "esacci"
@@ -366,18 +366,18 @@ def datasets(dpath, chunksize):
 		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
 		})
 
-	# data["HANSEN"] = ({
-	# 	"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
-	# 	'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
-	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
-	# 	"rename":None, 
-	# 	})
-	data["HANSEN_AFmask"] = ({
-		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+	data["HANSEN"] = ({
+		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
 		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, 
 		})
+	# data["HANSEN_AFmask"] = ({
+	# 	"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+	# 	'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+	# 	"rename":None, 
+	# 	})
 	return data
 
 def datefixer(year, month, day):
@@ -476,12 +476,12 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		chunksize = 20
+		chunksize = 200
 		# chunksize = 5000
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
 		dpath = "/mnt/f/Data51"
-		chunksize = 500
+		chunksize = 2000
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
 		dpath= "/media/arden/Harbinger/Data51"
