@@ -87,8 +87,8 @@ def main():
 
 	# ========== Setup the params ==========
 
-	mwbox   = [1, 2, 5]
-	dsnames = ["COPERN_BA", "MODIS", "esacci", "HansenGFL-MAF"]#, "HansenGFL"
+	mwbox   = [1, 2]#, 5]
+	dsnames = ["COPERN_BA", "MODIS", "esacci", "HANSEN_AFmask"]#, "HansenGFL"
 	formats = [".png"]#, ".pdf"] # None
 	# mask    = True
 
@@ -102,17 +102,18 @@ def main():
 		# ========== Setup the dataset ==========
 		datasets = OrderedDict()
 		for dsnm in dsnames:
-			if not dsnm.startswith("HansenGFL"):
+			if not dsnm.startswith("H"):
 				# +++++ make a path +++++
 				ppath = compath + "/Data51/BurntArea/%s/FRI/" %  dsnm
 				fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
 			else:
 				ppath = compath + "/Data51/BurntArea/HANSEN/FRI/"
-				fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
-				if dsnm == "HansenGFL":
-					fname += ".nc"
-				else:
-					fname += "MAF.nc"
+				# fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
+				fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+				# if dsnm == "HansenGFL":
+				# 	fname += ".nc"
+				# else:
+					# fname += "MAF.nc"
 			# +++++ open the datasets +++++
 			# ipdb.set_trace()
 			datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
@@ -130,7 +131,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
-	plotfname = plotdir + "PF01_%s_MW_%02dDegBox" % (var, mwb)
+	plotfname = plotdir + "PF01_%s_MW_%02dDegBox_V2" % (var, mwb)
 	if mask:
 		plotfname += "_ForestMask"
 		
@@ -180,18 +181,24 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA"):
 	# ipdb.set_trace()
 
 	# ========== Get the data for the frame ==========
-	frame = ds_dsn[var].isel(time=0)
+	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 	bounds = [-10.0, 180.0, 70.0, 40.0]
 
 	# ========== mask ==========
 	if mask:
 		# +++++ Setup the paths +++++
-		stpath = compath +"/Data51/ForestExtent/%s/" % dsn
-		fnmask = stpath + "Hansen_GFC-2018-v1.6_regrid_%s_%s_BorealMaskV2.nc" % (dsn, region)
+		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
+		stpath = compath + "/Data51/masks/broad/"
+
+		if not dsn.startswith("H"):
+			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
+		else:
+			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
 
 		# +++++ Check if the mask exists yet +++++
 		if os.path.isfile(fnmask):
-			with xr.open_dataset(fnmask).drop("ForestFraction") as dsmask:
+			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
 				
 				msk    = dsmask.mask.isel(time=0).astype("float32").values
 
@@ -286,11 +293,22 @@ def syspath():
 	sysname = os.uname()[1]
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
-		dpath = "/mnt/h"
+		# dpath = "/mnt/h"
+		dpath = "/mnt/d"
 	elif sysname == "ubuntu":
 		# Work PC
-		dpath = "/media/ubuntu/Seagate Backup Plus Drive"
+		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+		dpath = "/media/ubuntu/Harbinger"
+	# elif 'ccrc.unsw.edu.au' in sysname:
+	# 	dpath = "/srv/ccrc/data51/z3466821"
+	elif sysname == 'burrell-pre5820':
+		# The windows desktop at WHRC
+		dpath = "/mnt/f"
+		chunksize = 500
+	elif sysname == 'arden-Precision-5820-Tower-X-Series':
+		# WHRC linux distro
+		dpath= "/media/arden/Harbinger"
 	else:
 		ipdb.set_trace()
 	return dpath
