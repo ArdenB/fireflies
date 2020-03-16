@@ -196,10 +196,10 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		cleanup.append(tpath+tname)
 		cleanup.append(tpath+tMnme)
 
-	print("Starting excess file cleanup at:", pd.Timestamp.now())
-	for file in  cleanup:
-		if os.path.isfile(file):
-			os.remove(file)
+	# print("Starting excess file cleanup at:", pd.Timestamp.now())
+	# for file in  cleanup:
+	# 	if os.path.isfile(file):
+	# 		os.remove(file)
 
 def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize):
 	""" Function to calculate the FRI 
@@ -478,7 +478,7 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		chunksize = 20
+		chunksize = 2000
 		# chunksize = 5000
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
