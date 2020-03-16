@@ -161,7 +161,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		
 		print("Mask reload:", pd.Timestamp.now())
 		mask_sum = xr.open_dataset(tpath+tMnme)
-		# continue
+		continue
 		# This is so i can count the number of values that are valid in each location
 
 		# ===== Calculate the Moving window on dim 1 =====
@@ -483,7 +483,7 @@ def syspath():
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
 		dpath = "/mnt/f/Data51"
-		chunksize = 2000
+		chunksize = 500
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
 		dpath= "/media/arden/Harbingerq/Data51"
