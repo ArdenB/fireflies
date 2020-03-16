@@ -161,7 +161,7 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		
 		print("Mask reload:", pd.Timestamp.now())
 		mask_sum = xr.open_dataset(tpath+tMnme)
-		continue
+		# continue
 		# This is so i can count the number of values that are valid in each location
 
 		# ===== Calculate the Moving window on dim 1 =====
@@ -374,12 +374,12 @@ def datasets(dpath, chunksize):
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, 
 		})
-	data["HANSEN_AFmask"] = ({
-		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
-		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
-		"rename":None, 
-		})
+	# data["HANSEN_AFmask"] = ({
+	# 	"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+	# 	'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+	# 	"rename":None, 
+	# 	})
 	return data
 
 def datefixer(year, month, day):
