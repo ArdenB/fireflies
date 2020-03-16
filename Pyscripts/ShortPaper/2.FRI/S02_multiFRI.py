@@ -478,7 +478,7 @@ def syspath():
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath = "/srv/ccrc/data51/z3466821"
-		chunksize = 2000
+		chunksize = 20
 		# chunksize = 5000
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
