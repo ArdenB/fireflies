@@ -101,6 +101,10 @@ def mapmaker(ds, mapdet):
 		fig, ax = plt.subplots(1, 1, figsize=(18,4),
 			subplot_kw={'projection': mapdet.projection}, 
 			num=("Map of %s" % mapdet.var), dpi=mapdet.dpi)
+	elif mapdet.region == "zab":
+		fig, ax = plt.subplots(1, 1, figsize=(18,6),
+			subplot_kw={'projection': ccrs.PlateCarree()}, 
+			num=("Map of %s" % mapdet.var), dpi=mapdet.dpi)
 	else:
 		fig, ax = plt.subplots(1, 1, figsize=(18,8),
 			subplot_kw={'projection': ccrs.PlateCarree()}, 
@@ -113,7 +117,7 @@ def mapmaker(ds, mapdet):
 	ax.add_feature(cpf.COASTLINE, zorder=101)
 	if mapdet.national:
 		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	ax.add_feature(cpf.LAKES, alpha=mapdet.lakealpha, zorder=103)
 	ax.add_feature(cpf.RIVERS, zorder=104)
 	ax.outline_patch.set_visible(False)
 	# ax.gridlines()
@@ -139,6 +143,9 @@ def mapmaker(ds, mapdet):
 			# gl.xlocator = mticker.FixedLocator(np.arange(80.0, 125.0, 5.0))
 			gl.ylocator = mticker.FixedLocator(
 				np.arange(mapdet.bounds[2]+5, mapdet.bounds[3],  -10.0))
+		elif mapdet.region == "zab":
+			gl.xlocator = mticker.FixedLocator(np.arange(mapdet.bounds[0]+1, mapdet.bounds[1]))
+			gl.ylocator = mticker.FixedLocator(np.arange(mapdet.bounds[3]+1, mapdet.bounds[2]), -1)
 		# elif mapdet.region == "Cropped":
 		# 	gl.xlocator = mticker.FixedLocator(range(-140, 161, 20))
 			# gl.ylocator = mticker.FixedLocator(range(mapdet.crop[0], mapdet.crop[1], -10))
@@ -159,6 +166,7 @@ def mapmaker(ds, mapdet):
 		DA = DA.loc[dict(
 			longitude=slice(mapdet.bounds[0], mapdet.bounds[1]),
 			latitude=slice(mapdet.bounds[2], mapdet.bounds[3]))]
+		ax.set_extent(mapdet.bounds)
 		# ax.set_extent(mapdet.bounds, crs=ccrs.PlateCarree())
 	else:
 		# ax.set_global()

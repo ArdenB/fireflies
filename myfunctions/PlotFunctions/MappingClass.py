@@ -31,12 +31,16 @@ class mapclass(object):
 			self.bounds = [112.0, 156.25, -44.5, -10]
 		elif region == "MONG":
 			self.bounds = [85.0, 120.0, 52.0, 40.0]
+		elif region == "zab":
+			self.bounds = [101.0, 115.0, 53.0, 50.0]
+			self.set_x  = 1.75
 		elif region == "boreal":
 			self.bounds = [-180.0, 180.0, 80.0, 40.0]
 			self.set_x  = 1.75   # The spacing of the colorbar lables
 		else:
 			Warning("The region code is unknown, unable to set bounds")
 			self.bounds = None
+			self.set_x  = None   # The spacing of the colorbar lables
 		self.region = region
 		self.pshow  = pshow # show the plot after saving?
 		
@@ -79,14 +83,15 @@ class mapclass(object):
 		
 		
 		# ========== Set the plot defualts ==========
-		self.maskcol  = 'dimgrey'
-		self.Oceancol = 'w'
+		self.maskcol   = 'dimgrey'
+		self.Oceancol  = 'w'
 		# Extend the colorbar to cover any data outside the cmap range
-		self.extend   = "both" 
-		self.spacing  = 'uniform'
-		self.fontsize = 11
-		self.latsize  = 16
-
+		self.extend    = "both" 
+		self.spacing   = 'uniform'
+		self.fontsize  = 11
+		self.latsize   = 16
+		self.lakealpha = 0.5 
+		
 		
 
 

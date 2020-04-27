@@ -70,15 +70,15 @@ def main():
 		# ========== Load the data ==========
 		ds   = xr.open_dataset(resinfo[dst]["fname"])
 		# ========== Load the mask for the correct grid ==========
-		# mask = xr.open_dataset(
-		# "./data/other/ForestExtent/BorealForestMask_%s.nc"%(resinfo[dst]["grid"]))
-		mask = None
+		mask = xr.open_dataset(
+		"./data/other/ForestExtent/BorealForestMask_%s.nc"%(resinfo[dst]["grid"]))
+		# mask = None
 		
 		# ========== Build the map ==========
 		xr_mapmaker(dst, ds, mask, resinfo[dst])
 
 		# ========== Get the stats ==========
-		# statsmaker(dst, ds, mask, resinfo[dst])
+		statsmaker(dst, ds, mask, resinfo[dst])
 
 #==============================================================================
 
@@ -97,7 +97,7 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 
 	"""
 	# ========== make my map detiles object ==========
-	mapdet = pf.mapclass("siberia")
+	mapdet = pf.mapclass("boreal")
 
 	# ========== add infomation to mapdet ==========
 	mapdet.var      = "slope" #the thing to be plotted
@@ -140,7 +140,7 @@ def xr_mapmaker(dst, ds, mask, dsinfo):
 				ds[ky][:] = fdr[ky]
 
 	cf.pymkdir(mapdet.plotpath)
-	warn.warn("Polar projection needs work")
+	# warn.warn("Polar projection needs work")
 	# mapdet.projection = ccrs.NorthPolarStereo()
 
 	# ========== Make the map ==========
@@ -172,6 +172,7 @@ def statsmaker(dst, ds, mask, dsinfo):
 			infomation about the dataset
 
 	"""
+	ipdb.set_trace()
 	# ========== Get some info ==========
 	maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
 		__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
@@ -241,11 +242,11 @@ def results():
 	Function to return the infomation about the results
 	"""
 	res = OrderedDict()
-	res["ndvi_v10"] = ({
-		"fname":"./results/netcdf/GIMMS3gv1.0_ndvi_TheilSen_1982_to2015_GlobalGIMMS.nc",
-		"source":"GIMMS3gv1.0","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
-		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
-		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
+	# res["ndvi_v10"] = ({
+	# 	"fname":"./results/netcdf/GIMMS3gv1.0_ndvi_TheilSen_1982_to2015_GlobalGIMMS.nc",
+	# 	"source":"GIMMS3gv1.0","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+	# 	"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
+	# 	"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
 	res["ndvi_aqua"] = ({
 		"fname":"./results/netcdf/MYD13C1_ndvi_TheilSen_2002_to2018_GlobalMODIS_CMG.nc",
 		"source":"MYD13C1","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
@@ -261,16 +262,16 @@ def results():
 		"source":"GIMMS3gv1.1","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
 		"window":0, "grid":"GIMMS", "param":"AnnualMaxNDVI", 
 		"units":r"x10$^{-2}$ NDVI$_{max}$ yr$^{-1}$"})
-	res["tmean"] = ({
-		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_tmean_theilsento2017_GlobalGIMMS.nc",
-		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
-		"window":20, "grid":"GIMMS", "param":"MeanAnnualTemperature", 
-		"units":r"$^{o}$C yr$^{-1}$"})
-	res["ppt"] = ({
-		"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_ppt_theilsento2017_GlobalGIMMS.nc",
-		"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
-		"window":20, "grid":"GIMMS", "param":"AnnualPrecipitation", 
-		"units":r"mm yr$^{-1}$"})
+	# res["tmean"] = ({
+	# 	"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_tmean_theilsento2017_GlobalGIMMS.nc",
+	# 	"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+	# 	"window":20, "grid":"GIMMS", "param":"MeanAnnualTemperature", 
+	# 	"units":r"$^{o}$C yr$^{-1}$"})
+	# res["ppt"] = ({
+	# 	"fname":"./results/netcdf/TerraClimate_Annual_RollingMean_ppt_theilsento2017_GlobalGIMMS.nc",
+	# 	"source":"TerraClimate","test":"Theisen", "FDRmethod":"BenjaminiHochberg",
+	# 	"window":20, "grid":"GIMMS", "param":"AnnualPrecipitation", 
+	# 	"units":r"mm yr$^{-1}$"})
 	return res
 
 def MultipleComparisons_DA(pvalue, aplha = 0.10, MCmethod="fdr_bh"):
