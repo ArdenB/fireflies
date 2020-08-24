@@ -86,12 +86,17 @@ print("xarray version : ", xr.__version__)
 def main():
 
 	# ========== Setup the params ==========
-
+	TCF = 10
 	mwbox   = [1, 2]#, 5]
-	# dsnames = ["COPERN_BA", "MODIS", "esacci", "HANSEN_AFmask"]#, "HansenGFL"
-	dsnames = ["HANSEN_AFmask", "HANSEN"]
+	dsnames = ["COPERN_BA", "MODIS", "esacci", "HANSEN_AFmask"]#, "HansenGFL"
+	# dsnames = ["HANSEN_AFmask", "HANSEN"]
 	formats = [".png"]#, ".pdf"] # None
 	# mask    = True
+	if TCF == 0:
+		tcfs = ""
+	else:
+		tcfs = "_%dperTC" % np.round(TCF)
+
 
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/"
@@ -105,10 +110,11 @@ def main():
 		for dsnm in dsnames:
 			if not dsnm.startswith("H"):
 				# +++++ make a path +++++
-				ppath = compath + "/Data51/BurntArea/%s/FRI/" %  dsnm
-				fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+				ppath = compath + "/BurntArea/%s/FRI/" %  dsnm
+				fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, tcfs, mwb)
+				# fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
 			else:
-				ppath = compath + "/Data51/BurntArea/HANSEN/FRI/"
+				ppath = compath + "/BurntArea/HANSEN/FRI/"
 				# fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
 				fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
 				# if dsnm == "HansenGFL":
@@ -190,7 +196,7 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA"):
 	if mask:
 		# +++++ Setup the paths +++++
 		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
-		stpath = compath + "/Data51/masks/broad/"
+		stpath = compath + "/masks/broad/"
 
 		if not dsn.startswith("H"):
 			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
@@ -295,21 +301,24 @@ def syspath():
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
-		dpath = "/mnt/d"
+		dpath = "/mnt/d/Data51"
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
-		dpath = "/media/ubuntu/Harbinger"
+		dpath = "/media/ubuntu/Harbinger/Data51"
 	# elif 'ccrc.unsw.edu.au' in sysname:
 	# 	dpath = "/srv/ccrc/data51/z3466821"
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
-		dpath = "/mnt/f"
+		# dpath = "/mnt/f/Data51/BurntArea"
+		dpath = "./data"
 		chunksize = 500
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
-		dpath= "/media/arden/Harbinger"
+		dpath = "./data"
+		breakpoint()
+		# dpath= "/media/arden/Harbinger/Data51/BurntArea"
 	else:
 		ipdb.set_trace()
 	return dpath

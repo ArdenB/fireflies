@@ -99,36 +99,26 @@ def main():
 	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci")
 
 	# ========== Resample the Hansen ==========
-	flyr_nm, tmpnm = Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, dsn = "esacci")
+	for TCF in [10]: # 0. , 50.
+		# force=True
+		flyr_nm, tmpnm = Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF, dsn = "esacci")
 
-	# ========== Mask out the active fire  ==========
-	fn_afm = ActiveFireMasking(dpath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn = "esacci")
+		# ========== Mask out the active fire  ==========
+		fn_afm = ActiveFireMasking(dpath, force, flyr_nm, fns_NC, ymin, ymax, client, TCF, dsn = "esacci")
+		# breakpoint()
 
-	ipdb.set_trace()
+	# ipdb.set_trace()
 	for fn in tmpnm:
 		if os.path.isfile(fn):
 			os.remove(fn)
 
 
-	# ========== Build an Annual Stack  ==========
-	# for fnms, masknk in zip([flyr_nm, fn_afm], ["withNO_AFmask", "withMODIS_AFmask"]):
-	# 	finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci")
-
-#==============================================================================
-# def finalstack(dpath, force, fnms, masknk, ymin, ymax, client, dsn = "esacci"):
-# 	# FUNCTION TO STACK THE RESULTS
-# 	date = datefixer(yrmax, 12, 31)
-# 	fnout = dpath+"/BurntArea/HANSEN/Hansen_GFC-2018-v1_FLfraction_%s_res_%s.nc" % (dsn, masknk)
-
-# 	if os.path.isfile(fnout) and not force:
-# 		return fnout
-	
-
 	# ========== open the files ==========
 
-def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn = "esacci"):
+def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, TCF, dsn = "esacci"):
 	# Funtion for building a new dataset 
 	fnouts = []
+
 	# ========== Get the files ==========
 	for yr in range(ymin, ymax):
 		# +++++ setup an index number +++++
@@ -141,7 +131,6 @@ def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn 
 			fnouts.append(fnout)
 			continue
 
-
 		# +++++ open the active fire data +++++
 		if yr > ymin:
 			# This exists to allow the FL to be detected a year late
@@ -153,7 +142,7 @@ def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn 
 			ds_af = ds_af.expand_dims("time", axis=0)
 			ds_af["time"] = date["time"]
 		else:
-			# open the active fire dataset
+			# open the active fire dataset. double checked this code 24/8/2020
 			ds_af = xr.open_dataset(fns_NC[num], chunks=({'latitude': 10000, 'longitude':10000}))
 
 		# ========== open the hansen forest loss ==========
@@ -164,11 +153,13 @@ def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, dsn 
 		ds_masked = ds_fl.where( ds_af["ActiveFire"], 0)
 		
 		# ========== Write out the results ==========
-		ds_out = tempNCmaker(ds_masked, fnout, "lossyear", client, chunks={'latitude': 1000, 'longitude':1000}, skip=False, name="%d Forest loss wi AF mask " % yr)
+		ds_out = tempNCmaker(ds_masked, fnout, "lossyear", client, 
+			chunks={'latitude': 1000, 'longitude':1000}, skip=False, 
+			name="%d Forest loss with AF mask " % yr)
 		fnouts.append(fnout)
 	return fnouts
 
-def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, dsn = "esacci"):
+def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci"):
 	"""
 	take the Hansen data and resize it to match the datagrid
 	"""
@@ -177,28 +168,40 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, dsn = "esacci"):
 	cf.pymkdir(dpath + "/BurntArea/HANSEN/lossyear/tmp/")
 	# ========== Loop over the datasets ==========	
 	for yr, fnx in zip(range(ymin, ymax), fns_NC):
-		# if yr < 2011:
-		# 	continue
+		# ========== Add a loading string for forest cover ==========
+		if TCF == 0.:
+			tcfs = ""
+		else:
+			tcfs = "_%dperTC" % np.round(TCF)
+
 		# ========== load in the hansen file ==========
 		fname = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc"
-		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
-		fntmp = dpath + "/BurntArea/HANSEN/lossyear/tmp/tmp_Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
-		
+		fn_fc = dpath+"/BurntArea/HANSEN/FC2000/Hansen_GFC-2018-v1.6_treecover2000_SIBERIA.nc"
+		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s%s.nc" % (yr, dsn, tcfs)
+		fntmp = dpath + "/BurntArea/HANSEN/lossyear/tmp/tmp_Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s%s.nc" % (yr, dsn, tcfs)
 		if os.path.isfile(fnout) and not force:
 			print("Valid existing value for %d:" % yr, pd.Timestamp.now())
 			forestlossnm.append(fnout)
+			temp_filesnm.append(fntmp)
 			continue
 		else:
-			
+
 			ds_in = xr.open_dataset(fname)#, chunks={'latitude': 999, 'longitude':999})
 			ds_in = ds_in.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-			ds_in = ds_in.chunk({'latitude': 1000, 'longitude':10000})
+			ds_in = ds_in.chunk({'latitude': 10000, 'longitude':10000})
 
 			# ========== Open the resolution dataset ===========
-			ds_res = xr.open_dataset(fnx, chunks={'latitude': 100, 'longitude':100})
+			ds_res = xr.open_dataset(fnx, chunks={'latitude': 1000, 'longitude':1000})
 
 			# ========== Find the places that were lost in each year ===========
-			ds_BOOL = (ds_in == yr-2000).astype("float32")
+			if TCF == 0:
+				ds_BOOL = (ds_in == yr-2000).astype("float32")
+			else:
+				# ========== Open the tree cover and make a boolean mask ==========
+				ds_fc = xr.open_dataset(fn_fc).sel(	dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+				ds_fc = ds_fc.chunk({'latitude': 10000, 'longitude':10000}).rename({"treecover2000":"lossyear"})
+				ds_BOOL = (ds_in == yr-2000).astype("float32").where(ds_fc>TCF)
+
 			ds_BOOL["time"] = ds_res.time # time fix
 			ds_BOOL = tempNCmaker(
 				ds_BOOL, fntmp, "lossyear", client, chunks={'latitude': 9999, 'longitude':999}, 
@@ -237,11 +240,16 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, dsn = "esacci"):
 				str(pd.Timestamp.now()), __title__, __file__, __version__, __author__) + ds_out.attrs["history"]
 
 			# ++++++++++ Write the data out ++++++++++ 
-			fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
+			# fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
 			ds_out = tempNCmaker(
 				ds_out, fnout, "lossyear", client, chunks={'latitude': 1000, 'longitude':1000}, 
 				skip=False, name="%d Forest loss " % yr)
 			forestlossnm.append(fnout)
+
+			# ========== Remove the temp files to cleanup diskspace ==========
+			if os.path.isfile(fntmp):
+				os.remove(fntmp)
+			
 
 	return forestlossnm, temp_filesnm
 	
@@ -364,7 +372,8 @@ def ActiveFireMask(dpath, force, client, ymin, ymax):
 	return fnames
 
 #==============================================================================
-def tempNCmaker(ds, fnout, vname, client, chunks={'latitude': 10000, 'longitude':1000}, skip=False, name="tmp"):
+def tempNCmaker(ds, fnout, vname, client, chunks={'latitude': 10000, 'longitude':1000}, 
+	skip=False, name="tmp"):
 
 	""" Function to Quickly save netcdfs"""
 	
@@ -440,6 +449,9 @@ def syspath():
 	elif 'ccrc.unsw.edu.au' in sysname:
 		dpath  = "/srv/ccrc/data51/z3466821"
 		# clpath = "/srv/ccrc/data51/z3466821/Input_data/TerraClimate"
+		chunksize = 20
+	elif sysname == 'burrell-pre5820':
+		dpath = "./data"
 		chunksize = 20
 	else:
 		ipdb.set_trace()

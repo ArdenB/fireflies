@@ -71,11 +71,12 @@ import myfunctions.corefunctions as cf
 
 def main():
 	# ========== Setup the paths ==========
+	TCF = 10
 	dpath, chunksize = syspath()
-	data  = datasets(dpath, chunksize)
+	data  = datasets(dpath, chunksize, TCF=TCF)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1, 2, 5]#, 10] #in decimal degrees
+	mwbox = [1]#, 2, 5]#, 10] #in decimal degrees
 	# force = True
 	force = False
 	maskds = "esacci"
@@ -93,11 +94,10 @@ def main():
 
 		# ========== Calculate the annual burn frewuency =========
 		# force = True|
-		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize)
-		# ipdb.set_trace()
-
+		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize, TCF)
+		# breakpoint()
 		# ========== work out the FRI ==========
-		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize)
+		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize, TCF)
 		# force = False
 		print(dsn, " Complete at:", pd.Timestamp.now())
 		
@@ -109,33 +109,40 @@ def main():
 
 
 #==============================================================================
-def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
+def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize, TCF):
 	""""""
 	""" Function to caluclate the FRI at different resolutions """
-	
+
+	# ========== Add a loading string for forest cover in Hansen Datasets ==========
+	if dsn.startswith("HANSEN") and (TCF > 0.):
+		tcfs = "_%dperTC" % np.round(TCF)
+	else:
+		tcfs = ""
+
 	# ========== Setup a working path ==========
 	tpath = ppath+"tmp/"
 	
 	# ========== work out the ration ==========
 	pix    =  abs(np.unique(np.diff(ds_ann.latitude.values))[0]) 
-	ds_ann = ds_ann.chunk({"latitude":chunksize, "longitude":-1})
+	# ds_ann = ds_ann.chunk({"latitude":chunksize, "longitude":-1})
+	print(f"Loading annual data into ram at: {pd.Timestamp.now()}")
+	ds_ann.persist()
 
 	# ========== Build a cleanup list ==========
 	cleanup = []
 	for mwb in mwbox:
 		print("Starting %s %d degree moving window at:" %(dsn, mwb), pd.Timestamp.now())
-		fname  = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, mwb)
-		tname  = "%s_annual_burns_lonMW_%ddegreeBox.nc" % (dsn, mwb)
-		tname2 = "%s_annual_burns_latMW_%ddegreeBox.nc" % (dsn, mwb)
-		tMnme  = "%s_annual_burns_lonMW_tmpmask_%ddegreeBox.nc" % (dsn, mwb)
+		fname  = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, tcfs, mwb)
+		tname  = "%s%s_annual_burns_lonMW_%ddegreeBox.nc" % (dsn, tcfs, mwb)
+		tname2 = "%s%s_annual_burns_latMW_%ddegreeBox.nc" % (dsn, tcfs, mwb)
+		tMnme  = "%s%s_annual_burns_lonMW_tmpmask_%ddegreeBox.nc" % (dsn, tcfs, mwb)
 
 		# ========== Check if a valid file already exists ==========
 		if os.path.isfile(ppath+fname) and not force:
 			cleanup.append(ppath+tname)
 			cleanup.append(tpath+tMnme)
 			continue
-
-				# ===== get the ratio =====
+		# ===== get the ratio =====
 		SF = np.round(mwb /pix).astype(int)
 
 		# # ===== Create a masksum =====
@@ -163,12 +170,16 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		mask_sum = xr.open_dataset(tpath+tMnme)
 		# continue
 		# This is so i can count the number of values that are valid in each location
+		# breakpoint()
 
 		# ===== Calculate the Moving window on dim 1 =====
 		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
 		dsan_lons = tempNCmaker(
 			dsan_lons, tpath, tname, "AnBF", 
 			{'latitude': chunksize}, readchunks={'longitude': chunksize}, skip=False)
+		
+		print(f"Loading temp rolled dataset data into ram at: {pd.Timestamp.now()}")
+		dsan_lons.persist()
 		
 		# ===== Calculate the Moving window in the other dim =====
 		ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
@@ -201,13 +212,18 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize):
 		if os.path.isfile(file):
 			os.remove(file)
 
-def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize):
+def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize, TCF):
 	""" Function to calculate the FRI 
 	args
 		data: 	Ordered dict
 		dsn:	str of the dataset name
 		ds:		XR dataset
 	"""
+	# ========== Add a loading string for forest cover in Hansen Datasets ==========
+	if dsn.startswith("HANSEN") and (TCF > 0.):
+		tcfs = "_%dperTC" % np.round(TCF)
+	else:
+		tcfs = ""
 
 	# ========== Setup a working path ==========
 	tpath = ppath+"tmp/"
@@ -218,10 +234,11 @@ def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize):
 	# ======================================================
 	
 	# ========== setup the temp filnames ==========
-	tname = "%s_annual_burns.nc" % dsn
+	tname = "%s%s_annual_burns.nc" % (dsn, tcfs)
 
 
 	if not os.path.isfile(tpath+tname) or force:
+		# breakpoint()
 		# ========== load the data ==========
 		ds = dsloader(data, dsn, ppath, dpath, force)
 		
@@ -322,9 +339,6 @@ def dsloader(data, dsn, ppath, dpath, force):
 			sys.exit()
 	else:
 		ds = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
-	
-	
-
 	return ds
 
 def landseamaks(data, dsn, dpath, force, chunks=None, maskds = "esacci"):
@@ -345,7 +359,16 @@ def landseamaks(data, dsn, dpath, force, chunks=None, maskds = "esacci"):
 	# raw_mask = xr.open_dataset(masknm, chunks=chunks)
 	return raw_mask
 
-def datasets(dpath, chunksize):
+def datasets(dpath, chunksize, TCF = 0):
+	"""
+	args:
+		TCF: int
+			the fraction of Hansen forest cover included in the analysis, TCF = 10 gives 10 percent,
+	"""
+	if TCF == 0.:
+		tcfs = ""
+	else:
+		tcfs = "_%dperTC" % np.round(TCF)
 	# ========== set the filnames ==========
 	data= OrderedDict()
 	data["COPERN_BA"] = ({
@@ -369,13 +392,13 @@ def datasets(dpath, chunksize):
 		})
 
 	data["HANSEN"] = ({
-		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
+		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci%s.nc" % tcfs,
 		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, 
 		})
 	data["HANSEN_AFmask"] = ({
-		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci%s_MODISAFmasked.nc" % tcfs,
 		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
 		"rename":None, 
@@ -482,12 +505,14 @@ def syspath():
 		# chunksize = 5000
 	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
-		dpath = "/mnt/f/Data51"
-		chunksize = 500
+		# dpath = "/mnt/f/Data51"
+		dpath = "./data"
+		chunksize = 300
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
-		dpath= "/media/arden/Harbingerq/Data51"
-		chunksize = 500
+		# dpath= "/media/arden/Harbingerq/Data51"
+		dpath = "./data"
+		chunksize = 300
 	else:
 		ipdb.set_trace()
 	return dpath, chunksize	
