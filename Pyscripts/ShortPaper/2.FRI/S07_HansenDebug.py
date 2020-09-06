@@ -67,6 +67,9 @@ import myfunctions.corefunctions as cf
 #==============================================================================
 
 def main():
+	#////// The issue was resolved by implementing a weighted mean 
+	# ///// Ended up having to build a forest cover weights table and 
+	# ///// multiply it by the AnBF wien dooing the roll in multiFRI.py script
 
 	# ========== Setup the params ==========
 	mwbox   = [1, 2]#, 5]
@@ -81,21 +84,36 @@ def main():
 	latmin = 50.
 	lonmin = 100.
 	lonmax = 115.
-	FCT     = 10.
+	FCT    = 10.
 	for mwb in mwbox:
 		# ========== Setup the dataset ==========
 		for dsnm in dsnames:
 			ppath = compath + "/BurntArea/HANSEN/FRI/"
-			fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+			fname = "%s_10perTC_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
 			ds_dsn = xr.open_dataset(ppath+fname).sel(dict(
 				latitude =slice(latmax, latmin), 
 				longitude=slice(lonmin, lonmax)))
+
+			fname2 = "%s_50perTC_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+			ds_dsn2 = xr.open_dataset(ppath+fname2).sel(dict(
+				latitude =slice(latmax, latmin), 
+				longitude=slice(lonmin, lonmax)))
+			breakpoint()
 
 			# ========== Open the original hansen ==========
 			fn_og = "Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc"
 			ds_og = xr.open_dataset(ppath+fn_og).sel(dict(
 				latitude =slice(latmax+mwb, latmin-mwb), 
 				longitude=slice(lonmin-mwb, lonmax+mwb))).load()
+
+			ds_an = xr.open_dataset(ppath + "tmp/HANSEN_10perTC_annual_burns.nc").sel(dict( 
+				latitude =slice(latmax+mwb, latmin-mwb), 
+				longitude=slice(lonmin-mwb, lonmax+mwb))).persist()
+			anrat = int(np.round(mwb/np.mean(np.diff(ds_an.longitude.values))))
+
+			# with ProgressBar():
+			# 	ds_roll.compute()
+			# "latitude":anrat}, 
 
 			# ========== Calculate scale factors ==========
 			rat = np.round(mwb / np.array(ds_og["lossyear"].attrs["res"]) )
@@ -111,17 +129,52 @@ def main():
 							latitude =slice(latmax+mwb, latmin-mwb), 
 							longitude=slice(lonmin-mwb, lonmax+mwb)))>FCT).compute()
 
+
+			ds_og = ds_og.where(ds_fc.treecover2000.values)
 			# DS_af =  xr.open_dataset(
 			# 	'/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/HANSEN/HansenMODIS_activefiremask.nc', 
 			# 	chunks={'latitude': dscf, "longitude": dscf}).sel(dict(latitude=slice(la[0], la[1]),longitude=slice(la[2], la[3])))
+			
 
 			# ========== Make a dataset of the same shape as ds_dsn ==========
 			FRI     = np.zeros(ds_dsn.FRI.shape)
 			FRI[:]  = np.NaN
 			AnBF    = np.zeros(ds_dsn.AnBF.shape)
 			AnBF[:] = np.NaN
+
+
+			valn = ds_dsn.sel({"latitude":54.333, "longitude":111.492}, method="nearest")
+			xlon = valn.longitude.values
+			ylat = valn.latitude.values
+
+			ds_coarse = ds_fc.coarsen(
+				dim={"latitude":9, "longitude":9}, boundary="pad").sum().reindex_like(ds_an, method="nearest")
+			weights = (ds_coarse.rename({"treecover2000":"AnBF"}).astype(float) / (9*9)).AnBF
+
+
+			# ds_cs = (ds_cs.where(ds_cs.AnBF > 0))
+			ds_rolled = ds_an.rolling({"longitude":anrat},center = True, min_periods=1).mean() 
+			ds_roll   = ds_rolled.rolling({"latitude":anrat},center = True, min_periods=1).mean() 
+			ds_roll   = ds_roll.where(~(ds_roll.AnBF == 0), 0.00001)
+			ds_roll["FRI"] = 1./ds_roll.AnBF
+
+			# breakpoint()
+
+			# weighted   = ds_an["AnBF"]#.weighted(weights)
+			# ds_rolled2 = (ds_an*weights).rolling({"longitude":anrat},center = True, min_periods=1).sum() 
+			# ds_rolled3 = ds_rolled2.rolling({"latitude":anrat},center = True, min_periods=1).sum() 
+
+			dsw1  = weights.rolling({"longitude":anrat},center = True, min_periods=1).sum() 
+			dsw2  = dsw1.rolling({"latitude":anrat},center = True, min_periods=1).sum() 
+
+			ds_roll2 = ds_rolled3/dsw2
+			ds_roll2["FRI"] = 1./ds_roll2.AnBF
+			# breakpoint()
+
 			for yloc, lat in enumerate(ds_dsn.latitude):
 				t0 = pd.Timestamp.now()
+				if not lat == ylat:
+					continue
 				# ========== Pull out a lon box of tree cover loss ==========
 				ds_lsub = ds_og.sel(dict(
 					latitude =slice(lat+(mwb/2.), lat-(mwb/2.))))#.compute()
@@ -188,7 +241,30 @@ def main():
 				# breakpoint()
 				t2 = pd.Timestamp.now()
 				print(yloc, " of ", ds_dsn.latitude.size, pd.Timestamp.now(), t1-t0, t2-t1, t2-t0)
+			
+			breakpoint()
 			ds_new = ds_dsn.copy(data={"AnBF":AnBF,"FRI":FRI})
+			
+			valn = ds_new.sel({"latitude":ylat, "longitude":xlon}, method="nearest")
+
+
+
+			breakpoint()
+
+			valO = ds_dsn.sel({"latitude":ylat, "longitude":xlon}, method="nearest")
+			tcv  = ds_fc.sel(dict(
+							latitude =slice(ylat+(mwb/2.), ylat-(mwb/2.)), 
+							longitude=slice(xlon-(mwb/2.), xlon+(mwb/2.))))
+			valid = tcv.treecover2000.sum().values
+
+			hnv  = ds_og.sel(dict(
+							latitude =slice(ylat+(mwb/2.), ylat-(mwb/2.)), 
+							longitude=slice(xlon-(mwb/2.), xlon+(mwb/2.)))).astype(float)
+			hnv = (hnv>0).where(tcv.treecover2000.values)
+
+			out = (hnv>0).lossyear.sum().values.astype(float) / 18
+
+			out.mean()/18.
 			breakpoint()
 
 #==============================================================================

@@ -71,7 +71,8 @@ import myfunctions.corefunctions as cf
 
 def main():
 	# ========== Setup the paths ==========
-	TCF = 10
+	# TCF = 10
+	TCF = 50
 	dpath, chunksize = syspath()
 	data  = datasets(dpath, chunksize, TCF=TCF)
 	
@@ -93,11 +94,11 @@ def main():
 		mask = landseamaks(data, dsn, dpath, force,  )
 
 		# ========== Calculate the annual burn frewuency =========
-		# force = True|
 		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize, TCF)
+		# force = True
 		# breakpoint()
 		# ========== work out the FRI ==========
-		FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize, TCF)
+		FRIcal(ds_ann, mask, dsn, force, ppath, dpath, mwbox, data, chunksize, TCF)
 		# force = False
 		print(dsn, " Complete at:", pd.Timestamp.now())
 		
@@ -109,7 +110,7 @@ def main():
 
 
 #==============================================================================
-def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize, TCF):
+def FRIcal(ds_ann, mask, dsn, force, ppath, dpath, mwbox, data, chunksize, TCF):
 	""""""
 	""" Function to caluclate the FRI at different resolutions """
 
@@ -148,9 +149,9 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize, TCF):
 		# # ===== Create a masksum =====
 		# warn.warn("I need to reimplement the mask here:")
 		def _maskmaker(SF, mask, tpath, tMnme, dsn):
-			mask_sum = mask.rolling({"longitude":SF}, center = True, min_periods=1).sum()
+			mask_sum = mask.fillna(0).rolling({"longitude":SF}, center = True, min_periods=1).sum(skipna=False)
 			print("Mask Role 1:", pd.Timestamp.now())
-			mask_sum = mask_sum.rolling({"latitude":SF}, center = True, min_periods=1).sum()
+			mask_sum = mask_sum.rolling({"latitude":SF}, center = True, min_periods=1).sum(skipna=False)
 			mask_sum = (mask_sum > ((SF/2)**2)).astype("int16")
 			print("Mask Role 2:", pd.Timestamp.now())
 			if dsn.startswith("HANSEN"):
@@ -173,17 +174,39 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, mwbox, data, chunksize, TCF):
 		# breakpoint()
 
 		# ===== Calculate the Moving window on dim 1 =====
-		dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
-		dsan_lons = tempNCmaker(
-			dsan_lons, tpath, tname, "AnBF", 
-			{'latitude': chunksize}, readchunks={'longitude': chunksize}, skip=False)
-		
-		print(f"Loading temp rolled dataset data into ram at: {pd.Timestamp.now()}")
-		dsan_lons.persist()
-		
-		# ===== Calculate the Moving window in the other dim =====
-		ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
-		
+		if dsn.startswith("HANSEN") and (TCF > 0.):
+			# Hansen use TCF weights as it cannot measure loss in non forest
+			# ========== Read in the weights ==========
+			fn_wei = dpath + f"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_weights_SIBERIAatesacci{tcfs}.nc"
+			weights = xr.open_dataset(fn_wei)#.rename({"lossyear":"AnBF"})
+			# ========== Do the MV on the weights ==========
+			print(f"Starting the MW for the weight calculation at {pd.Timestamp.now()}")
+			ds_ww  = weights.rolling({"longitude":SF},center = True, min_periods=1).sum(skipna=False)
+			ds_ww  = ds_ww.rolling({"latitude":SF},center = True, min_periods=1).sum(skipna=False).compute()
+			
+			# ========== Multiply the raw weights by the ds_ann then roll the ds_ann ==========
+			print(f"Starting the MW for {dsn} at {pd.Timestamp.now()}")
+			dsan_lons = (ds_ann.fillna(0)*weights.lossyear.values).rolling(
+				{"longitude":SF}, center = True, min_periods=1).sum(skipna=False)
+			ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).sum(skipna=False)
+			
+			# ========== Divide the rolled MW rolled weights ==========
+			ds_out["AnBF"] /= ds_ww.lossyear.values
+			# breakpoint()
+
+		else:
+
+			dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
+			dsan_lons = tempNCmaker(
+				dsan_lons, tpath, tname, "AnBF", 
+				{'latitude': chunksize}, readchunks={'longitude': chunksize}, skip=False)
+			
+			print(f"Loading temp rolled dataset data into ram at: {pd.Timestamp.now()}")
+			dsan_lons.persist()
+			
+			# ===== Calculate the Moving window in the other dim =====
+			ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
+			
 		# ========== Mask out bad pixels ==========
 		# ===== Deal with the locations with no fire history =====
 		ds_out = ds_out.where(ds_out > 0, 0.000001)
@@ -371,25 +394,25 @@ def datasets(dpath, chunksize, TCF = 0):
 		tcfs = "_%dperTC" % np.round(TCF)
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	data["COPERN_BA"] = ({
-		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
-		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
+	# data["COPERN_BA"] = ({
+	# 	'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+	# 	'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+	# 	"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
+	# 	"rename":{"lon":"longitude", "lat":"latitude"}
+	# 	})
 
-	data["MODIS"] = ({
-		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
-		})
-	data["esacci"] = ({
-		"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
-		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
-		})
+	# data["MODIS"] = ({
+	# 	"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
+	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+	# 	})
+	# data["esacci"] = ({
+	# 	"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
+	# 	'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+	# 	})
 
 	data["HANSEN"] = ({
 		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci%s.nc" % tcfs,

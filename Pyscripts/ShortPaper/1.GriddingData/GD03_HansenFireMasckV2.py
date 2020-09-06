@@ -99,8 +99,10 @@ def main():
 	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci")
 
 	# ========== Resample the Hansen ==========
-	for TCF in [10]: # 0. , 50.
+	for TCF in [10, 50]: # 0. , 50.
 		# force=True
+		weight_cal(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci")
+
 		flyr_nm, tmpnm = Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF, dsn = "esacci")
 
 		# ========== Mask out the active fire  ==========
@@ -113,7 +115,59 @@ def main():
 			os.remove(fn)
 
 
+def weight_cal(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci"):
+	"""
+	This function caluclates the weights to be used in the next function. THis is to resolve the issue i was 
+	having where hansen results do not work properly 
+	"""
+	if TCF == 0.:
+		tcfs = ""
+	else:
+		tcfs = "_%dperTC" % np.round(TCF)
+
 	# ========== open the files ==========
+	fn_fc = dpath+"/BurntArea/HANSEN/FC2000/Hansen_GFC-2018-v1.6_treecover2000_SIBERIA.nc"
+	fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_weights_SIBERIAat%s%s.nc" % (dsn, tcfs)
+	# ds_fc = xr.open_dataset(fn_fc).sel(	dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).chunk({'latitude': 10000, 'longitude':10000}).rename({"treecover2000":"lossyear"})
+	ds_res = xr.open_dataset(fns_NC[-1], chunks={'latitude': 1000, 'longitude':1000})
+	inter = -10
+	step  = np.diff(ds_res.longitude.values)[0]
+	chunks = []
+	for latmax in range(70, 40, inter):
+		print(f"Startin fc weeight calculation for lat {latmax} at {pd.Timestamp.now()}")
+		# fntmp = dpath + "/BurntArea/HANSEN/lossyear/tmp_%d_Hansen_GFC-2018-v1.6_weights_SIBERIAat%s%s.nc" % (latmax,dsn, tcfs)
+		ds_fc = xr.open_dataset(fn_fc).sel(	dict(
+			latitude=slice(latmax+step, (latmax + inter - step)), 
+			longitude=slice(-10.0, 180.0))).chunk({'latitude': 1000*abs(inter), 'longitude':10000}).rename({"treecover2000":"lossyear"})
+		SF_lat, SF_lon = _Scalingfactors(ds_fc, ds_res)
+		ds_fcb = (ds_fc>=TCF).astype("float32")
+		with ProgressBar():
+			ds_out = ds_fcb.coarsen(
+				dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="trim").mean(skipna=False).compute()#.reindex_like(ds_res, method="nearest")#.compute()
+		
+		# ds_out.sel(dict(latitude=slice(latmax, (latmax - 10.0)), longitude=slice(-10.0, 180.0)))
+
+		chunks.append(ds_out.reindex_like(ds_res.sel(	dict(
+					latitude=slice(latmax, (latmax + inter)), 
+					longitude=slice(-10.0, 180.0))), method="nearest"))
+	# ========== Reassemble the weights ==========
+	ds_weights = xr.concat(chunks, dim="latitude")
+
+	# ========== Fix the attributes ==========
+	ds_weights.attrs = ds_fc.attrs.copy()
+	ds_weights.attrs["title"]   = "Regridded Forest cover weights"
+	ds_weights.attrs["summary"] = "Forest cover weights downsampled to workable resolution using xr.coarsen" 
+	
+	# ++++++++++ Data Provinance ++++++++++ 
+	ds_weights.attrs["history"] = "%s: Netcdf file created using %s (%s):%s by %s" % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__) + ds_weights.attrs["history"]
+
+	# ++++++++++ Write the data out ++++++++++ 
+	# fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s.nc" % (yr, dsn)
+	ds_weights = tempNCmaker(
+		ds_weights, fnout, "lossyear", client, chunks={'latitude': 1000, 'longitude':1000}, 
+		skip=False,  name=f"Forest cover weights for {TCF}per tree cover ")
+	
 
 def ActiveFireMasking(datapath, force, flyr_nm, fns_NC, ymin, ymax, client, TCF, dsn = "esacci"):
 	# Funtion for building a new dataset 
@@ -179,6 +233,7 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci
 		fn_fc = dpath+"/BurntArea/HANSEN/FC2000/Hansen_GFC-2018-v1.6_treecover2000_SIBERIA.nc"
 		fnout = dpath + "/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s%s.nc" % (yr, dsn, tcfs)
 		fntmp = dpath + "/BurntArea/HANSEN/lossyear/tmp/tmp_Hansen_GFC-2018-v1.6_%d_totalloss_SIBERIAat%s%s.nc" % (yr, dsn, tcfs)
+		pixweights = None
 		if os.path.isfile(fnout) and not force:
 			print("Valid existing value for %d:" % yr, pd.Timestamp.now())
 			forestlossnm.append(fnout)
@@ -186,12 +241,13 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci
 			continue
 		else:
 
-			ds_in = xr.open_dataset(fname)#, chunks={'latitude': 999, 'longitude':999})
-			ds_in = ds_in.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-			ds_in = ds_in.chunk({'latitude': 10000, 'longitude':10000})
-
-			# ========== Open the resolution dataset ===========
+			ds_in  = xr.open_dataset(fname)#, chunks={'latitude': 999, 'longitude':999})
+			ds_in  = ds_in.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+			ds_in  = ds_in.chunk({'latitude': 10000, 'longitude':10000})
 			ds_res = xr.open_dataset(fnx, chunks={'latitude': 1000, 'longitude':1000})
+			
+			SF_lat, SF_lon = _Scalingfactors(ds_in, ds_res)
+			# ========== Open the resolution dataset ===========
 
 			# ========== Find the places that were lost in each year ===========
 			if TCF == 0:
@@ -199,8 +255,17 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci
 			else:
 				# ========== Open the tree cover and make a boolean mask ==========
 				ds_fc = xr.open_dataset(fn_fc).sel(	dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+				# breakpoint()
 				ds_fc = ds_fc.chunk({'latitude': 10000, 'longitude':10000}).rename({"treecover2000":"lossyear"})
 				ds_BOOL = (ds_in == yr-2000).astype("float32").where(ds_fc>TCF)
+			
+			# ========== Calculate the bounding box ===========
+
+			# breakpoint()
+			# if pixweights is None:
+			# 	with ProgressBar():
+			# 		pixweights = (ds_fc>TCF).coarsen(
+			# 				dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").sum().reindex_like(ds_res, method="nearest") / (SF_lat*SF_lon)
 
 			ds_BOOL["time"] = ds_res.time # time fix
 			ds_BOOL = tempNCmaker(
@@ -208,28 +273,12 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci
 				skip=True, name="%d Forest Bool " % yr)
 			temp_filesnm.append(fntmp)
 
-			# ========== Calculate the bounding box ===========
-			def _Scalingfactors(ds_in, ds_res):
-				# +++++ Find the resolution +++++
-				res_lat = abs(np.unique(np.round(np.diff(ds_res.latitude.values), decimals=8)))[0]
-				din_lat = abs(np.unique(np.round(np.diff(ds_in.latitude.values), decimals=6))[0])
-
-				res_lon = abs(np.unique(np.round(np.diff(ds_res.longitude.values), decimals=8)))[0]
-				din_lon = abs(np.unique(np.round(np.diff(ds_in.longitude.values), decimals=6))[0])
-				
-				# +++++ Find the scale factors +++++
-				SF_lat = int(np.round(res_lat/din_lat))
-				SF_lon = int(np.round(res_lon/din_lon))
-
-				return SF_lat, SF_lon
-			
-			SF_lat, SF_lon = _Scalingfactors(ds_in, ds_res)
 			print("Start coarsening and reindex for %d at:" % yr, pd.Timestamp.now())
 			with ProgressBar():
 				ds_out = ds_BOOL.coarsen(
 					dim={"latitude":SF_lat, "longitude":SF_lon}, boundary="pad").mean(
 					).reindex_like(ds_res, method="nearest")#.compute()
-
+			# breakpoint()
 			# ========== Fix the attributes ==========
 			ds_out.attrs = ds_in.attrs.copy()
 			ds_out.attrs["title"]   = "Regridded Annual Forest Loss"
@@ -252,6 +301,20 @@ def Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci
 			
 
 	return forestlossnm, temp_filesnm
+
+def _Scalingfactors(ds_in, ds_res):
+	# +++++ Find the resolution +++++
+	res_lat = abs(np.unique(np.round(np.diff(ds_res.latitude.values), decimals=8)))[0]
+	din_lat = abs(np.unique(np.round(np.diff(ds_in.latitude.values), decimals=6))[0])
+
+	res_lon = abs(np.unique(np.round(np.diff(ds_res.longitude.values), decimals=8)))[0]
+	din_lon = abs(np.unique(np.round(np.diff(ds_in.longitude.values), decimals=6))[0])
+	
+	# +++++ Find the scale factors +++++
+	SF_lat = int(np.round(res_lat/din_lat))
+	SF_lon = int(np.round(res_lon/din_lon))
+
+	return SF_lat, SF_lon
 	
 def MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci"):
 	""" 

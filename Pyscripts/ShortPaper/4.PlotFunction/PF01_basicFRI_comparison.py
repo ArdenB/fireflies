@@ -87,58 +87,59 @@ def main():
 
 	# ========== Setup the params ==========
 	TCF = 10
-	mwbox   = [1, 2]#, 5]
-	dsnames = ["COPERN_BA", "MODIS", "esacci", "HANSEN_AFmask"]#, "HansenGFL"
-	# dsnames = ["HANSEN_AFmask", "HANSEN"]
-	formats = [".png"]#, ".pdf"] # None
-	# mask    = True
-	if TCF == 0:
-		tcfs = ""
-	else:
-		tcfs = "_%dperTC" % np.round(TCF)
-
-
-	# ========== Setup the plot dir ==========
-	plotdir = "./plots/ShortPaper/"
-	cf.pymkdir(plotdir)
-	# compath = "/media/ubuntu/Seagate Backup Plus Drive"
-	compath = syspath()
-
-	for mwb in mwbox:
-		# ========== Setup the dataset ==========
-		datasets = OrderedDict()
-		for dsnm in dsnames:
-			if not dsnm.startswith("H"):
-				# +++++ make a path +++++
-				ppath = compath + "/BurntArea/%s/FRI/" %  dsnm
-				fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, tcfs, mwb)
-				# fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+	mwbox   = [1]#, 2]#, 5]
+	dsnams1 = ["COPERN_BA", "MODIS", "esacci"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
+	dsts = [dsnams1, dsnams2]
+	# vmax    = 120
+	# vmax    = 80
+	vmax    = 100
+	for var in ["FRI", "AnBF"]:
+		for dsnames, vmax in zip(dsts, [80, 200]):
+			formats = [".png"]#, ".pdf"] # None
+			# mask    = True
+			if TCF == 0:
+				tcfs = ""
 			else:
-				ppath = compath + "/BurntArea/HANSEN/FRI/"
-				# fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
-				fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
-				# if dsnm == "HansenGFL":
-				# 	fname += ".nc"
-				# else:
-					# fname += "MAF.nc"
-			# +++++ open the datasets +++++
-			# ipdb.set_trace()
-			datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
-			# ipdb.set_trace()
-		
-		for var in ["FRI", "AnBF"]:
-			for mask in [True, False]:
-				plotmaker(datasets, var, mwb, plotdir, formats, mask, compath)
+				tcfs = "_%dperTC" % np.round(TCF)
 
-			ipdb.set_trace()
+
+			# ========== Setup the plot dir ==========
+			plotdir = "./plots/ShortPaper/"
+			cf.pymkdir(plotdir)
+			# compath = "/media/ubuntu/Seagate Backup Plus Drive"
+			compath = syspath()
+
+			for mwb in mwbox:
+				# ========== Setup the dataset ==========
+				datasets = OrderedDict()
+				for dsnm in dsnames:
+					if dsnm.startswith("H"):
+						# +++++ make a path +++++
+						ppath = compath + "/BurntArea/HANSEN/FRI/"
+						fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, tcfs, mwb)
+						# fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+					else:
+						# fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
+						ppath = compath + "/BurntArea/%s/FRI/" %  dsnm
+						fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+					# +++++ open the datasets +++++
+					# ipdb.set_trace()
+					datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
+					# ipdb.set_trace()
+				
+					for mask in [True, False]:
+						plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax)
+
+				ipdb.set_trace()
 
 #==============================================================================
 
-def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
+def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
-	plotfname = plotdir + "PF01_%s_MW_%02dDegBox_V2" % (var, mwb)
+	plotfname = plotdir + "PF01_%s_MW_%02dDegBox_V2_%s" % (var, mwb, "_".join(datasets.keys()))
 	if mask:
 		plotfname += "_ForestMask"
 		
@@ -150,7 +151,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
 	# ========== Loop over the figure ==========
 	for ax, dsn, in zip(axs, datasets):
 		# make the figure
-		im = _subplotmaker(ax, var, dsn, datasets, mask, compath)
+		im = _subplotmaker(ax, var, dsn, datasets, mask, compath, vmax = vmax)
 		ax.set_aspect('equal')
 
 	# ========== Make the final figure adjusments ==========
@@ -180,7 +181,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath):
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA"):
+def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA", vmax = 80.0):
 	
 
 	# ========== open the dataset ==========
@@ -227,11 +228,13 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA"):
 	if var == "FRI":
 		# +++++ set the min and max values +++++
 		vmin = 0.0
-		vmax = 80.0
+		
 
 		# +++++ create hte colormap +++++
-		# cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-		cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
+		if vmax == 80:
+			cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
+		else:
+			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
 		
 
 		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
