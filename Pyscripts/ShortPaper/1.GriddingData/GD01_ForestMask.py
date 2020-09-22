@@ -103,8 +103,11 @@ def main():
 	# ========== Create the landsea mask ==========
 	landwatermask(dpath, region, maxNF, nfval, force, data)
 	
+
 	# ========== Create the original masks ==========
+	# continue
 	warn.warn("Stuff beyond this point i have not vetted as well")
+	breakpoint()
 	ds    = HansenCoarsenLoad(ppath, region, maxNF, nfval, force, data)
 
 	# ds    = ds.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-15, 180.0)))
@@ -197,10 +200,11 @@ def landwatermask(dpath, region, maxNF, nfval, force, data):
 
 	# ========== Loop over each dataset ==========
 	for dsn in data:
+		# force = True
 		if dsn == 'MODIS':
 			# The broad mask is alread at this resolution
 			continue
-		elif dsn in ["TerraClimate", "COPERN", "GIMMS"]:
+		elif dsn in ["TerraClimate", "COPERN", "GIMMS", "GFED"]:
 			print("Upscaling %s started at:" % dsn, pd.Timestamp.now())
 
 			def _upscaler(ppath, dsn, data, ds_mod, force):
@@ -260,6 +264,7 @@ def landwatermask(dpath, region, maxNF, nfval, force, data):
 
 		else:
 			ipdb.set_trace()
+		# breakpoint()
 	# ========== Cleanup at the end ==========
 	subp.call("rm -rf %s " % ((ppath+"/tmp/")), shell=True) 
 
@@ -276,7 +281,7 @@ def _broadmaskGridder(ppath, region, ds, box, data, dsn, dates, force):
 		print("a broad resolution mask file already exists for %s" % (dsn))
 		return datafn
 
-	pchunk=1000
+	pchunk=500
 
 	# ========== load the data ==========
 	DAin, global_attrs = dsloader(data, dsn, dates)
@@ -292,14 +297,18 @@ def _broadmaskGridder(ppath, region, ds, box, data, dsn, dates, force):
 	ds_mask = ds.reindex({
 		"longitude":DAin_sub.longitude, 
 		"latitude":DAin_sub.latitude}, method="nearest")
-
 	# ========== Loop over the variables ==========
 	for var in ["treecover2000", "datamask"]:
 		ds_mask[var].attrs["res"] = ([abs(np.unique(np.round(np.diff(ds_mask.latitude.values), decimals=4))[0]),abs(np.unique(np.round(np.diff(ds_mask.longitude.values), decimals=4))[0])])
 	
+	if dsn == 'GFED':
+		print(f"Loading {dsn} data into ram at", pd.Timestamp.now())
+		with ProgressBar():
+			ds_mask = ds_mask.compute()
 	ds_mask = tempNCmaker(ds_mask, datafn, ["treecover2000", "datamask"], 
 		pchunk=pchunk, chunks={'longitude': pchunk, "latitude":pchunk}, skip=False, pro = "%s scale Treecover" % dsn)
 	return datafn
+	# breakpoint()
 
 def broadMask(dpath, region, minTC, nfval, force, data, dates):
 	"""
@@ -329,9 +338,9 @@ def broadMask(dpath, region, minTC, nfval, force, data, dates):
 		# ========== load the resampling function ==========
 		if region == "SIBERIA":
 			box = [-10.0, 180, 40, 70]
-		
+		# force = True
 		_broadmaskGridder(ppath, region, ds, box, data, dsn, dates, force)
-
+		# breakpoint()
 
 #==============================================================================
 #==============================================================================
@@ -796,6 +805,12 @@ def GlobalAttributes(ds, dsn, fname="", title="BorealForest2000forestcover"):
 def datasets(dpath):
 	# ========== set the filnames ==========
 	data= OrderedDict()
+	data["GFED"] = ({
+		'fname':"./data/BurntArea/GFED/processed/GFED_annual_burendfraction.nc",
+		'var':"BA", "gridres":"5km", "region":"SIBERIA", "timestep":"Annual",
+		"start":1997, "end":2016,"rasterio":False, "chunks":{'time':1}, 
+		"rename":None
+		})
 	data["TerraClimate"] = ({
 		"fname":os.getcwd()+"/data/cli/1.TERRACLIMATE/TerraClimate_SIBERIA_tmean_1959_tmean.nc",
 		'var':"tmean", "gridres":"4km", "region":"SIBERIA", "timestep":"Monthly", 
@@ -883,6 +898,9 @@ def syspath():
 		ipdb.set_trace()
 
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
+	elif sysname == 'LAPTOP-8C4IGM68':
+		dpath = "/mnt/e"
+
 	else:
 		ipdb.set_trace()
 	return dpath	

@@ -77,7 +77,7 @@ def main():
 	data  = datasets(dpath, chunksize, TCF=TCF)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1]#, 2, 5]#, 10] #in decimal degrees
+	mwbox = [1, 2, 5]#, 10] #in decimal degrees
 	# force = True
 	force = False
 	maskds = "esacci"
@@ -195,14 +195,23 @@ def FRIcal(ds_ann, mask, dsn, force, ppath, dpath, mwbox, data, chunksize, TCF):
 			# breakpoint()
 
 		else:
-
-			dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
+			if dsn == 'GFED':
+				print(f"Loading {dsn} data into ram at", pd.Timestamp.now())
+				with ProgressBar():
+					dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean().compute() 
+			else:
+				dsan_lons = ds_ann.rolling({"longitude":SF}, center = True, min_periods=1).mean() 
+			
 			dsan_lons = tempNCmaker(
 				dsan_lons, tpath, tname, "AnBF", 
 				{'latitude': chunksize}, readchunks={'longitude': chunksize}, skip=False)
 			
 			print(f"Loading temp rolled dataset data into ram at: {pd.Timestamp.now()}")
-			dsan_lons.persist()
+			if dsn == 'GFED':
+				with ProgressBar():
+					dsan_lons = dsan_lons.compute()
+			else:
+				dsan_lons.persist()
 			
 			# ===== Calculate the Moving window in the other dim =====
 			ds_out = dsan_lons.rolling({"latitude":SF}, center = True, min_periods=1).mean() 
@@ -259,12 +268,15 @@ def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize, TCF):
 	# ========== setup the temp filnames ==========
 	tname = "%s%s_annual_burns.nc" % (dsn, tcfs)
 
-
 	if not os.path.isfile(tpath+tname) or force:
 		# breakpoint()
 		# ========== load the data ==========
 		ds = dsloader(data, dsn, ppath, dpath, force)
-		
+		if dsn == 'GFED':
+			print(f"Loading {dsn} data into ram at", pd.Timestamp.now())
+			with ProgressBar():
+				ds = ds.compute()
+
 		# ========== calculate the sum ==========
 		dates   = datefixer(data[dsn]["end"], 12, 31)
 		ds_flat = ds.mean(dim="time", keep_attrs=True).expand_dims({"time":dates["CFTime"]}).rename({data[dsn]["var"]:"AnBF"})
@@ -300,6 +312,7 @@ def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize, TCF):
 		ds_flat = tempNCmaker(
 			ds_flat, tpath, tname, "AnBF", 
 			data[dsn]["chunks"], skip=False, name="%s annual BA" % dsn)
+		breakpoint()
 	
 	else:
 		print("Opening existing Annual Burn Fraction file")
@@ -394,25 +407,31 @@ def datasets(dpath, chunksize, TCF = 0):
 		tcfs = "_%dperTC" % np.round(TCF)
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	# data["COPERN_BA"] = ({
-	# 	'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
-	# 	'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
-	# 	"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
-	# 	"rename":{"lon":"longitude", "lat":"latitude"}
-	# 	})
+	data["GFED"] = ({
+		'fname':"./data/BurntArea/GFED/processed/GFED_annual_burendfraction.nc",
+		'var':"BA", "gridres":"5km", "region":"SIBERIA", "timestep":"Annual",
+		"start":1997, "end":2016,"rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize}, 
+		"rename":None
+		})
+	data["COPERN_BA"] = ({
+		'fname':dpath+"/BurntArea/COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
+		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
+		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize}, 
+		"rename":{"lon":"longitude", "lat":"latitude"}
+		})
 
-	# data["MODIS"] = ({
-	# 	"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
-	# 	'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
-	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
-	# 	})
-	# data["esacci"] = ({
-	# 	"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
-	# 	'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
-	# 	"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
-	# 	"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
-	# 	})
+	data["MODIS"] = ({
+		"fname":dpath+"/BurntArea/MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1,'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		})
+	data["esacci"] = ({
+		"fname":dpath+"/BurntArea/esacci/processed/esacci_FireCCI_*_burntarea.nc",
+		'var':"BA", "gridres":"250m", "region":"Asia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': chunksize, 'latitude': chunksize},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+		})
 
 	data["HANSEN"] = ({
 		"fname":dpath+"/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci%s.nc" % tcfs,
@@ -526,7 +545,7 @@ def syspath():
 		dpath = "/srv/ccrc/data51/z3466821"
 		chunksize = 20
 		# chunksize = 5000
-	elif sysname == 'burrell-pre5820':
+	elif sysname in ['burrell-pre5820', 'LAPTOP-8C4IGM68']:
 		# The windows desktop at WHRC
 		# dpath = "/mnt/f/Data51"
 		dpath = "./data"

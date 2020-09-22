@@ -88,12 +88,12 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["COPERN_BA", "MODIS", "esacci"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["GFED", "COPERN_BA", "MODIS", "esacci"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	dsts = [dsnams1, dsnams2]
 	# vmax    = 120
 	# vmax    = 80
-	vmax    = 100
+	# vmax    = 100
 	for var in ["FRI", "AnBF"]:
 		for dsnames, vmax in zip(dsts, [80, 200]):
 			formats = [".png"]#, ".pdf"] # None
@@ -108,7 +108,7 @@ def main():
 			plotdir = "./plots/ShortPaper/"
 			cf.pymkdir(plotdir)
 			# compath = "/media/ubuntu/Seagate Backup Plus Drive"
-			compath = syspath()
+			compath, backpath = syspath()
 
 			for mwb in mwbox:
 				# ========== Setup the dataset ==========
@@ -128,14 +128,14 @@ def main():
 					datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
 					# ipdb.set_trace()
 				
-					for mask in [True, False]:
-						plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax)
+				for mask in [True, False]:
+					plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath)
 
 				ipdb.set_trace()
 
 #==============================================================================
 
-def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax):
+def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
@@ -151,7 +151,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax):
 	# ========== Loop over the figure ==========
 	for ax, dsn, in zip(axs, datasets):
 		# make the figure
-		im = _subplotmaker(ax, var, dsn, datasets, mask, compath, vmax = vmax)
+		im = _subplotmaker(ax, var, dsn, datasets, mask, compath, backpath, vmax = vmax)
 		ax.set_aspect('equal')
 
 	# ========== Make the final figure adjusments ==========
@@ -181,11 +181,16 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax):
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA", vmax = 80.0):
+def _subplotmaker(ax, var, dsn, datasets, mask,compath, backpath, region = "SIBERIA", vmax = 80.0):
 	
 
 	# ========== open the dataset ==========
-	ds_dsn = xr.open_dataset(datasets[dsn])
+	if not os.path.isfile(datasets[dsn]):
+		# The file is not in the folder
+		warn.warn(f"File {datasets[dsn]} could not be found")
+		breakpoint()
+	else:
+		ds_dsn = xr.open_dataset(datasets[dsn])
 	# ipdb.set_trace()
 
 	# ========== Get the data for the frame ==========
@@ -300,7 +305,8 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, region = "SIBERIA", vmax
 
 def syspath():
 	# ========== Create the system specific paths ==========
-	sysname = os.uname()[1]
+	sysname   = os.uname()[1]
+	backpath = None
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
@@ -322,10 +328,12 @@ def syspath():
 		dpath = "./data"
 		breakpoint()
 		# dpath= "/media/arden/Harbinger/Data51/BurntArea"
+	elif sysname == 'LAPTOP-8C4IGM68':
+		dpath     = "./data"
+		backpath = "/mnt/d/fireflies"
 	else:
 		ipdb.set_trace()
-	return dpath
-
+	return dpath, backpath
 #==============================================================================
 if __name__ == '__main__':
 	main()
