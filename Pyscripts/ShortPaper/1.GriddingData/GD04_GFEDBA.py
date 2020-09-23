@@ -150,7 +150,7 @@ def main():
 	fnout =  dpath+"processed/GFED_annual_burendfraction.nc"
 	ds_out = xr.Dataset({"BA":xr.concat(anls, dim="time")})
 	# /// add a mask for greater than 1 values ///
-	ds_out = ds_out.where(ds_out.BA <=1, 1)
+	# ds_out = ds_out.where(ds_out.BA <=1, 1)
 
 	# DAin_sub = .sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
 	attrs = GlobalAttributes(ds_out, upscale, dsn="GFED")
