@@ -115,8 +115,11 @@ def main():
 	cpath = "/mnt/e/Data51/Climate/TerraClimate/"
 	
 	# ========= Loop over the configerations ==========
-	for var, fnt in zip(["tmean", "ppt", ], [bn.nanmean, bn.nansum]):
-		for tstep in ["DJF","MMA","JJA","SON", "annual"]:
+	for var, fnt in zip(["ppt", "tmean"], [bn.nansum, bn.nanmean]):
+		# if var == "ppt":
+		# 	warn.warn("REMOVE ASAP")
+		# 	continue
+		for tstep in ["DJF","MAM","JJA","SON", "annual"]:
 			fn = ClimateChangeCal(box, stdt, fndt, tstep, cpath, force, var, fnt)
 
 # ==============================================================================
@@ -162,7 +165,7 @@ def ClimateChangeCal(box, stdt, fndt, tstep, cpath, force, var, fnt):
 	nonna = arr[:, ~bn.anynan(arr, axis=0)]
 
 	# start the loop 
-	print ("Starting apply along axis at: ", pd.Timestamp.now())
+	print (f"Starting {tstep} {var} apply along axis at: {pd.Timestamp.now()}")
 	# da_NN 
 	t0  = pd.Timestamp.now()
 	res = np.apply_along_axis(TheilSen, 0, nonna)
