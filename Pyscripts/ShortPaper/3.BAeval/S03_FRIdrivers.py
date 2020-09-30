@@ -113,9 +113,9 @@ def main():
 
 	stdt  = pd.Timestamp("1985-01-01")
 	fndt  = pd.Timestamp("2015-12-31")
-	drop  = ["AnBF", "FRI", "datamask"]#"pptDJF", "tmeanDJF", 
-	BFmin = 0.0005
-	DrpNF = False#True
+	drop  = ["AnBF", "FRI", "datamask", "treecover2000", "pptDJF", "pptMAM", "pptJJA", "pptSON" ]#"pptDJF", "tmeanDJF", 
+	BFmin = 0.0001
+	DrpNF = True#False
 	sub   = 1
 
 
@@ -126,6 +126,11 @@ def main():
 	models = MLmodeling(df, va, drop, BFmin, DrpNF)#, trans = None)
 
 	# ========== Calculate the future ==========
+
+	FuturePrediction(df, dsn, models, box, mwb,dpath, tcfs, stdt, fndt, 
+		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="trend", 
+		rammode="full", sen=30)
+
 	FuturePrediction(df, dsn, models, box, mwb,dpath, tcfs, stdt, fndt, 
 		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="TCfut", 
 		rammode="full")
@@ -184,19 +189,6 @@ def FuturePrediction(df_org,
 	
 	# ========== make the observed dataset ==========
 	if rammode == "full":
-		def _reindexer(ds_out, lats, lons, var):
-			# ========== Internal function to reindex data quickly ==========
-			with ProgressBar():
-				ds_psu = ds_out.reindex(
-					{"latitude":lats, "longitude":lons}, 
-					method = "nearest").compute()
-			df_psu = ds_psu.to_dataframe().unstack()
-			if var in ["ppt", "tmean"]:
-				df_psu.columns = [''.join(col).strip() for col in df_psu.columns.values]
-				clorder = [f"{var}{ses}" for ses in ["DJF","MAM","JJA","SON"]]
-				return df_psu[clorder]
-			else:
-				breakpoint()
 		df_obs = dfX.copy()
 		# ========== add the climate columns ==========
 		for var in ["ppt", "tmean"]:
@@ -218,8 +210,8 @@ def FuturePrediction(df_org,
 		df_pre   = _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen)
 		df_tmean = _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen)
 	else:
-		warn.warn("need to implement a non TCfut system here")
-		breakpoint()
+		# ========== Loop over the trends ==========
+		df_pre, df_tmean = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons)
 
 	# ========== Build a dataframe ==========
 	df = dfX.merge(df_pre, left_index=True, right_index=True)
@@ -240,7 +232,6 @@ def FuturePrediction(df_org,
 		subs = np.logical_and(sss, df["datamask"]==1)
 	else:
 		subs = sss
-	
 	X      = df[subs].copy().drop(drop, axis=1, errors='ignore')
 	df_obs = df_obs[subs]
 	dfX[va][~subs] = np.NaN
@@ -502,6 +493,69 @@ def dfloader(dsn, box, mwb, dpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub):
 	return df, ds_msk, ds_bf, latin, lonin
 
 #==============================================================================
+def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons):
+	"""
+	funtion to calculate future climate an arbitary number of years into the 
+	future
+	args:
+		cpath: path to climate data
+		stdt:	start date 
+		fndt:	end date
+		mwb:	moving window box
+		df_obs: the observed version of the dataset
+		sen: number of years
+	"""
+	df_ot = []
+	for cvar in ["ppt", "tmean"]:
+		# ========== create a dataframe ==========
+		df_cli =  df_obs[[col for col in df_obs if col.startswith(cvar)]].copy()
+		# ========== loop over the months ==========
+		for sea in ["DJF","MAM","JJA","SON"]:
+			print(f"calculating {sen}year {sea}{cvar} data at: {pd.Timestamp.now()}")
+			if not f"{cvar}{sea}" in df_obs.columns:
+				continue
+			# ========== make the fn and loat the file ==========
+			fn  = cpath + f"TerraClim_{cvar}_{sea}trend_{stdt.year}to{fndt.year}.nc"
+			ds_seas = xr.open_dataset(fn, chunks = {"longitude":265}).drop(
+				["intercept", "rho", "pval", "FDRsig"])#.squeeze("time",drop=True)
+
+			ds_co, SF = _roller(mwb, ds_seas, f"{cvar}{sea}trend", "trend", times = None)
+			ds_co = ds_co.chunk({"longitude":265})
+			vals = _reindexer(ds_co, lats, lons, "trend")
+
+			# ========== Build a temp dataframe to match the indexs and provent issues ==========
+			dfp = pd.DataFrame(
+				df_cli[f"{cvar}{sea}"]).merge(
+				vals, left_index=True, right_index=True)
+
+			# ========== fix the nans ==========
+			dfp["trend"][np.logical_and(dfp["trend"].isnull(), ~dfp[f"{cvar}{sea}"].isnull() )] = 0
+
+			# ========== add the trend  ==========
+			df_cli[f"{cvar}{sea}"] = dfp[f"{cvar}{sea}"] + (dfp["trend"] * sen)
+		# ========== append the data ==========
+		df_ot.append(df_cli.copy())
+	return df_ot
+
+
+def _reindexer(ds_out, lats, lons, var):
+	# ========== Internal function to reindex data quickly ==========
+	with ProgressBar():
+		ds_psu = ds_out.reindex(
+			{"latitude":lats, "longitude":lons}, 
+			method = "nearest").compute()
+	df_psu = ds_psu.to_dataframe().unstack()
+	if var in ["ppt", "tmean"]:
+		df_psu.columns = [''.join(col).strip() for col in df_psu.columns.values]
+		clorder = [f"{var}{ses}" for ses in ["DJF","MAM","JJA","SON"]]
+		return df_psu[clorder]
+	elif var =="trend":
+		# return 1d numpy array
+		df_psu.columns = [var]
+		return df_psu#.to_numpy().ravel()
+	else:
+		breakpoint()
+
 def _roller(mwb, ds_cli, dsn, var, times = None):
 	# /// Function to calculate spatial moving windows \\\
 	# ========== Work out pixel size and scale factors ==========
@@ -510,21 +564,24 @@ def _roller(mwb, ds_cli, dsn, var, times = None):
 
 	# breakpoint()
 	# ========== Make sure the seasons match the method used for climate trend calculation =========
-	with ProgressBar():
-		if var == "ppt":
-			ds_re = ds_cli.resample(time="QS-DEC").sum().compute()
-		elif var == "tmean":
-			ds_re = ds_cli.resample(time="QS-DEC").sum().compute()
-		else:
-			breakpoint()
-	# /// Shift things into the correct year (from december to jan) \\\
-	ds_re = ds_re.assign_coords(time=ds_re.time + pd.Timedelta(31, unit="d"))
-	# ========== Temporal subset the data ==========
-	if not times is None:
-		ds_re = ds_re.sel(dict(time=slice(times[0], times[1])))
-	# ds_re = ds_re.isel(time=(ds_re["time.season"] == tstep))
+	if var in ["ppt", "tmean"]:
+		with ProgressBar():
+			if var == "ppt":
+				ds_re = ds_cli.resample(time="QS-DEC").sum().compute()
+			elif var == "tmean":
+				ds_re = ds_cli.resample(time="QS-DEC").sum().compute()
+			else:
+				breakpoint()
+		# /// Shift things into the correct year (from december to jan) \\\
+		ds_re = ds_re.assign_coords(time=ds_re.time + pd.Timedelta(31, unit="d"))
+		# ========== Temporal subset the data ==========
+		if not times is None:
+			ds_re = ds_re.sel(dict(time=slice(times[0], times[1])))
+		# ds_re = ds_re.isel(time=(ds_re["time.season"] == tstep))
 
-	ds_sea = ds_cli.groupby("time.season").mean()
+		ds_sea = ds_cli.groupby("time.season").mean()
+	else:
+		ds_sea = ds_cli
 	# ========== Group and roll the data ==========
 	print(f"Loading {dsn} {var} data into ram at", pd.Timestamp.now())
 	with ProgressBar():
