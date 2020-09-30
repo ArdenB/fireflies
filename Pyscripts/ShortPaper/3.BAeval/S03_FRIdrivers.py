@@ -113,8 +113,8 @@ def main():
 
 	stdt  = pd.Timestamp("1985-01-01")
 	fndt  = pd.Timestamp("2015-12-31")
-	drop  = ["AnBF", "FRI", "datamask", "treecover2000", "pptDJF", "pptMAM", "pptJJA", "pptSON" ]#"pptDJF", "tmeanDJF", 
-	BFmin = 0.0001
+	drop  = ["AnBF", "FRI", "datamask", "treecover2000"]#, "pptDJF", "tmeanDJF"]#"pptDJF", "pptJJA",
+	BFmin = 0.0005
 	DrpNF = True#False
 	sub   = 1
 
@@ -123,7 +123,7 @@ def main():
 	df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
 
 	# ========== Calculate the ML models ==========
-	models = MLmodeling(df, va, drop, BFmin, DrpNF)#, trans = None)
+	models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = None)
 
 	# ========== Calculate the future ==========
 
@@ -290,7 +290,7 @@ def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
 	X  = df.drop(drop, axis=1)
 	y  = df[va]
 	X_tn, X_tst, y_train, y_test = train_test_split(
-		X, y, test_size=0.2, random_state=42)
+		X, y, test_size=0.2)#, random_state=42)
 	# ========== perform some transforms ==========
 	if trans == "QFT":	
 		transformer = preprocessing.QuantileTransformer(random_state=0)
