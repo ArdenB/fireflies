@@ -113,23 +113,24 @@ def main():
 
 	stdt  = pd.Timestamp("1985-01-01")
 	fndt  = pd.Timestamp("2015-12-31")
-	drop  = ["AnBF", "FRI", "datamask", "treecover2000"]#, "pptDJF", "tmeanDJF"]#"pptDJF", "pptJJA",
-	BFmin = 0.0005
-	DrpNF = True#False
-	sub   = 1
+	drop  = ["AnBF", "FRI", "datamask"]#, "treecover2000"]#, "pptDJF", "tmeanDJF"]#"pptDJF", "pptJJA",
+	BFmin = 0.0001
+	DrpNF = False
+	sub   = 1 #subsampling interval in deg lat and long
+	transform = "QFT" #None 
 
 
 	# ========== Build the dataset ==========
 	df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
 
 	# ========== Calculate the ML models ==========
-	models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = None)
+	models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
 
 	# ========== Calculate the future ==========
 
 	FuturePrediction(df, dsn, models, box, mwb,dpath, tcfs, stdt, fndt, 
 		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="trend", 
-		rammode="full", sen=30)
+		rammode="full", sen=60)
 
 	FuturePrediction(df, dsn, models, box, mwb,dpath, tcfs, stdt, fndt, 
 		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="TCfut", 
@@ -272,9 +273,24 @@ def FuturePrediction(df_org,
 			dsX[var].plot(vmin=0, vmax=500, cmap=cmap)#1/BFmin)
 		else:
 			dsX[var].plot(vmin=0, vmax=.1, cmap=cmap)
-
+	for exper in ["OLS", "XGBoost"]:
+		plt.figure(exper)
+		(dsX[f"AnBF_{exper}_fut"] - dsX[f"AnBF_{exper}_cur"]).plot(vmin=-0.05, vmax=.05,)
 	plt.show()
 
+
+	# ========== Plot the FIR ==========
+	for var in dfX.columns:
+		cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		cmap.set_over(cmapHex[-1] )
+		cmap.set_bad('dimgrey',1.)
+
+		plt.figure(var)
+		(1./dsX[var]).plot(vmin=0, vmax=100, cmap=cmap)#1/BFmin)
+
+
+	plt.show()
 	breakpoint()
 	ipdb.set_trace()
 
@@ -290,7 +306,7 @@ def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
 	X  = df.drop(drop, axis=1)
 	y  = df[va]
 	X_tn, X_tst, y_train, y_test = train_test_split(
-		X, y, test_size=0.2)#, random_state=42)
+		X, y, test_size=0.2, random_state=42)
 	# ========== perform some transforms ==========
 	if trans == "QFT":	
 		transformer = preprocessing.QuantileTransformer(random_state=0)
