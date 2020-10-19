@@ -98,7 +98,7 @@ print("xarray version : ", xr.__version__)
 #==============================================================================
 
 def main():
-	dpath, chunksize	= syspath()
+	dpath, cpath, chunksize	= syspath()
 	# ========== Load the datasets ==========
 	# dsn  = "esacci"
 	dsn  = "GFED"
@@ -115,24 +115,24 @@ def main():
 	fndt  = pd.Timestamp("2015-12-31")
 	drop  = ["AnBF", "FRI", "datamask"]#, "treecover2000"]#, "pptDJF", "tmeanDJF"]#"pptDJF", "pptJJA",
 	BFmin = 0.0001
-	DrpNF = False
+	DrpNF = False # True
 	sub   = 1 #subsampling interval in deg lat and long
 	transform = "QFT" #None 
 
 
 	# ========== Build the dataset ==========
-	df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
+	df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
 
 	# ========== Calculate the ML models ==========
 	models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
 
 	# ========== Calculate the future ==========
 
-	FuturePrediction(df, dsn, models, box, mwb,dpath, tcfs, stdt, fndt, 
+	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
 		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="trend", 
 		rammode="full", sen=60)
 
-	FuturePrediction(df, dsn, models, box, mwb,dpath, tcfs, stdt, fndt, 
+	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
 		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="TCfut", 
 		rammode="full")
 	breakpoint()
@@ -140,7 +140,7 @@ def main():
 #==============================================================================
 def FuturePrediction(df_org, 
 	dsn, models, box, mwb, 
-	dpath, tcfs, stdt, fndt, 
+	dpath, cpath, tcfs, stdt, fndt, 
 	mask, ds_bf, va, drop, BFmin, 
 	DrpNF, latin, lonin, fmode="TCfut",
 	sen=4, rammode = "simple", fut=""):
@@ -170,7 +170,7 @@ def FuturePrediction(df_org,
 
 	"""
 	# ========== specify the climate data path ==========
-	cpath  = f"/mnt/e/Data51/Climate/TerraClimate/"
+	
 	if rammode == "simple":
 		# /// Simple only uses one point per mwb, is way less ram instensive \\\
 		# .reindex({"latitude":latin, "longitude":lonin}, method = "nearest")
@@ -367,12 +367,13 @@ def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
 
 	dfpi = pd.DataFrame(FI).T
 	print(dfpi)
+	breakpoint()
 
 	return ({"models":{"OLS":regr, "XGBoost":regressor}, 
 		"transformer":transformer, "Importance":dfpi,
 		"performance":{"OLS":R2_OLS, "XGBoost":R2_XGB}})
 
-def dfloader(dsn, box, mwb, dpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub):
+def dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub):
 	"""
 	Function to load and preprocess into a single dataframe
 	args:
@@ -419,7 +420,7 @@ def dfloader(dsn, box, mwb, dpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub):
 	# ========== Climate data =========
 	# =================================
 
-	cpath  = "/mnt/e/Data51/Climate/TerraClimate/"
+	# cpath  = "/mnt/e/Data51/Climate/TerraClimate/"
 	cf.pymkdir(cpath+"smoothed/")
 	for var in ["ppt", "tmean"]:
 		# ========== Read in the climate data ==========
@@ -713,19 +714,24 @@ def syspath():
 		dpath = "/srv/ccrc/data51/z3466821"
 		chunksize = 20
 		# chunksize = 5000
-	elif sysname in ['burrell-pre5820', 'LAPTOP-8C4IGM68']:
+	elif sysname == 'burrell-pre5820':
 		# The windows desktop at WHRC
 		# dpath = "/mnt/f/Data51"
 		dpath = "./data"
 		chunksize = 300
-	elif sysname == 'arden-Precision-5820-Tower-X-Series':
+		cpath  = "/mnt/d/Data51/Climate/TerraClimate/"
+	elif sysname =='LAPTOP-8C4IGM68':
+		dpath = "./data"
+		chunksize = 300
+		cpath  = "/mnt/e/Data51/Climate/TerraClimate/"
+	elif sysname in ['arden-worstation', 'arden-Precision-5820-Tower-X-Series']:
 		# WHRC linux distro
-		# dpath= "/media/arden/Harbingerq/Data51"
+		cpath= "/media/arden/SeagateMassStorage/Data51/Climate/TerraClimate/"
 		dpath = "./data"
 		chunksize = 300
 	else:
 		ipdb.set_trace()
-	return dpath, chunksize	
+	return dpath, cpath, chunksize	
 
 def GlobalAttributes(ds, var, fnout, tstep, stdt, fndt, mwb, typ = "Climatology", ogds="TerraClimate"):
 	"""
