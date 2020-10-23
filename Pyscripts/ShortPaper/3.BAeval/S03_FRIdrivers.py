@@ -42,6 +42,7 @@ import time
 from dask.diagnostics import ProgressBar
 
 from collections import OrderedDict
+from itertools import islice 
 # from scipy import stats
 # from numba import jit
 
@@ -100,9 +101,13 @@ print("xarray version : ", xr.__version__)
 def main():
 	dpath, cpath, chunksize	= syspath()
 	# ========== Load the datasets ==========
+	# dsn  = "GFED"
 	# dsn  = "esacci"
-	dsn  = "GFED"
-	# dsn  = "MODIS"
+	dsn  = "MODIS"
+
+	tmpath = "./results/ProjectSentinal/FRImodeling/"
+	cf.pymkdir(tmpath)
+	cf.pymkdir(tmpath+"tmp/")
 
 	tcfs = ""
 	mwb  = 1
@@ -115,9 +120,11 @@ def main():
 	fndt  = pd.Timestamp("2015-12-31")
 	drop  = ["AnBF", "FRI", "datamask"]#, "treecover2000"]#, "pptDJF", "tmeanDJF"]#"pptDJF", "pptJJA",
 	BFmin = 0.0001
-	DrpNF = False # True
+	DrpNF = True # False
 	sub   = 1 #subsampling interval in deg lat and long
 	transform = "QFT" #None 
+	sens  =  60
+	rammode="complex" #"full"
 
 
 	# ========== Build the dataset ==========
@@ -129,11 +136,11 @@ def main():
 	# ========== Calculate the future ==========
 
 	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
-		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="trend", 
-		rammode="full", sen=60)
+		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="trend", 
+		rammode=rammode, sen=sens)
 
 	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
-		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, fmode="TCfut", 
+		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
 		rammode="full")
 	breakpoint()
 
@@ -142,8 +149,9 @@ def FuturePrediction(df_org,
 	dsn, models, box, mwb, 
 	dpath, cpath, tcfs, stdt, fndt, 
 	mask, ds_bf, va, drop, BFmin, 
-	DrpNF, latin, lonin, fmode="TCfut",
-	sen=4, rammode = "simple", fut=""):
+	DrpNF, latin, lonin, tmpath, fmode="TCfut",
+	sen=4, rammode = "simple", fut="", splits = 10
+	):
 	"""
 	Function to get predictions of FRI based on future climate.
 	args:
@@ -189,20 +197,9 @@ def FuturePrediction(df_org,
 		method = "nearest").squeeze("time",drop=True).to_dataframe()
 	
 	# ========== make the observed dataset ==========
-	if rammode == "full":
-		df_obs = dfX.copy()
-		# ========== add the climate columns ==========
-		for var in ["ppt", "tmean"]:
-			print(f"Loading in the full {var} at: {pd.Timestamp.now()}")
-			# ========== Read in the climate data ==========
-			fnout  = f"{cpath}smoothed/TerraClimate_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
-			ds_out = xr.open_dataset(fnout, chunks = {"longitude":265}) 
-			df_out =  _reindexer(ds_out, lats, lons, var)
-			df_obs = df_obs.merge(df_out, left_index=True, right_index=True)
+	df_obs = _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lats, lons, rammode, splits=splits)
 
-		# ========== Add the mask columns ==========
-		df_obs = df_obs.merge(msk, left_index=True, right_index=True)
-		# df_obs.dropna(inplace=True)
+	# breakpoint()
 	df_obs.drop(drop, axis=1, errors='ignore', inplace=True)
 
 	# ========== make the future datasets ==========
@@ -212,7 +209,7 @@ def FuturePrediction(df_org,
 		df_tmean = _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen)
 	else:
 		# ========== Loop over the trends ==========
-		df_pre, df_tmean = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons)
+		df_pre, df_tmean = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, splits=splits)
 
 	# ========== Build a dataframe ==========
 	df = dfX.merge(df_pre, left_index=True, right_index=True)
@@ -233,6 +230,7 @@ def FuturePrediction(df_org,
 		subs = np.logical_and(sss, df["datamask"]==1)
 	else:
 		subs = sss
+	breakpoint()
 	X      = df[subs].copy().drop(drop, axis=1, errors='ignore')
 	df_obs = df_obs[subs]
 	dfX[va][~subs] = np.NaN
@@ -257,7 +255,9 @@ def FuturePrediction(df_org,
 
 	# ========== Covert to dataset ==========
 	dsX = dfX.to_xarray()
-
+	warn.warn("To DO, Save the file here to stop super slow recalculation process")
+	breakpoint()
+	# def Plotmaker(dsX)
 	# ========== Build a plot ==========
 	if va == "FRI":
 		cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
@@ -270,12 +270,12 @@ def FuturePrediction(df_org,
 		plt.figure(var)
 		if va =="FRI":
 
-			dsX[var].plot(vmin=0, vmax=500, cmap=cmap)#1/BFmin)
+			dsX[var].plot(vmin=0, vmax=500, cmap=cmap, cbar_kwargs={"extend":"max"})#1/BFmin)
 		else:
-			dsX[var].plot(vmin=0, vmax=.1, cmap=cmap)
+			dsX[var].plot(vmin=0, vmax=.1, cmap=cmap, cbar_kwargs={"extend":"max"})
 	for exper in ["OLS", "XGBoost"]:
 		plt.figure(exper)
-		(dsX[f"AnBF_{exper}_fut"] - dsX[f"AnBF_{exper}_cur"]).plot(vmin=-0.05, vmax=.05,)
+		(dsX[f"AnBF_{exper}_fut"] - dsX[f"AnBF_{exper}_cur"]).plot(vmin=-0.05, vmax=.05, cbar_kwargs={"extend":"both"})
 	plt.show()
 
 
@@ -287,9 +287,15 @@ def FuturePrediction(df_org,
 		cmap.set_bad('dimgrey',1.)
 
 		plt.figure(var)
-		(1./dsX[var]).plot(vmin=0, vmax=100, cmap=cmap)#1/BFmin)
+		(1./dsX[var]).plot(vmin=0, vmax=100, cmap=cmap, cbar_kwargs={"extend":"max"})#1/BFmin)
 
-
+	for exper in ["OLS", "XGBoost"]:
+		plt.figure(exper)
+		# +++++ pull out the values and mask bad values ==========
+		fut  = (1/((dsX[f"AnBF_{exper}_fut"]).where(~(dsX[f"AnBF_{exper}_fut"]<=BFmin), BFmin)))
+		cur  = (1/((dsX[f"AnBF_{exper}_cur"]).where(~(dsX[f"AnBF_{exper}_cur"]<=BFmin), BFmin)))
+		delt = (fut - cur)
+		delt.plot(vmin=-500, vmax=500, cmap = plt.get_cmap('PiYG'), cbar_kwargs={"extend":"both"})
 	plt.show()
 	breakpoint()
 	ipdb.set_trace()
@@ -303,14 +309,17 @@ def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
 	# ========== Perform soem ML on the dataset ==========
 	# ====================================================
 	# ========== split the data	========== 
-	X  = df.drop(drop, axis=1)
+	# X  = df.drop(drop, axis=1)
 	y  = df[va]
-	X_tn, X_tst, y_train, y_test = train_test_split(
-		X, y, test_size=0.2, random_state=42)
+	X_t, X_ts, y_train, y_test = train_test_split(
+		df, y, test_size=0.2, random_state=42)
+	# ========== subset the dataset ==========
+	X_tn  = X_t.drop(drop, axis=1)
+	X_tst = X_ts.drop(drop, axis=1)
 	# ========== perform some transforms ==========
 	if trans == "QFT":	
 		transformer = preprocessing.QuantileTransformer(random_state=0)
-		if not "datamask" in X.columns:
+		if not "datamask" in X_tst.columns:
 			X_train = transformer.fit_transform(X_tn)
 			X_test  = transformer.transform(X_tst)
 
@@ -334,8 +343,8 @@ def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
 	regressor = xgb.XGBRegressor(
 		objective ='reg:squarederror', tree_method='hist', 
 		colsample_bytree = 0.3, learning_rate = 0.1,
-		max_depth = 10, n_estimators =2000,
-	    num_parallel_tree=10, n_jobs=-1)
+		max_depth = 20, n_estimators =2000,
+	    num_parallel_tree=20, n_jobs=-1)
 
 	eval_set = [(X_test, y_test)]
 	regressor.fit(
@@ -352,13 +361,22 @@ def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
 	print(f'OLS r squared score: {R2_OLS}')
 	print(f'XGB r squared score: {R2_XGB}')
 
+	# ========== Check the performance over the masked zone ==========
+	if not DrpNF:
+		# ===== Subset to only boreal forest =====
+		inbf = (X_ts.datamask == 1).values
+		print("Performance in boreal forests:")
+		print(f'BF OLS r squared score: {sklMet.r2_score(y_test[inbf], ryval[inbf])}')
+		print(f'BF XGB r squared score: {sklMet.r2_score(y_test[inbf], y_pred[inbf])}')
+		# breakpoint()
+
+	# ========== make a list of names and performance metrics ==========
 	resultXGB  = permutation_importance(regressor, X_test, y_test, n_repeats=5)
 	featImpXGB = regressor.feature_importances_
-	# ========== make a list of names ==========
-	clnames = X.columns.values
+	clnames    = X_tst.columns.values
+	
 	# ========== Convert Feature importance to a dictionary ==========
 	FI = OrderedDict()
-
 	for loc, fname in enumerate(clnames): 
 		FI[fname] = ({
 			"XGBPermImp":resultXGB.importances_mean[loc], 
@@ -367,7 +385,6 @@ def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
 
 	dfpi = pd.DataFrame(FI).T
 	print(dfpi)
-	breakpoint()
 
 	return ({"models":{"OLS":regr, "XGBoost":regressor}, 
 		"transformer":transformer, "Importance":dfpi,
@@ -510,7 +527,80 @@ def dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, su
 	return df, ds_msk, ds_bf, latin, lonin
 
 #==============================================================================
-def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons):
+def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lats, lons, rammode, splits = 10):
+	"""
+	Function to build the observed climate. It just takes all the local arguments in the future prediction 
+	function.  
+	"""
+	# breakpoint()
+	# fname = f"{tmpath}S03_FRIdrivers_OBSclim_at_{dsn}.csv"
+	# if os.path.isfile(fname):
+	# 	print(f"Loading existing full resolution climate data at: {pd.Timestamp.now()}. This might be slow")
+	# 	breakpoint()
+	# 	df_obs = pd.read_csv(fname, index_col=[0, 1], engine="c", sep=',', dtype=np.float32)
+	# 	return df_obs
+	# ========== mBuild a new file if needed
+	if rammode == "full":
+		df_obs = dfX.copy()
+		# ========== add the climate columns ==========
+		for var in ["ppt", "tmean"]:
+			print(f"Loading in the full {var} at: {pd.Timestamp.now()}")
+			# ========== Read in the climate data ==========
+			fnout  = f"{cpath}smoothed/TerraClimate_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
+			ds_out = xr.open_dataset(fnout, chunks = {"longitude":265}) 
+			df_out =  _reindexer(ds_out, lats, lons, var, dsn = dsn)
+			df_obs = df_obs.merge(df_out, left_index=True, right_index=True)
+
+		# ========== Add the mask columns ==========
+		# df_obs = df_obs.merge(msk, left_index=True, right_index=True)
+		# df_obs.dropna(inplace=True)
+	elif rammode == "complex":
+		df_obs = dfX.copy()
+		
+		# ========== add the climate columns ==========
+		for var in ["ppt", "tmean"]:
+			print(f"Using complex loading with {splits} chunks for {var} at: {pd.Timestamp.now()}")
+			# ========== Read in the climate data ==========
+			fnout  = f"{cpath}smoothed/TerraClimate_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
+			ds_out = xr.open_dataset(fnout) 
+			ds_out = ds_out.chunk({"latitude": int(ds_out.latitude.size / splits)})
+				
+			# ========== build a subset of the lats ==========
+			sizes      = np.zeros(splits).astype(int)
+			sizes[:]   = len(lats)//splits
+			sizes[-1] += len(lats)%splits
+			# breakpoint()
+			Inputt  = iter(lats) 
+			Output  = [list(islice(Inputt, elem)) for elem in sizes] # subst of the lats
+			
+			# ========== loop through the sections ==========
+			def _subslice(ds_out, lats, lons, var, dsn, gpnum):
+				# function for slicing 
+				print(f"{var} group {gpnum} started at: {pd.Timestamp.now()}")
+				df_out =  _reindexer(ds_out, lats, lons, var, dsn = dsn)
+				return df_out
+			df_list = [_subslice(ds_out, latsub, lons, var, dsn, gpnum) for gpnum, latsub in enumerate(Output)]
+			df_out  = pd.concat(df_list)
+			
+			# ========== Check the indexing and merge the dataframes ==========
+			if not df_out.index.equals(df_obs.index):
+				warn.warn("Dataframes have different indexes. Going interactive")
+				breakpoint()
+
+
+			# breakpoint()
+			# df_obs = df_obs.merge(df_out, left_index=True, right_index=True)
+			for cl in  df_out.columns.values: 
+				df_obs[cl] = df_out[cl].copy()
+
+	# ========== Check the indexing and add the treecover datasets ==========
+	assert df_obs.index.equals(msk.index), "Mask and the observed datasets have different indexes"
+	# df_obs = df_obs.merge(msk, left_index=True, right_index=True)
+	for clx in  msk.columns.values: 
+		df_obs[clx] = msk[clx].copy()
+	return df_obs
+
+def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, splits=10):
 	"""
 	funtion to calculate future climate an arbitary number of years into the 
 	future
@@ -538,12 +628,30 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons):
 
 			ds_co, SF = _roller(mwb, ds_seas, f"{cvar}{sea}trend", "trend", times = None)
 			ds_co = ds_co.chunk({"longitude":265})
-			vals = _reindexer(ds_co, lats, lons, "trend")
+			if rammode in  ["simple", "full"]:
+				vals = _reindexer(ds_co, lats, lons, "trend")
+			elif rammode == "complex":
+				# ========== build a subset of the lats ==========
+				sizes      = np.zeros(splits).astype(int)
+				sizes[:]   = len(lats)//splits
+				sizes[-1] += len(lats)%splits
+				# breakpoint()
+				Inputt  = iter(lats) 
+				Output  = [list(islice(Inputt, elem)) for elem in sizes] # subst of the lats
+				
+				# ========== loop through the sections ==========
+				def _subslice(ds_out, lats, lons, var, gpnum):
+					# function for slicing 
+					print(f"{var} group {gpnum} started at: {pd.Timestamp.now()}")
+					df_out =  _reindexer(ds_out, lats, lons, var)
+					return df_out
+				df_list = [_subslice(ds_co, latsub, lons, "trend", gpnum) for gpnum, latsub in enumerate(Output)]
+				vals  = pd.concat(df_list)
 
 			# ========== Build a temp dataframe to match the indexs and provent issues ==========
-			dfp = pd.DataFrame(
-				df_cli[f"{cvar}{sea}"]).merge(
-				vals, left_index=True, right_index=True)
+			dfp = pd.DataFrame(df_cli[f"{cvar}{sea}"])
+			assert dfp.index.equals(vals.index), "Dataframes have different indexes"
+			dfp["trend"] = vals["trend"].copy()
 
 			# ========== fix the nans ==========
 			dfp["trend"][np.logical_and(dfp["trend"].isnull(), ~dfp[f"{cvar}{sea}"].isnull() )] = 0
@@ -551,25 +659,31 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons):
 			# ========== add the trend  ==========
 			df_cli[f"{cvar}{sea}"] = dfp[f"{cvar}{sea}"] + (dfp["trend"] * sen)
 		# ========== append the data ==========
+		breakpoint()
 		df_ot.append(df_cli.copy())
 	return df_ot
 
 
-def _reindexer(ds_out, lats, lons, var):
+def _reindexer(ds_out, lats, lons, var, dsn = None):
 	# ========== Internal function to reindex data quickly ==========
 	with ProgressBar():
 		ds_psu = ds_out.reindex(
 			{"latitude":lats, "longitude":lons}, 
 			method = "nearest").compute()
+	# if dsn is None: #or dsn  == "GFED"
 	df_psu = ds_psu.to_dataframe().unstack()
+	# else:
+	# 	df_psu = ds_psu.sel(season="DJF").to_dataframe().unstack()
+	# 	breakpoint()
+
 	if var in ["ppt", "tmean"]:
 		df_psu.columns = [''.join(col).strip() for col in df_psu.columns.values]
 		clorder = [f"{var}{ses}" for ses in ["DJF","MAM","JJA","SON"]]
-		return df_psu[clorder]
+		return df_psu[clorder].sort_index(ascending=[False, True])
 	elif var =="trend":
 		# return 1d numpy array
 		df_psu.columns = [var]
-		return df_psu#.to_numpy().ravel()
+		return df_psu.sort_index(ascending=[False, True])#.to_numpy().ravel()
 	else:
 		breakpoint()
 
