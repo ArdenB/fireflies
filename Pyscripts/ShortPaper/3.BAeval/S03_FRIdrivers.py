@@ -101,9 +101,9 @@ print("xarray version : ", xr.__version__)
 def main():
 	dpath, cpath, chunksize	= syspath()
 	# ========== Load the datasets ==========
-	# dsn  = "GFED"
+	dsn  = "GFED"
+	# dsn  = "MODIS"
 	# dsn  = "esacci"
-	dsn  = "MODIS"
 
 	tmpath = "./results/ProjectSentinal/FRImodeling/"
 	cf.pymkdir(tmpath)
@@ -123,14 +123,15 @@ def main():
 	DrpNF = True # False
 	sub   = 1 #subsampling interval in deg lat and long
 	transform = "QFT" #None 
-	sens  =  60
-	rammode="complex" #"full"
+	sen  =  60
+	# rammode="complex" #"full"
+	rammode = "extreme"
 
 
 	# ========== Calculate the future ==========
 	futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-			va, drop, BFmin, DrpNF, tmpath, fmode="trend", 
-			rammode=rammode, sen=sens)
+			va, drop, BFmin, DrpNF, tmpath,sub, transform, fmode="trend", 
+			rammode=rammode, sen=sen, force = True)
 	
 
 	# FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
@@ -140,8 +141,8 @@ def main():
 
 #==============================================================================
 def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, 
-	fndt, va, drop, BFmin, DrpNF, tmpath, fmode="TCfut",
-	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False):
+	fndt, va, drop, BFmin, DrpNF, tmpath, sub, transform, fmode="TCfut",
+	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False, xgroup=10):
 
 	# ========== Covert to dataset and save the results ==========
 	fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction"
@@ -160,9 +161,32 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		# ========== Calculate the ML models ==========
 		models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
 		# ========== Predict the future ==========
-		dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-			mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="trend", 
-			rammode=rammode, sen=sens)
+		if rammode == "extreme":
+			# ========== build a subset of the lats ==========
+			sizes      = np.zeros(xgroup).astype(int)
+			sizes[:]   = len(latin)//xgroup
+			sizes[-1] += len(latin)%xgroup
+			# breakpoint()
+			Inputt  = iter(latin) 
+			Output  = [list(islice(Inputt, elem)) for elem in sizes] # subst of the lats
+			
+			# ========== loop through the sections ==========
+			df_list = []
+			for gpnum, latsub in enumerate(Output):
+				print(f"\n Starting longitude slice {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
+				res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+					mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lonin, tmpath, fmode="trend", 
+					rammode="complex", sen=sen)
+				if gpnum == 0:
+					breakpoint()
+
+			dfX  = pd.concat(df_list)
+		else:
+			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+				mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="trend", 
+				rammode=rammode, sen=sen)
+		
+		# ========== Convert the dataframe to an array ==========
 		dsX = dfX.to_xarray()
 		# breakpoint()
 		# ========== Create the attributes ==========
@@ -171,7 +195,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		dsX = dsX.assign_coords({"time":fndt})
 		dsX = dsX.expand_dims("time")
 		dsX = tempNCmaker(dsX, fnout, va)
-		colnames = dfX.columns()
+		colnames = dfX.columns
 		warn.warn("To DO: save performance metrics and dropped variables")
 	else:
 		dsX = xr.open_dataset(fnout)
@@ -318,12 +342,10 @@ def FuturePrediction(df_org,
 		X = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop, splits=splits)
 	print(f"Future climate data loaded at: {pd.Timestamp.now()}")
 	# =============================================
-	# ========== Estimate the future FRI ==========
+	# ========== Estimate the future values ==========
 	# =============================================
 
 	print(f"Loading in the future climate complete at: {pd.Timestamp.now()}")
-
-	# df_obs = df_obs[subs]
 
 	# ========== loop over the models ==========
 	for mod in models['models']:
@@ -337,7 +359,8 @@ def FuturePrediction(df_org,
 			else:
 				Xdf = Xdf.to_numpy()
 			y_pred = regressor.predict(Xdf)
-			# y_pred[y_pred<0] = 0 #Remove places that make no sense
+			if va == "AnBF":
+				 y_pred[y_pred<BFmin] = BFmin #Remove places that make no sense
 
 			# ========== Create a nue column in the table ==========
 			dfX[f"{va}_{mod}_{modi}"] = np.NaN
@@ -639,7 +662,7 @@ def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lat
 			# df_obs = df_obs.merge(df_out, left_index=True, right_index=True)
 			for cl in  df_out.columns.values: 
 				df_obs[cl] = df_out[cl].values
-	breakpoint()
+	# breakpoint()
 
 	# ========== Check the indexing and add the treecover datasets ==========
 	if not df_obs.index.equals(msk[subs].index):
@@ -678,10 +701,10 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, 
 			# ========== make the fn and loat the file ==========
 			fn  = cpath + f"TerraClim_{cvar}_{sea}trend_{stdt.year}to{fndt.year}.nc"
 			ds_seas = xr.open_dataset(fn).drop(["intercept", "rho", "pval", "FDRsig"])#.squeeze("time",drop=True)
-			ds_seas = ds_seas.chunk({"latitude": int(ds_out.latitude.size / splits)})
+			ds_seas = ds_seas.chunk({"latitude": int(ds_seas.latitude.size / splits)})
 
 			ds_co, SF = _roller(mwb, ds_seas, f"{cvar}{sea}trend", "trend", times = None)
-			ds_co = ds_co.chunk({"latitude": int(ds_out.latitude.size / splits)})
+			ds_co = ds_co.chunk({"latitude": int(ds_co.latitude.size / splits)})
 			if rammode in  ["simple", "full"]:
 				vals = _reindexer(ds_co, lats, lons, "trend")
 			elif rammode == "complex":
