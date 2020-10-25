@@ -127,30 +127,116 @@ def main():
 	rammode="complex" #"full"
 
 
-	# ========== Build the dataset ==========
-	df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
-
-	# ========== Calculate the ML models ==========
-	models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
-
 	# ========== Calculate the future ==========
+	futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+			va, drop, BFmin, DrpNF, tmpath, fmode="trend", 
+			rammode=rammode, sen=sens)
+	
 
-	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
-		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="trend", 
-		rammode=rammode, sen=sens)
-
-	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
-		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
-		rammode="full")
+	# FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
+	# 	mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
+	# 	rammode="full")
 	breakpoint()
 
 #==============================================================================
+def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, 
+	fndt, va, drop, BFmin, DrpNF, tmpath, fmode="TCfut",
+	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False):
+
+	# ========== Covert to dataset and save the results ==========
+	fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction"
+	if DrpNF:
+		fnout += "_forests"
+	else:
+		fnout += "_nomask"
+	fnout += ".nc"
+
+	# ========== Build the dataframe ==========
+	if force or not os.path.isfile(fnout):
+
+		# ========== Build the dataset ==========
+		df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
+
+		# ========== Calculate the ML models ==========
+		models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
+		# ========== Predict the future ==========
+		dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+			mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="trend", 
+			rammode=rammode, sen=sens)
+		dsX = dfX.to_xarray()
+		# breakpoint()
+		# ========== Create the attributes ==========
+		ga  = GlobalAttributes(dsX, va, fnout, "", stdt, fndt, mwb, typ = "prediction", ogds="TerraClimate")
+		dsX = dsX.chunk({"latitude": int(dsX.latitude.size / 20)})
+		dsX = dsX.assign_coords({"time":fndt})
+		dsX = dsX.expand_dims("time")
+		dsX = tempNCmaker(dsX, fnout, va)
+		colnames = dfX.columns()
+		warn.warn("To DO: save performance metrics and dropped variables")
+	else:
+		dsX = xr.open_dataset(fnout)
+		colnames =  [kk for kk in dsX.data_vars]
+
+
+	# =========== make some plots ==========
+
+	# def Plotmaker(dsX, colnames, va, tcfs, stdt, fndt, 
+	# 		mask, ds_bf, va, drop, BFmin, DrpNF):
+	# ========== Build a plot ==========
+	# breakpoint()
+	if va == "FRI":
+		cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+	else:
+		cmapHex = palettable.matplotlib.Viridis_11.hex_colors
+	cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+	cmap.set_over(cmapHex[-1] )
+	cmap.set_bad('dimgrey',1.)
+	# for var in colnames:
+	# 	print(f"building figure for {var} starting at {pd.Timestamp.now()}")
+	# 	plt.figure(var)
+	# 	if va =="FRI":
+
+	# 		dsX[var].plot(vmin=0, vmax=500, cmap=cmap, cbar_kwargs={"extend":"max"})#1/BFmin)
+	# 	else:
+	# 		dsX[var].plot(vmin=0, vmax=.1, cmap=cmap, cbar_kwargs={"extend":"max"})
+	# 	plt.show()
+	# for exper in ["OLS", "XGBoost"]:
+	# 	plt.figure(exper)
+	# 	(dsX[f"AnBF_{exper}_fut"] - dsX[f"AnBF_{exper}_cur"]).plot(vmin=-0.05, vmax=.05, cbar_kwargs={"extend":"both"})
+	# 	plt.show()
+
+
+	# ========== Plot the FIR ==========
+	for var in colnames:
+		cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		cmap.set_over(cmapHex[-1] )
+		cmap.set_bad('dimgrey',1.)
+
+		plt.figure(var)
+		(1./dsX[var]).plot(vmin=0, vmax=100, cmap=cmap, cbar_kwargs={"extend":"max"})#1/BFmin)
+		plt.show()
+
+	for exper in ["OLS", "XGBoost"]:
+		plt.figure(exper)
+		# +++++ pull out the values and mask bad values ==========
+		fut  = (1/((dsX[f"AnBF_{exper}_fut"]).where(~(dsX[f"AnBF_{exper}_fut"]<=BFmin), BFmin)))
+		cur  = (1/((dsX[f"AnBF_{exper}_cur"]).where(~(dsX[f"AnBF_{exper}_cur"]<=BFmin), BFmin)))
+		delt = (fut - cur)
+		delt.plot(vmin=-500, vmax=500, cmap = plt.get_cmap('PiYG'), cbar_kwargs={"extend":"both"})
+		plt.show()
+	breakpoint()
+	ipdb.set_trace()
+
+	breakpoint()
+
+
 def FuturePrediction(df_org, 
 	dsn, models, box, mwb, 
 	dpath, cpath, tcfs, stdt, fndt, 
 	mask, ds_bf, va, drop, BFmin, 
 	DrpNF, latin, lonin, tmpath, fmode="TCfut",
-	sen=4, rammode = "simple", fut="", splits = 10
+	sen=4, rammode = "simple", fut="", splits = 10, version=0
 	):
 	"""
 	Function to get predictions of FRI based on future climate.
@@ -195,45 +281,49 @@ def FuturePrediction(df_org,
 	msk    = mask.reindex(
 		{"latitude":lats, "longitude":lons}, 
 		method = "nearest").squeeze("time",drop=True).to_dataframe()
-	
-	# ========== make the observed dataset ==========
-	df_obs = _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lats, lons, rammode, splits=splits)
 
-	# breakpoint()
-	df_obs.drop(drop, axis=1, errors='ignore', inplace=True)
+	# ========== find the relvent parts of the dataset ==========
+	if va == "FRI":
+		sss = (dfX.FRI<= 1/BFmin)
+	else:
+		sss = (dfX.AnBF>= BFmin)
+
+	# /// maks non forests ]]]
+	if DrpNF:
+		subs = np.logical_and(sss, msk["datamask"]==1)
+	else:
+		subs = sss
+	dfX[va][~subs] = np.NaN
+	
+	# ========== Make some nested functions to reduce ram usage ==========
+	# ========== make the observed dataset ==========
+	print(f"Building the observed climate data at: {pd.Timestamp.now()}")
+	df_obs = _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, 
+		ds_bf, va, drop, lats, lons, rammode, subs, splits=splits)
+	print(f"Observed climate data loaded at: {pd.Timestamp.now()}")
+
 
 	# ========== make the future datasets ==========
 	print(f"Loading in the future climate data at: {pd.Timestamp.now()}")
 	if fmode=="TCfut":
 		df_pre   = _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen)
 		df_tmean = _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen)
+		# ========== Build a dataframe ==========
+		df = dfX.merge(df_pre, left_index=True, right_index=True)
+		df = df.merge(df_tmean, left_index=True, right_index=True)
+		df = df.merge(msk, left_index=True, right_index=True)
+		X  = df[subs].copy().drop(drop, axis=1, errors='ignore')
 	else:
 		# ========== Loop over the trends ==========
-		df_pre, df_tmean = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, splits=splits)
-
-	# ========== Build a dataframe ==========
-	df = dfX.merge(df_pre, left_index=True, right_index=True)
-	df = df.merge(df_tmean, left_index=True, right_index=True)
-	df = df.merge(msk, left_index=True, right_index=True)
-
-	print(f"Loading in the future climate complete at: {pd.Timestamp.now()}")
+		X = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop, splits=splits)
+	print(f"Future climate data loaded at: {pd.Timestamp.now()}")
 	# =============================================
 	# ========== Estimate the future FRI ==========
 	# =============================================
-	# ========== Filter the dataset ==========
-	if va == "FRI":
-		sss = (df.FRI<= 1/BFmin)
-	else:
-		sss = (df.AnBF>= BFmin)
-	# /// maks non forests ]]]
-	if DrpNF:
-		subs = np.logical_and(sss, df["datamask"]==1)
-	else:
-		subs = sss
-	breakpoint()
-	X      = df[subs].copy().drop(drop, axis=1, errors='ignore')
-	df_obs = df_obs[subs]
-	dfX[va][~subs] = np.NaN
+
+	print(f"Loading in the future climate complete at: {pd.Timestamp.now()}")
+
+	# df_obs = df_obs[subs]
 
 	# ========== loop over the models ==========
 	for mod in models['models']:
@@ -253,52 +343,7 @@ def FuturePrediction(df_org,
 			dfX[f"{va}_{mod}_{modi}"] = np.NaN
 			dfX[f"{va}_{mod}_{modi}"][subs] = y_pred
 
-	# ========== Covert to dataset ==========
-	dsX = dfX.to_xarray()
-	warn.warn("To DO, Save the file here to stop super slow recalculation process")
-	breakpoint()
-	# def Plotmaker(dsX)
-	# ========== Build a plot ==========
-	if va == "FRI":
-		cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-	else:
-		cmapHex = palettable.matplotlib.Viridis_11.hex_colors
-	cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
-	cmap.set_over(cmapHex[-1] )
-	cmap.set_bad('dimgrey',1.)
-	for var in dfX.columns:
-		plt.figure(var)
-		if va =="FRI":
-
-			dsX[var].plot(vmin=0, vmax=500, cmap=cmap, cbar_kwargs={"extend":"max"})#1/BFmin)
-		else:
-			dsX[var].plot(vmin=0, vmax=.1, cmap=cmap, cbar_kwargs={"extend":"max"})
-	for exper in ["OLS", "XGBoost"]:
-		plt.figure(exper)
-		(dsX[f"AnBF_{exper}_fut"] - dsX[f"AnBF_{exper}_cur"]).plot(vmin=-0.05, vmax=.05, cbar_kwargs={"extend":"both"})
-	plt.show()
-
-
-	# ========== Plot the FIR ==========
-	for var in dfX.columns:
-		cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
-		cmap.set_over(cmapHex[-1] )
-		cmap.set_bad('dimgrey',1.)
-
-		plt.figure(var)
-		(1./dsX[var]).plot(vmin=0, vmax=100, cmap=cmap, cbar_kwargs={"extend":"max"})#1/BFmin)
-
-	for exper in ["OLS", "XGBoost"]:
-		plt.figure(exper)
-		# +++++ pull out the values and mask bad values ==========
-		fut  = (1/((dsX[f"AnBF_{exper}_fut"]).where(~(dsX[f"AnBF_{exper}_fut"]<=BFmin), BFmin)))
-		cur  = (1/((dsX[f"AnBF_{exper}_cur"]).where(~(dsX[f"AnBF_{exper}_cur"]<=BFmin), BFmin)))
-		delt = (fut - cur)
-		delt.plot(vmin=-500, vmax=500, cmap = plt.get_cmap('PiYG'), cbar_kwargs={"extend":"both"})
-	plt.show()
-	breakpoint()
-	ipdb.set_trace()
+	return dfX
 
 
 def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
@@ -527,7 +572,7 @@ def dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, su
 	return df, ds_msk, ds_bf, latin, lonin
 
 #==============================================================================
-def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lats, lons, rammode, splits = 10):
+def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lats, lons, rammode,subs, splits = 10):
 	"""
 	Function to build the observed climate. It just takes all the local arguments in the future prediction 
 	function.  
@@ -539,15 +584,16 @@ def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lat
 	# 	breakpoint()
 	# 	df_obs = pd.read_csv(fname, index_col=[0, 1], engine="c", sep=',', dtype=np.float32)
 	# 	return df_obs
+	df_obs = dfX[subs].copy()
 	# ========== mBuild a new file if needed
 	if rammode == "full":
-		df_obs = dfX.copy()
 		# ========== add the climate columns ==========
 		for var in ["ppt", "tmean"]:
 			print(f"Loading in the full {var} at: {pd.Timestamp.now()}")
 			# ========== Read in the climate data ==========
 			fnout  = f"{cpath}smoothed/TerraClimate_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
-			ds_out = xr.open_dataset(fnout, chunks = {"longitude":265}) 
+			ds_out = xr.open_dataset(fnout) 
+			ds_out = ds_out.chunk({"latitude": int(ds_out.latitude.size / splits)})
 			df_out =  _reindexer(ds_out, lats, lons, var, dsn = dsn)
 			df_obs = df_obs.merge(df_out, left_index=True, right_index=True)
 
@@ -555,8 +601,6 @@ def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lat
 		# df_obs = df_obs.merge(msk, left_index=True, right_index=True)
 		# df_obs.dropna(inplace=True)
 	elif rammode == "complex":
-		df_obs = dfX.copy()
-		
 		# ========== add the climate columns ==========
 		for var in ["ppt", "tmean"]:
 			print(f"Using complex loading with {splits} chunks for {var} at: {pd.Timestamp.now()}")
@@ -582,25 +626,34 @@ def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lat
 			df_list = [_subslice(ds_out, latsub, lons, var, dsn, gpnum) for gpnum, latsub in enumerate(Output)]
 			df_out  = pd.concat(df_list)
 			
+			# ========== Check the indexing and subseet the dataframe ==========
+			if not df_out.index.equals(subs.index):
+				warn.warn("Dataframes have different indexes. Going interactive")
+				breakpoint()
+			df_out  = df_out[subs.values]
+			
 			# ========== Check the indexing and merge the dataframes ==========
 			if not df_out.index.equals(df_obs.index):
 				warn.warn("Dataframes have different indexes. Going interactive")
 				breakpoint()
-
-
-			# breakpoint()
 			# df_obs = df_obs.merge(df_out, left_index=True, right_index=True)
 			for cl in  df_out.columns.values: 
-				df_obs[cl] = df_out[cl].copy()
+				df_obs[cl] = df_out[cl].values
+	breakpoint()
 
 	# ========== Check the indexing and add the treecover datasets ==========
-	assert df_obs.index.equals(msk.index), "Mask and the observed datasets have different indexes"
+	if not df_obs.index.equals(msk[subs].index):
+		warn.warn("Dataframes have different indexes. Going interactive")
+		breakpoint()
 	# df_obs = df_obs.merge(msk, left_index=True, right_index=True)
 	for clx in  msk.columns.values: 
-		df_obs[clx] = msk[clx].copy()
-	return df_obs
+		if not clx in drop:
+			df_obs[clx] = msk[clx][subs].values
 
-def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, splits=10):
+	df_obs.drop(drop, axis=1, errors='ignore', inplace=True)
+	return 	df_obs #return only the relevant subset
+
+def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop, splits=10):
 	"""
 	funtion to calculate future climate an arbitary number of years into the 
 	future
@@ -612,22 +665,23 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, splits
 		df_obs: the observed version of the dataset
 		sen: number of years
 	"""
-	df_ot = []
+	# Here i could use numpy arrays not dataframes if i needed
+	df_out = df_obs.copy()
 	for cvar in ["ppt", "tmean"]:
 		# ========== create a dataframe ==========
-		df_cli =  df_obs[[col for col in df_obs if col.startswith(cvar)]].copy()
+		# df_cli =  df_obs[[col for col in df_obs if col.startswith(cvar)]].copy()
 		# ========== loop over the months ==========
 		for sea in ["DJF","MAM","JJA","SON"]:
 			print(f"calculating {sen}year {sea}{cvar} data at: {pd.Timestamp.now()}")
-			if not f"{cvar}{sea}" in df_obs.columns:
+			if not f"{cvar}{sea}" in df_out.columns:
 				continue
 			# ========== make the fn and loat the file ==========
 			fn  = cpath + f"TerraClim_{cvar}_{sea}trend_{stdt.year}to{fndt.year}.nc"
-			ds_seas = xr.open_dataset(fn, chunks = {"longitude":265}).drop(
-				["intercept", "rho", "pval", "FDRsig"])#.squeeze("time",drop=True)
+			ds_seas = xr.open_dataset(fn).drop(["intercept", "rho", "pval", "FDRsig"])#.squeeze("time",drop=True)
+			ds_seas = ds_seas.chunk({"latitude": int(ds_out.latitude.size / splits)})
 
 			ds_co, SF = _roller(mwb, ds_seas, f"{cvar}{sea}trend", "trend", times = None)
-			ds_co = ds_co.chunk({"longitude":265})
+			ds_co = ds_co.chunk({"latitude": int(ds_out.latitude.size / splits)})
 			if rammode in  ["simple", "full"]:
 				vals = _reindexer(ds_co, lats, lons, "trend")
 			elif rammode == "complex":
@@ -649,19 +703,24 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, splits
 				vals  = pd.concat(df_list)
 
 			# ========== Build a temp dataframe to match the indexs and provent issues ==========
-			dfp = pd.DataFrame(df_cli[f"{cvar}{sea}"])
+			vals = vals[subs]
+			dfp = pd.DataFrame(df_out[f"{cvar}{sea}"])
 			assert dfp.index.equals(vals.index), "Dataframes have different indexes"
-			dfp["trend"] = vals["trend"].copy()
+			dfp["trend"] = vals["trend"]#.copy()
 
 			# ========== fix the nans ==========
-			dfp["trend"][np.logical_and(dfp["trend"].isnull(), ~dfp[f"{cvar}{sea}"].isnull() )] = 0
+			if dfp.isnull().any().any():
+				dfp["trend"][np.logical_and(dfp["trend"].isnull(), ~dfp[f"{cvar}{sea}"].isnull() )] = 0
 
 			# ========== add the trend  ==========
-			df_cli[f"{cvar}{sea}"] = dfp[f"{cvar}{sea}"] + (dfp["trend"] * sen)
-		# ========== append the data ==========
-		breakpoint()
-		df_ot.append(df_cli.copy())
-	return df_ot
+			df_out[f"{cvar}{sea}"] = dfp[f"{cvar}{sea}"] + (dfp["trend"] * sen)
+		# df_ot.append(df_cli.copy())
+	for clx in  msk.columns.values: 
+		if not clx in drop:
+			df_out[clx] = msk[clx].copy()
+	# ========== append the mask data ==========
+	df_out.drop(drop, axis=1, errors='ignore', inplace=True)
+	return df_out
 
 
 def _reindexer(ds_out, lats, lons, var, dsn = None):
