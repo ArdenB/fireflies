@@ -101,8 +101,8 @@ print("xarray version : ", xr.__version__)
 def main():
 	dpath, cpath, chunksize	= syspath()
 	# ========== Load the datasets ==========
-	dsn  = "GFED"
-	# dsn  = "MODIS"
+	# dsn  = "GFED"
+	dsn  = "MODIS"
 	# dsn  = "esacci"
 
 	tmpath = "./results/ProjectSentinal/FRImodeling/"
@@ -124,8 +124,8 @@ def main():
 	sub   = 1 #subsampling interval in deg lat and long
 	transform = "QFT" #None 
 	sen  =  60
-	# rammode="complex" #"full"
-	rammode = "extreme"
+	rammode="complex" #"full"
+	# rammode = "extreme"
 
 
 	# ========== Calculate the future ==========
@@ -160,14 +160,25 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 
 		# ========== Calculate the ML models ==========
 		models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
+
+		# ========== specify the climate data path ==========
+		if rammode == "simple":
+			# /// Simple only uses one point per mwb, is way less ram instensive \\\
+			# .reindex({"latitude":latin, "longitude":lonin}, method = "nearest")
+			df_obs = df_org
+			lats   = latin
+			lons   = lonin
+		else:
+			lats = ds_bf.latitude.values
+			lons = ds_bf.longitude.values
 		# ========== Predict the future ==========
 		if rammode == "extreme":
 			# ========== build a subset of the lats ==========
 			sizes      = np.zeros(xgroup).astype(int)
-			sizes[:]   = len(latin)//xgroup
-			sizes[-1] += len(latin)%xgroup
+			sizes[:]   = len(lats)//xgroup
+			sizes[-1] += len(lats)%xgroup
 			# breakpoint()
-			Inputt  = iter(latin) 
+			Inputt  = iter(lats) 
 			Output  = [list(islice(Inputt, elem)) for elem in sizes] # subst of the lats
 			
 			# ========== loop through the sections ==========
@@ -175,15 +186,16 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 			for gpnum, latsub in enumerate(Output):
 				print(f"\n Starting longitude slice {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
 				res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-					mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lonin, tmpath, fmode="trend", 
+					mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, fmode="trend", 
 					rammode="complex", sen=sen)
-				if gpnum == 0:
-					breakpoint()
+				df_list.append(res)
+				# if gpnum == 0:
+				# 	breakpoint()
 
 			dfX  = pd.concat(df_list)
 		else:
 			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-				mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="trend", 
+				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, fmode="trend", 
 				rammode=rammode, sen=sen)
 		
 		# ========== Convert the dataframe to an array ==========
@@ -259,7 +271,7 @@ def FuturePrediction(df_org,
 	dsn, models, box, mwb, 
 	dpath, cpath, tcfs, stdt, fndt, 
 	mask, ds_bf, va, drop, BFmin, 
-	DrpNF, latin, lonin, tmpath, fmode="TCfut",
+	DrpNF, lats, lons, tmpath, fmode="TCfut",
 	sen=4, rammode = "simple", fut="", splits = 10, version=0
 	):
 	"""
@@ -287,17 +299,7 @@ def FuturePrediction(df_org,
 			degrees of warming in the future senario 
 
 	"""
-	# ========== specify the climate data path ==========
-	
-	if rammode == "simple":
-		# /// Simple only uses one point per mwb, is way less ram instensive \\\
-		# .reindex({"latitude":latin, "longitude":lonin}, method = "nearest")
-		df_obs = df_org
-		lats   = latin
-		lons   = lonin
-	else:
-		lats = ds_bf.latitude.values
-		lons = ds_bf.longitude.values
+
 
 	dfX    = ds_bf[va].reindex(
 		{"latitude":lats, "longitude":lons}, 
