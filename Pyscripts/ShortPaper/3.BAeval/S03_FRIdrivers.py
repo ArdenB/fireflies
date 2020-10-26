@@ -102,8 +102,8 @@ def main():
 	dpath, cpath, chunksize	= syspath()
 	# ========== Load the datasets ==========
 	# dsn  = "GFED"
-	dsn  = "MODIS"
-	# dsn  = "esacci"
+	# dsn  = "MODIS"
+	dsn  = "esacci"
 
 	tmpath = "./results/ProjectSentinal/FRImodeling/"
 	cf.pymkdir(tmpath)
