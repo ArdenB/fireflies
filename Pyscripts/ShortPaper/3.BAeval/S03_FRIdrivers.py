@@ -124,8 +124,8 @@ def main():
 	sub   = 1 #subsampling interval in deg lat and long
 	transform = "QFT" #None 
 	sen  =  60
-	rammode="complex" #"full"
-	# rammode = "extreme"
+	# rammode="complex" #"full"
+	rammode = "extreme"
 
 
 	# ========== Calculate the future ==========
