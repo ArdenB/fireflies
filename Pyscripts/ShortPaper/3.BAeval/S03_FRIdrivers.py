@@ -40,6 +40,7 @@ import glob
 import shutil
 import time
 from dask.diagnostics import ProgressBar
+import dask
 
 from collections import OrderedDict
 from itertools import islice 
@@ -70,6 +71,8 @@ import socket
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
 import myfunctions.PlotFunctions as pf 
+from itertools import repeat
+from multiprocessing import Pool
 
 # import cartopy.feature as cpf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
@@ -185,12 +188,13 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 			df_list = []
 			for gpnum, latsub in enumerate(Output):
 				print(f"\n Starting longitude slice {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
-				res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-					mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, fmode="trend", 
-					rammode="complex", sen=sen)
+				with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+					res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+						mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, fmode="trend", 
+						rammode="complex", sen=sen)
+				# breakpoint()
 				df_list.append(res)
 				# if gpnum == 0:
-				# 	breakpoint()
 
 			dfX  = pd.concat(df_list)
 		else:
@@ -353,22 +357,44 @@ def FuturePrediction(df_org,
 	for mod in models['models']:
 		# ========== Calculate the future estimates ==========
 		regressor = models['models'][mod]
+		if mod == "XGBoost":
+			# Make the model passable to pool
+			regressor.set_params(**{'n_jobs':1})
+
 		for Xdf, modi in zip([df_obs, X],["cur", "fut"]):
-			print(f"starting {mod} {modi} prediction at: {pd.Timestamp.now()}")
+			tx0 = pd.Timestamp.now()
+			print(f"starting {mod} {modi} prediction at: {tx0}")
 			# breakpoint()
 			if not models["transformer"] is None:
 				Xdf = models["transformer"].transform(Xdf)
 			else:
 				Xdf = Xdf.to_numpy()
-			y_pred = regressor.predict(Xdf)
+			if mod == "XGBoost":
+				print()
+				cpu = os.cpu_count()
+				with Pool(cpu) as p:
+					y_pred = np.hstack(p.starmap(mulitpredict, zip(repeat(regressor, cpu), np.array_split(Xdf, cpu))))
+				# y_pred = 
+				# ipdb.set_tracce()
+				# sys.exit()
+			else:
+				y_pred = regressor.predict(Xdf)
 			if va == "AnBF":
 				 y_pred[y_pred<BFmin] = BFmin #Remove places that make no sense
 
 			# ========== Create a nue column in the table ==========
+			print(f"Predicting {mod} {modi} took: {pd.Timestamp.now()-tx0}")
 			dfX[f"{va}_{mod}_{modi}"] = np.NaN
 			dfX[f"{va}_{mod}_{modi}"][subs] = y_pred
 
 	return dfX
+
+def mulitpredict(reg, Xadf):
+	""" Global object that can be pickeled by multiprocessing
+	args:
+		reg: XGB regression object 
+		Xadf: A regression """
+	return  reg.predict(Xadf)
 
 
 def MLmodeling(df, va, drop, BFmin, DrpNF, trans = "QFT"):
