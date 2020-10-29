@@ -137,7 +137,7 @@ def main():
 	for sen in sens:
 		dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 				va, drop, BFmin, DrpNF, tmpath,sub, transform, fmode="trend", 
-				rammode=rammode, sen=sen, force = True)
+				rammode=rammode, sen=sen, force = False)
 		# plotmaker(va, dsX, colnames, BFmin)
 
 	# FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
@@ -256,11 +256,11 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 						res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 							mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, fmode="trend", 
 							rammode="complex", sen=sen)
+					res.to_csv(partfn)
+					res = None
 				else:
 					print(f"\n Using existing file for {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
-				res.to_csv(partfn)
 				df_nlist.append(partfn)
-				res = None
 
 			df_list = [pd.read_csv(fn, index_col=[0, 1]) for fn in df_nlist]
 			dfX  = pd.concat(df_list)
