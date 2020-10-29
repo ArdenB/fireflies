@@ -73,6 +73,7 @@ import myfunctions.corefunctions as cf
 import myfunctions.PlotFunctions as pf 
 from itertools import repeat
 from multiprocessing import Pool
+import pickle
 
 # import cartopy.feature as cpf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
@@ -105,12 +106,13 @@ def main():
 	dpath, cpath, chunksize	= syspath()
 	# ========== Load the datasets ==========
 	# dsn  = "GFED"
-	# dsn  = "MODIS"
-	dsn  = "esacci"
+	dsn  = "MODIS"
+	# dsn  = "esacci"
 
 	tmpath = "./results/ProjectSentinal/FRImodeling/"
 	cf.pymkdir(tmpath)
 	cf.pymkdir(tmpath+"tmp/")
+	cf.pymkdir(tmpath+"models/")
 
 	tcfs = ""
 	mwb  = 1
@@ -126,16 +128,17 @@ def main():
 	DrpNF = True # False
 	sub   = 1 #subsampling interval in deg lat and long
 	transform = "QFT" #None 
-	sen  =  60
+	sens  =  [30, 60, 100]
 	# rammode="complex" #"full"
 	rammode = "extreme"
 
 
 	# ========== Calculate the future ==========
-	futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-			va, drop, BFmin, DrpNF, tmpath,sub, transform, fmode="trend", 
-			rammode=rammode, sen=sen, force = True)
-	
+	for sen in sens:
+		dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+				va, drop, BFmin, DrpNF, tmpath,sub, transform, fmode="trend", 
+				rammode=rammode, sen=sen, force = True)
+		# plotmaker(va, dsX, colnames, BFmin)
 
 	# FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
 	# 	mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
@@ -143,81 +146,7 @@ def main():
 	breakpoint()
 
 #==============================================================================
-def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, 
-	fndt, va, drop, BFmin, DrpNF, tmpath, sub, transform, fmode="TCfut",
-	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False, xgroup=10):
-
-	# ========== Covert to dataset and save the results ==========
-	fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction"
-	if DrpNF:
-		fnout += "_forests"
-	else:
-		fnout += "_nomask"
-	fnout += ".nc"
-
-	# ========== Build the dataframe ==========
-	if force or not os.path.isfile(fnout):
-
-		# ========== Build the dataset ==========
-		df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
-
-		# ========== Calculate the ML models ==========
-		models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
-
-		# ========== specify the climate data path ==========
-		if rammode == "simple":
-			# /// Simple only uses one point per mwb, is way less ram instensive \\\
-			# .reindex({"latitude":latin, "longitude":lonin}, method = "nearest")
-			df_obs = df_org
-			lats   = latin
-			lons   = lonin
-		else:
-			lats = ds_bf.latitude.values
-			lons = ds_bf.longitude.values
-		# ========== Predict the future ==========
-		if rammode == "extreme":
-			# ========== build a subset of the lats ==========
-			sizes      = np.zeros(xgroup).astype(int)
-			sizes[:]   = len(lats)//xgroup
-			sizes[-1] += len(lats)%xgroup
-			# breakpoint()
-			Inputt  = iter(lats) 
-			Output  = [list(islice(Inputt, elem)) for elem in sizes] # subst of the lats
-			
-			# ========== loop through the sections ==========
-			df_list = []
-			for gpnum, latsub in enumerate(Output):
-				print(f"\n Starting longitude slice {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
-				with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-					res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-						mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, fmode="trend", 
-						rammode="complex", sen=sen)
-				# breakpoint()
-				df_list.append(res)
-				# if gpnum == 0:
-
-			dfX  = pd.concat(df_list)
-		else:
-			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, fmode="trend", 
-				rammode=rammode, sen=sen)
-		
-		# ========== Convert the dataframe to an array ==========
-		dsX = dfX.to_xarray()
-		# breakpoint()
-		# ========== Create the attributes ==========
-		ga  = GlobalAttributes(dsX, va, fnout, "", stdt, fndt, mwb, typ = "prediction", ogds="TerraClimate")
-		dsX = dsX.chunk({"latitude": int(dsX.latitude.size / 20)})
-		dsX = dsX.assign_coords({"time":fndt})
-		dsX = dsX.expand_dims("time")
-		dsX = tempNCmaker(dsX, fnout, va)
-		colnames = dfX.columns
-		warn.warn("To DO: save performance metrics and dropped variables")
-	else:
-		dsX = xr.open_dataset(fnout)
-		colnames =  [kk for kk in dsX.data_vars]
-
-
+def plotmaker(va, dsX, colnames, BFmin):
 	# =========== make some plots ==========
 
 	# def Plotmaker(dsX, colnames, va, tcfs, stdt, fndt, 
@@ -268,7 +197,96 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 	breakpoint()
 	ipdb.set_trace()
 
-	breakpoint()
+
+def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, 
+	fndt, va, drop, BFmin, DrpNF, tmpath, sub, transform, fmode="TCfut",
+	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False, xgroup=10):
+
+	# ========== Covert to dataset and save the results ==========
+	fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction"
+	if DrpNF:
+		fnout += "_forests"
+	else:
+		fnout += "_nomask"
+	fnout += ".nc"
+
+	# ========== Build the dataframe ==========
+	if force or not os.path.isfile(fnout):
+
+		# ========== Build the dataset ==========
+		df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
+
+		# ========== Calculate the ML models ==========
+		modfn  = f"{tmpath}models/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction.dat" 
+		if not os.path.isfile(modfn):
+			models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
+			pickle.dump(models, open(modfn, "wb"))
+		else:
+			print("To Do: Implement a better save so that i can train on multiple computers")
+			models = pickle.load(open(modfn, "rb"))
+
+		df_nlist = []
+
+		# ========== specify the climate data path ==========
+		if rammode == "simple":
+			# /// Simple only uses one point per mwb, is way less ram instensive \\\
+			# .reindex({"latitude":latin, "longitude":lonin}, method = "nearest")
+			df_obs = df_org
+			lats   = latin
+			lons   = lonin
+		else:
+			lats = ds_bf.latitude.values
+			lons = ds_bf.longitude.values
+		# ========== Predict the future ==========
+		if rammode == "extreme":
+			# ========== build a subset of the lats ==========
+			sizes      = np.zeros(xgroup).astype(int)
+			sizes[:]   = len(lats)//xgroup
+			sizes[-1] += len(lats)%xgroup
+			# breakpoint()
+			Inputt  = iter(lats) 
+			Output  = [list(islice(Inputt, elem)) for elem in sizes] # subst of the lats
+			
+			# ========== loop through the sections ==========
+			for gpnum, latsub in enumerate(Output):
+				partfn = f"{tmpath}tmp/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction_part{gpnum}.csv"
+				if force or not os.path.isfile(partfn):
+					print(f"\n Starting longitude slice {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
+					with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+						res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+							mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, fmode="trend", 
+							rammode="complex", sen=sen)
+				else:
+					print(f"\n Using existing file for {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
+				res.to_csv(partfn)
+				df_nlist.append(partfn)
+				res = None
+
+			df_list = [pd.read_csv(fn, index_col=[0, 1]) for fn in df_nlist]
+			dfX  = pd.concat(df_list)
+		else:
+			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, fmode="trend", 
+				rammode=rammode, sen=sen)
+		
+		# ========== Convert the dataframe to an array ==========
+		dsX = dfX.to_xarray()
+		# ========== Create the attributes ==========
+		ga  = GlobalAttributes(dsX, va, fnout, "", stdt, fndt, mwb, typ = "prediction", ogds="TerraClimate")
+		dsX = dsX.chunk({"latitude": int(dsX.latitude.size / 20)})
+		dsX = dsX.assign_coords({"time":fndt})
+		dsX = dsX.expand_dims("time")
+		dsX = tempNCmaker(dsX, fnout, va)
+		# =========== Cleanup any unnessary files ==========
+		for fn in df_nlist:
+			if os.path.isfile(fn):
+				os.remove(fn)
+		colnames = dfX.columns
+		warn.warn("To DO: save performance metrics and dropped variables")
+	else:
+		dsX = xr.open_dataset(fnout)
+		colnames =  [kk for kk in dsX.data_vars]
+	return dsX, colnames
 
 
 def FuturePrediction(df_org, 
