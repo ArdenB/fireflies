@@ -41,6 +41,8 @@ import shutil
 import time
 from dask.diagnostics import ProgressBar
 import dask
+import dask.dataframe as dd
+
 
 from collections import OrderedDict
 from itertools import islice 
@@ -106,8 +108,8 @@ def main():
 	dpath, cpath, chunksize	= syspath()
 	# ========== Load the datasets ==========
 	# dsn  = "GFED"
-	dsn  = "MODIS"
-	# dsn  = "esacci"
+	# dsn  = "MODIS"
+	dsn  = "esacci"
 
 	tmpath = "./results/ProjectSentinal/FRImodeling/"
 	cf.pymkdir(tmpath)
@@ -131,6 +133,7 @@ def main():
 	sens  =  [30, 60, 100]
 	# rammode="complex" #"full"
 	rammode = "extreme"
+	# rammode=
 
 
 	# ========== Calculate the future ==========
@@ -261,9 +264,54 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 				else:
 					print(f"\n Using existing file for {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
 				df_nlist.append(partfn)
+				
+			# ========== Use dask to read in all the parts ==========
+			# breakpoint()			
+			# for cnt, fn in enumerate(df_nlist):
+			# 	print(cnt)
+			# 	dft = dd.read_csv(fn)
+			# 	try:
+			# 		print(dft.latitude.compute())
+			# 	except Exception as er:
+			# 		print(str(er))
+			# 		breakpoint()
+			# breakpoint()
+			dfX = dd.read_csv(df_nlist).astype("float32")
+			print(f"Using dask to read in estimates starting at {pd.Timestamp.now()}")
+			# hdf5nm = f"{tmpath}/tmp/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction.h5"
+			breakpoint()
+			with ProgressBar():	
+				dfX = dfX.compute()
+				# dfx.to_hdf(hdf5nm, key="dfX")
+			# .set_index(["latitude", "longitude"])
 
-			df_list = [pd.read_csv(fn, index_col=[0, 1]) for fn in df_nlist]
-			dfX  = pd.concat(df_list)
+			breakpoint()
+			# if  rammode == "extreme":
+				# Included to deal with a weird glitch 
+				# df_list = []
+				# for nu, fn in enumerate(df_nlist):
+				# 	# print(nu)
+				# 	dft = pd.read_csv(fn)#, index_col=[0, 1])
+				# 	# 	breakpoint()
+				# 	# else:
+				# 	df_list.append(dft.set_index(["latitude", "longitude"]))
+			# else:
+			# 	df_list = [pd.read_csv(fn, index_col=[0, 1]) for fn in df_nlist]
+			# 	dfX  = pd.concat(df_list)
+
+
+			# if dsn in ["esacci"]:
+				# ========== Deal with the ram problem ==========
+				# /// setup a hdf5 container \\\
+			 #    store=pd.HDFStore(hdf5nm)
+			 #    for dfh in dfs:
+			 #        store.append('df',df,data_columns=list('0123'))
+				#     #del dfs
+			 #    df=store.select('df')
+			 #    store.close()
+			 #    os.remove('df_all.h5')
+				# breakpoint()
+			# else:
 		else:
 			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, fmode="trend", 
@@ -882,6 +930,7 @@ def _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
 		ds_msu = ds_out.reindex({
 			"latitude" :lats, 
 			"longitude":lons}, method = "nearest")
+	breakpoint()
 	# ========== Convert to dataframe ==========
 	df_msu =  ds_msu.to_dataframe().unstack()
 	df_msu.columns = [''.join(col).strip() for col in df_msu.columns.values]
