@@ -266,26 +266,37 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 				df_nlist.append(partfn)
 				
 			# ========== Use dask to read in all the parts ==========
-			# breakpoint()			
-			# for cnt, fn in enumerate(df_nlist):
-			# 	print(cnt)
-			# 	dft = dd.read_csv(fn)
-			# 	try:
-			# 		print(dft.latitude.compute())
-			# 	except Exception as er:
-			# 		print(str(er))
-			# 		breakpoint()
-			# breakpoint()
-			dfX = dd.read_csv(df_nlist).astype("float32")
-			print(f"Using dask to read in estimates starting at {pd.Timestamp.now()}")
-			# hdf5nm = f"{tmpath}/tmp/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction.h5"
-			breakpoint()
-			with ProgressBar():	
-				dfX = dfX.compute()
-				# dfx.to_hdf(hdf5nm, key="dfX")
-			# .set_index(["latitude", "longitude"])
+			if dsn in ["esacci"]:
+				print("Storing HDF5 in tmp dir to free up space")
+				store  = []#pd.HDFStore(hdf5nm)
+				for cnt, fn in enumerate(df_nlist):
+					print(f"{cnt} of {len(df_nlist)} at: {pd.Timestamp.now()}")
+					hdf5nm = f"/tmp/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction_pt{cnt}.nc" #{tmpath}
+					df_nlist.append(hdf5nm)
+					try:
+						dft = pd.read_csv(fn).set_index(["latitude", "longitude"]).astype("float32")
+						dst = dft.to_xarray()
+						dst.to_netcdf(hdf5nm, format = 'NETCDF4')
+						store.append(hdf5nm)
+						del dst
+					except Exception as err:
+						print(str(err))
+						breakpoint()
+					# store.append('dft',dft)
+				# =========== Open as a multifile dataset ===========
+				dsX = xr.open_mfdataset(store)
+				dsX = dsX.sortby("latitude", ascending=False)
 
-			breakpoint()
+			else:
+				print(f"Using dask to read in estimates starting at {pd.Timestamp.now()}")
+				dfX = dd.read_csv(df_nlist).astype("float32")
+				# breakpoint()
+				with ProgressBar():	
+					dfX = dfX.compute()
+					dfX.set_index(["latitude", "longitude"], inplace=True)
+					# dfx.to_hdf(hdf5nm, key="dfX")
+				# ========== Convert the dataframe to an array ==========
+				dsX = dfX.to_xarray()
 			# if  rammode == "extreme":
 				# Included to deal with a weird glitch 
 				# df_list = []
@@ -298,27 +309,13 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 			# else:
 			# 	df_list = [pd.read_csv(fn, index_col=[0, 1]) for fn in df_nlist]
 			# 	dfX  = pd.concat(df_list)
-
-
-			# if dsn in ["esacci"]:
-				# ========== Deal with the ram problem ==========
-				# /// setup a hdf5 container \\\
-			 #    store=pd.HDFStore(hdf5nm)
-			 #    for dfh in dfs:
-			 #        store.append('df',df,data_columns=list('0123'))
-				#     #del dfs
-			 #    df=store.select('df')
-			 #    store.close()
-			 #    os.remove('df_all.h5')
-				# breakpoint()
-			# else:
 		else:
 			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, fmode="trend", 
 				rammode=rammode, sen=sen)
 		
-		# ========== Convert the dataframe to an array ==========
-		dsX = dfX.to_xarray()
+			# ========== Convert the dataframe to an array ==========
+			dsX = dfX.to_xarray()
 		# ========== Create the attributes ==========
 		ga  = GlobalAttributes(dsX, va, fnout, "", stdt, fndt, mwb, typ = "prediction", ogds="TerraClimate")
 		dsX = dsX.chunk({"latitude": int(dsX.latitude.size / 20)})
@@ -591,7 +588,7 @@ def dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, su
 	
 	# ========== Pull out only a subset ove the data to avoid spatial autocorrelation ==========
 	ds_sub = ds_bf.reindex({"latitude":latin, "longitude":lonin}, method = "nearest")
-	
+	# breakpoint()
 	# ========== Convert to dataframe, drop time and reset index ==========
 	df_sub = ds_sub.to_dataframe()
 	df     = df_sub.reset_index().drop("time", axis=1).set_index(["latitude","longitude"]).copy()
@@ -738,7 +735,13 @@ def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lat
 			def _subslice(ds_out, lats, lons, var, dsn, gpnum):
 				# function for slicing 
 				print(f"{var} group {gpnum} started at: {pd.Timestamp.now()}")
-				df_out =  _reindexer(ds_out, lats, lons, var, dsn = dsn)
+				try:
+					df_out =  _reindexer(ds_out, lats, lons, var, dsn = dsn)
+				except Exception as err:
+					print("Sometimes this code errors for no reason. Try the above line again in interactive")
+					print(str(err))
+					breakpoint()
+					df_out =  _reindexer(ds_out, lats, lons, var, dsn = dsn)
 				return df_out
 			df_list = [_subslice(ds_out, latsub, lons, var, dsn, gpnum) for gpnum, latsub in enumerate(Output)]
 			df_out  = pd.concat(df_list)
@@ -814,7 +817,12 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, 
 				def _subslice(ds_out, lats, lons, var, gpnum):
 					# function for slicing 
 					print(f"{var} group {gpnum} started at: {pd.Timestamp.now()}")
-					df_out =  _reindexer(ds_out, lats, lons, var)
+					try:
+						df_out =  _reindexer(ds_out, lats, lons, var)
+					except Exception as err:
+						print(str(err))
+						breakpoint()
+						df_out =  _reindexer(ds_out, lats, lons, var, dsn = dsn)
 					return df_out
 				df_list = [_subslice(ds_co, latsub, lons, "trend", gpnum) for gpnum, latsub in enumerate(Output)]
 				vals  = pd.concat(df_list)
@@ -838,7 +846,6 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, 
 	# ========== append the mask data ==========
 	df_out.drop(drop, axis=1, errors='ignore', inplace=True)
 	return df_out
-
 
 def _reindexer(ds_out, lats, lons, var, dsn = None):
 	# ========== Internal function to reindex data quickly ==========
@@ -936,7 +943,6 @@ def _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
 	df_msu.columns = [''.join(col).strip() for col in df_msu.columns.values]
 	return df_msu
 
-
 def _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
 	# ===============================================
 	# ========== Load the temperature data ==========
@@ -1005,12 +1011,12 @@ def syspath():
 		dpath = "/srv/ccrc/data51/z3466821"
 		chunksize = 20
 		# chunksize = 5000
-	elif sysname == 'burrell-pre5820':
+	elif sysname in ['burrell-pre5820', 'DESKTOP-T77KK56']:
 		# The windows desktop at WHRC
 		# dpath = "/mnt/f/Data51"
 		dpath = "./data"
 		chunksize = 300
-		cpath  = "/mnt/d/Data51/Climate/TerraClimate/"
+		cpath  = "/mnt/g/Data51/Climate/TerraClimate/"
 	elif sysname =='LAPTOP-8C4IGM68':
 		dpath = "./data"
 		chunksize = 300
@@ -1022,6 +1028,11 @@ def syspath():
 		chunksize = 300
 	else:
 		ipdb.set_trace()
+
+
+	if not os.path.isdir(cpath):
+		print("the paths arent valid")
+		breakpoint()
 	return dpath, cpath, chunksize	
 
 def GlobalAttributes(ds, var, fnout, tstep, stdt, fndt, mwb, typ = "Climatology", ogds="TerraClimate"):
