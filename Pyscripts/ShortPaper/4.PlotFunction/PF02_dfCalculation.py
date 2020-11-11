@@ -201,6 +201,17 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA"):
 	# ========== Mask ouside the range ==========
 	if var =="FRI":
 		stats["OutRgnFrac"] = ((frame>10000.).weighted(weights).sum() / NN).values
+		# ========== Calculate the weighted median ==========
+		dft = frame.to_dataframe().dropna().reset_index()
+		dft["weights"] = np.cos(np.deg2rad(dft["latitude"]))
+		dft.drop(["latitude", "longitude"],axis=1, inplace=True)
+		dft.sort_values('FRI', inplace=True)
+		cumsum = dft.FRI.cumsum()
+		cutoff = dft.FRI.sum() / 2.0
+		stats["median"] = dft.FRI[cumsum >= cutoff].iloc[0]
+		del dft
+
+		# ========== Mask ouside the range ==========
 		frame = frame.where(frame<10000.)
 	elif var == "AnBF":
 		stats["OutRgnFrac"] = ((frame<0.0001).weighted(weights).sum() / NN).values
@@ -212,7 +223,7 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA"):
 		stats["FRIsub15"] =  ((frame  < 15).weighted(weights).sum()/NN).values
 		stats["FRIsub30"] =  (((frame < 30).weighted(weights).sum()/NN) - stats["FRIsub15"]).values
 		stats["FRIsub60"] =  (((frame < 60).weighted(weights).sum()/NN) - (stats["FRIsub15"]+stats["FRIsub30"])).values
-	
+	del frame
 	return pd.Series(stats)
 
 
