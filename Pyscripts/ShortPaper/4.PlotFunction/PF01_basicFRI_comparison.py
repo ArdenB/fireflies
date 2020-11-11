@@ -65,6 +65,7 @@ import matplotlib.ticker as mticker
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
+import string
 
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
@@ -88,7 +89,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["GFED", "COPERN_BA", "MODIS", "esacci"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	dsts = [dsnams1, dsnams2]
 	# vmax    = 120
@@ -142,6 +143,14 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	plotfname = plotdir + "PF01_%s_MW_%02dDegBox_V2_%s" % (var, mwb, "_".join(datasets.keys()))
 	if mask:
 		plotfname += "_ForestMask"
+
+	# ========== Setup the font ==========
+	font = {'weight' : 'bold', #,
+			# 'size'   : mapdet.latsize
+			}
+
+	mpl.rc('font', **font)
+	plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
 		
 	# ========== setup the figure ==========
 	fig, axs = plt.subplots(
@@ -149,9 +158,9 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
 
 	# ========== Loop over the figure ==========
-	for ax, dsn, in zip(axs, datasets):
+	for (num, ax), dsn, in zip(enumerate(axs), datasets):
 		# make the figure
-		im = _subplotmaker(ax, var, dsn, datasets, mask, compath, backpath, vmax = vmax)
+		im = _subplotmaker(num, ax, var, dsn, datasets, mask, compath, backpath, vmax = vmax)
 		ax.set_aspect('equal')
 
 	# ========== Make the final figure adjusments ==========
@@ -163,7 +172,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
 	
 	# ========== Change parms for the entire plot =========
-	plt.axis('scaled')
+	# plt.axis('scaled')
 
 	if not (formats is None): 
 		print("starting plot save at:", pd.Timestamp.now())
@@ -181,7 +190,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def _subplotmaker(ax, var, dsn, datasets, mask,compath, backpath, region = "SIBERIA", vmax = 80.0):
+def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = "SIBERIA", vmax = 80.0):
 	
 
 	# ========== open the dataset ==========
@@ -195,7 +204,7 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, backpath, region = "SIBE
 
 	# ========== Get the data for the frame ==========
 	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
 	bounds = [-10.0, 180.0, 70.0, 40.0]
 
 	# ========== mask ==========
@@ -262,9 +271,10 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, backpath, region = "SIBE
 		cmap.set_bad('dimgrey',1.)
 
 	# ========== Grab the data ==========
+	# breakpoint()
 	im = frame.plot.imshow(
 		ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, add_colorbar=False,
-		transform=ccrs.PlateCarree())
+		transform=ccrs.PlateCarree()) #
 
 	ax.set_extent(bounds, crs=ccrs.PlateCarree())
 
@@ -287,7 +297,9 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, backpath, region = "SIBE
 	gl.ylabels_right = False
 	if not dsn == [dss for dss in datasets][-1]:
 		# Get rid of lables in the middle of the subplot
-		gl.ylabels_bottom = False
+		gl.xlabels_bottom = False
+		# ax.axes.xaxis.set_ticklabels([])
+
 
 	gl.xlocator = mticker.FixedLocator(np.arange(bounds[0], bounds[1]+10.0, 20.0)+10)
 	gl.ylocator = mticker.FixedLocator(np.arange(bounds[2], bounds[3]-10.0, -10.0))
@@ -295,10 +307,8 @@ def _subplotmaker(ax, var, dsn, datasets, mask,compath, backpath, region = "SIBE
 	gl.xformatter = LONGITUDE_FORMATTER
 	gl.yformatter = LATITUDE_FORMATTER
 
-	# ax.coastlines(resolution='110m')
-	# ax.gridlines()
-	## =========== Setup the annimation ===========
-	ax.set_title(dsn)
+	# =========== Setup the subplot title ===========
+	ax.set_title(f"{string.ascii_lowercase[num]}. {dsn}", loc= 'left')
 
 	return im
 
