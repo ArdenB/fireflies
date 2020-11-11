@@ -140,7 +140,7 @@ def main():
 
 			outpath = plotdir+"stats/"
 			cf.pymkdir(outpath) 
-			cf.writemetadata(outpath+f"PF02_{var}stats", keystats)
+			cf.writemetadata(outpath+f"PF02_{var}stats", [Scriptinfo, gitinfo, keystats])
 			# df.groupby("ACC_CD").aream2.sum() * 1e-12
 			print(keystats)
 			ipdb.set_trace()
@@ -214,129 +214,6 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA"):
 		stats["FRIsub60"] =  (((frame < 60).weighted(weights).sum()/NN) - (stats["FRIsub15"]+stats["FRIsub30"])).values
 	
 	return pd.Series(stats)
-
-
-def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = "SIBERIA", vmax = 80.0):
-	
-
-	# ========== open the dataset ==========
-	if not os.path.isfile(datasets[dsn]):
-		# The file is not in the folder
-		warn.warn(f"File {datasets[dsn]} could not be found")
-		breakpoint()
-	else:
-		ds_dsn = xr.open_dataset(datasets[dsn])
-	# ipdb.set_trace()
-
-	# ========== Get the data for the frame ==========
-	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
-	bounds = [-10.0, 180.0, 70.0, 40.0]
-
-	# ========== mask ==========
-	if mask:
-		# +++++ Setup the paths +++++
-		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
-		stpath = compath + "/masks/broad/"
-
-		if not dsn.startswith("H"):
-			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
-		else:
-			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
-
-		# +++++ Check if the mask exists yet +++++
-		if os.path.isfile(fnmask):
-			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
-				
-				msk    = dsmask.mask.isel(time=0).astype("float32").values
-
-				# +++++ Change the boolean mask to NaNs +++++
-				msk[msk == 0] = np.NAN
-				
-				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
-				# +++++ mask the frame +++++
-				frame *= msk
-
-				# +++++ close the mask +++++
-				msk = None
-
-
-		else:
-			print("No mask exists for ", dsn)
-	
-	# ========== Set the colors ==========
-	if var == "FRI":
-		# +++++ set the min and max values +++++
-		vmin = 0.0
-		
-
-		# +++++ create hte colormap +++++
-		if vmax == 80:
-			cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
-		else:
-			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-		
-
-		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
-		cmap.set_over(cmapHex[-1] )
-		cmap.set_bad('dimgrey',1.)
-
-	else:
-		# ========== Set the colors ==========
-		vmin = 0.0
-		vmax = 0.20
-
-		# +++++ create the colormap +++++
-		# cmapHex = palettable.matplotlib.Inferno_10.hex_colors
-		# cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-		cmapHex = palettable.colorbrewer.sequential.OrRd_9.hex_colors
-		
-
-		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
-		cmap.set_over(cmapHex[-1] )
-		cmap.set_bad('dimgrey',1.)
-
-	# ========== Grab the data ==========
-	# breakpoint()
-	im = frame.plot.imshow(
-		ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, add_colorbar=False,
-		transform=ccrs.PlateCarree()) #
-
-	ax.set_extent(bounds, crs=ccrs.PlateCarree())
-
-	# ========== Add features to the map ==========
-	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-	ax.add_feature(cpf.COASTLINE, zorder=101)
-	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-	ax.add_feature(cpf.RIVERS, zorder=104)
-	ax.outline_patch.set_visible(False)
-	# ax.gridlines()
-
-	# =========== Set up the gridlines ==========
-	gl = ax.gridlines(
-		crs=ccrs.PlateCarree(), draw_labels=True, linewidth=2, color='gray', alpha=0.5, 
-		linestyle='--', zorder=105)
-
-	# +++++ get rid of the excess lables +++++
-	gl.xlabels_top = False
-	gl.ylabels_right = False
-	if not dsn == [dss for dss in datasets][-1]:
-		# Get rid of lables in the middle of the subplot
-		gl.xlabels_bottom = False
-		# ax.axes.xaxis.set_ticklabels([])
-
-
-	gl.xlocator = mticker.FixedLocator(np.arange(bounds[0], bounds[1]+10.0, 20.0)+10)
-	gl.ylocator = mticker.FixedLocator(np.arange(bounds[2], bounds[3]-10.0, -10.0))
-	
-	gl.xformatter = LONGITUDE_FORMATTER
-	gl.yformatter = LATITUDE_FORMATTER
-
-	# =========== Setup the subplot title ===========
-	ax.set_title(f"{string.ascii_lowercase[num]}. {dsn}", loc= 'left')
-
-	return im
 
 
 def syspath():
