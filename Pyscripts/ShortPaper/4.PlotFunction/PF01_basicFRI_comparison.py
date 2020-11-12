@@ -67,6 +67,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
 import string
 
+
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
 import myfunctions.PlotFunctions as pf 
@@ -91,7 +92,7 @@ def main():
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
-	dsts = [dsnams1, dsnams2]
+	dsts = [dsnams2, dsnams1]
 	# vmax    = 120
 	# vmax    = 80
 	# vmax    = 100

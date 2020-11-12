@@ -39,6 +39,7 @@ import scipy as sp
 import glob
 import shutil
 import time
+import subprocess as subp
 
 from collections import OrderedDict
 # from scipy import stats
@@ -65,6 +66,8 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
 import string
+from statsmodels.stats.weightstats import DescrStatsW
+
 
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
@@ -106,6 +109,7 @@ def main():
 		# ========== Setup the plot dir ==========
 		plotdir = "./plots/ShortPaper/"
 		cf.pymkdir(plotdir)
+		griddir = "./data/gridarea/"
 		# compath = "/media/ubuntu/Seagate Backup Plus Drive"
 		compath, backpath = syspath()
 
@@ -146,15 +150,25 @@ def main():
 			ipdb.set_trace()
 
 
-def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA"):
+def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir = "./data/gridarea/"):
+		
+	cf.pymkdir(griddir)
 	# ========== open the dataset ==========
 	if not os.path.isfile(datasets[dsn]):
 		# The file is not in the folder
 		warn.warn(f"File {datasets[dsn]} could not be found")
 		breakpoint()
 	else:
+		# /// the grid area dataset \\\
+		gafn   = f"{griddir}{dsn}_gridarea.nc"
+		if not os.path.isfile(gafn):
+			subp.call(f"cdo gridarea {datasets[dsn]} {gafn}", shell=True)
+
+		ds_ga = xr.open_dataset(gafn).astype(np.float32).sel(
+			dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+		ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
+		# /// the dataset \\\
 		ds_dsn = xr.open_dataset(datasets[dsn])
-	# ipdb.set_trace()
 
 	# ========== Get the data for the frame ==========
 	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
@@ -201,28 +215,41 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA"):
 	# ========== Mask ouside the range ==========
 	if var =="FRI":
 		stats["OutRgnFrac"] = ((frame>10000.).weighted(weights).sum() / NN).values
+		stats["OutRgnsqkm"] = ((frame>10000.) * ds_ga["cell_area"]).sum().values
+		# stats["Median"]     = frame.quantile(0.5).values
 		# ========== Calculate the weighted median ==========
-		dft = frame.to_dataframe().dropna().reset_index()
-		dft["weights"] = np.cos(np.deg2rad(dft["latitude"]))
-		dft.drop(["latitude", "longitude"],axis=1, inplace=True)
-		dft.sort_values('FRI', inplace=True)
-		cumsum = dft.FRI.cumsum()
-		cutoff = dft.FRI.sum() / 2.0
-		stats["median"] = dft.FRI[cumsum >= cutoff].iloc[0]
-		del dft
+		# dft = frame.to_dataframe().dropna().reset_index()
+		# dft["weights"] = np.cos(np.deg2rad(dft["latitude"]))
+		# dft.drop(["latitude", "longitude"],axis=1, inplace=True).
+		# dft.sort_values('FRI', inplace=True)
+		# dft = dft.reset_index()
+		# cumsum = dft.FRI.cumsum()
+		# cutoff = dft.FRI.sum() / 2.0
+		# stats["median"] = dft.FRI[cumsum >= cutoff].iloc[0]
+		# del dft
 
 		# ========== Mask ouside the range ==========
-		frame = frame.where(frame<10000.)
+		frame = frame.where(~(frame>10000.), 10001)
 	elif var == "AnBF":
 		stats["OutRgnFrac"] = ((frame<0.0001).weighted(weights).sum() / NN).values
 		frame = frame.where(frame>0.0001)
 	
-	# ========== Calculate the key values ==========
-	stats[f"Mean{var}"] = frame.weighted(weights).mean().values
+	# ========== Use statsmodels to calculate the key statistis ==========
+	d1    = DescrStatsW(frame.values[~frame.isnull()], weights=ds_ga["cell_area"].values[~frame.isnull()])
+	stats[f"Mean{var}"] = d1.mean
+	stats[f"std{var}"]  = d1.std
 	if var == "FRI":
 		stats["FRIsub15"] =  ((frame  < 15).weighted(weights).sum()/NN).values
 		stats["FRIsub30"] =  (((frame < 30).weighted(weights).sum()/NN) - stats["FRIsub15"]).values
 		stats["FRIsub60"] =  (((frame < 60).weighted(weights).sum()/NN) - (stats["FRIsub15"]+stats["FRIsub30"])).values
+		stats["FRIsub15sqkm"] =  ((frame  < 15)* ds_ga["cell_area"]).sum().values
+		stats["FRIsub30sqkm"] =  (((frame < 30)* ds_ga["cell_area"]).sum() - stats["FRIsub15sqkm"]).values
+		stats["FRIsub60sqkm"] =  (((frame < 60)* ds_ga["cell_area"]).sum() - (stats["FRIsub15sqkm"]+stats["FRIsub30sqkm"])).values
+	# ========== Do the weighted quantiles ==========
+	cquants = [0.001, 0.01,  0.05, 0.25, 0.50, 0.75, 0.95, 0.99, 0.999]
+	quant   = d1.quantile(cquants)
+	for cq in cquants:
+		stats[f"{cq*100}percentile"] = quant[cq]
 	del frame
 	return pd.Series(stats)
 
