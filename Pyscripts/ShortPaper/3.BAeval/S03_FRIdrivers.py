@@ -267,10 +267,10 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 				
 			# ========== Use dask to read in all the parts ==========
 			if dsn in ["esacci"]:
-				print("Storing HDF5 in tmp dir to free up space")
+				print("Storing nc in tmp dir to free up space")
 				store  = []#pd.HDFStore(hdf5nm)
-				for cnt, fn in enumerate(df_nlist):
-					print(f"{cnt} of {len(df_nlist)} at: {pd.Timestamp.now()}")
+				for cnt, fn in enumerate(df_nlist.copy()):
+					print(f"{cnt} of {len(df_nlist)-cnt} at: {pd.Timestamp.now()}")
 					hdf5nm = f"/tmp/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction_pt{cnt}.nc" #{tmpath}
 					df_nlist.append(hdf5nm)
 					try:

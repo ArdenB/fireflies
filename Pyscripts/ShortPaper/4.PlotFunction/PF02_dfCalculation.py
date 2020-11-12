@@ -259,14 +259,15 @@ def syspath():
 	sysname   = os.uname()[1]
 	backpath = None
 	if sysname == 'DESKTOP-UA7CT9Q':
-		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
 		dpath = "/mnt/d/Data51"
+		breakpoint()
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"
 		# spath = "/media/ubuntu/Seagate Backup Plus Drive/Data51/VideoExports/"
 		dpath = "/media/ubuntu/Harbinger/Data51"
+		breakpoint()
 	# elif 'ccrc.unsw.edu.au' in sysname:
 	# 	dpath = "/srv/ccrc/data51/z3466821"
 	elif sysname == 'burrell-pre5820':
@@ -274,10 +275,11 @@ def syspath():
 		# dpath = "/mnt/f/Data51/BurntArea"
 		dpath = "./data"
 		chunksize = 500
-	elif sysname == 'arden-Precision-5820-Tower-X-Series':
+		breakpoint()
+	elif sysname in ['arden-Precision-5820-Tower-X-Series', "arden-worstation"]:
 		# WHRC linux distro
 		dpath = "./data"
-		breakpoint()
+		backpath = "/media/arden/Alexithymia/fireflies"
 		# dpath= "/media/arden/Harbinger/Data51/BurntArea"
 	elif sysname == 'LAPTOP-8C4IGM68':
 		dpath     = "./data"
