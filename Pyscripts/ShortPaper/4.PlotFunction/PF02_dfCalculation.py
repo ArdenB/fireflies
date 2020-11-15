@@ -40,6 +40,7 @@ import glob
 import shutil
 import time
 import subprocess as subp
+from dask.diagnostics import ProgressBar
 
 from collections import OrderedDict
 # from scipy import stats
@@ -90,7 +91,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnames = ["GFED", "MODIS", "esacci", "COPERN_BA", "HANSEN_AFmask", "HANSEN"]
+	dsnames = ["COPERN_BA", "GFED", "MODIS", "esacci", "HANSEN_AFmask", "HANSEN"]#
 	# dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	# dsts = [dsnams1, dsnams2]
 	# vmax    = 120
@@ -163,12 +164,40 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 		gafn   = f"{griddir}{dsn}_gridarea.nc"
 		if not os.path.isfile(gafn):
 			subp.call(f"cdo gridarea {datasets[dsn]} {gafn}", shell=True)
-
-		ds_ga = xr.open_dataset(gafn).astype(np.float32).sel(
-			dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-		ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
+		
 		# /// the dataset \\\
 		ds_dsn = xr.open_dataset(datasets[dsn])
+
+		ds_ga = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
+		if ds_ga["cell_area"].sum() == 0:
+			print("Grid area failed")
+			# ========== Remove old file ==========
+			del ds_ga
+			os.remove(gafn)
+			ftmp = f"/tmp/{dsn}_gridarea_prelim.nc"
+			data = xr.Dataset({"dummy":xr.DataArray(data=np.zeros(ds_dsn[var].shape).astype("float32"), 
+										coords ={
+										"time":[pd.Timestamp.now()], 
+										"latitude":ds_dsn.latitude.values, 
+										"longitude":ds_dsn.longitude.values}, dims=["time", "latitude", "longitude"])})
+			data.longitude.attrs = {"long_name":"longitude", "units":"degrees_east"}
+			data.latitude.attrs = {"long_name":"latitude", "units":"degrees_north"}
+			with ProgressBar():
+				data.to_netcdf(
+					ftmp, 
+					format = 'NETCDF4',
+					unlimited_dims = ["time"])
+			subp.call(f"cdo gridarea {ftmp} {gafn}", shell=True)
+			breakpoint()
+			ds_ga = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
+			
+		else:
+			breakpoint()
+
+
+
+		ds_ga = ds_ga.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+		ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
 
 	# ========== Get the data for the frame ==========
 	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
@@ -186,18 +215,22 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 	# +++++ Check if the mask exists yet +++++
 	if os.path.isfile(fnmask):
 		with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
-			
-			msk    = dsmask.mask.isel(time=0).astype("float32").values
+			try:
+				msk    = dsmask.mask.isel(time=0).astype("float32").values
 
-			# +++++ Change the boolean mask to NaNs +++++
-			msk[msk == 0] = np.NAN
-			
-			print("Masking %s frame at:" % dsn, pd.Timestamp.now())
-			# +++++ mask the frame +++++
-			frame *= msk
+				# +++++ Change the boolean mask to NaNs +++++
+				msk[msk == 0] = np.NAN
+				
+				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+				# +++++ mask the frame +++++
+				frame *= msk
+				# frame.where(~np.isnan(msk))
+				# +++++ close the mask +++++
+				msk = None
+			except Exception as err:
+				print(str(err))
+				breakpoint()
 
-			# +++++ close the mask +++++
-			msk = None
 
 	# ========== Calculate the stats ==========
 	stats = OrderedDict()
@@ -216,17 +249,6 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 	if var =="FRI":
 		stats["OutRgnFrac"] = ((frame>10000.).weighted(weights).sum() / NN).values
 		stats["OutRgnsqkm"] = ((frame>10000.) * ds_ga["cell_area"]).sum().values
-		# stats["Median"]     = frame.quantile(0.5).values
-		# ========== Calculate the weighted median ==========
-		# dft = frame.to_dataframe().dropna().reset_index()
-		# dft["weights"] = np.cos(np.deg2rad(dft["latitude"]))
-		# dft.drop(["latitude", "longitude"],axis=1, inplace=True).
-		# dft.sort_values('FRI', inplace=True)
-		# dft = dft.reset_index()
-		# cumsum = dft.FRI.cumsum()
-		# cutoff = dft.FRI.sum() / 2.0
-		# stats["median"] = dft.FRI[cumsum >= cutoff].iloc[0]
-		# del dft
 
 		# ========== Mask ouside the range ==========
 		frame = frame.where(~(frame>10000.), 10001)
@@ -235,7 +257,12 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 		frame = frame.where(frame>0.0001)
 	
 	# ========== Use statsmodels to calculate the key statistis ==========
-	d1    = DescrStatsW(frame.values[~frame.isnull()], weights=ds_ga["cell_area"].values[~frame.isnull()])
+	# breakpoint()
+	try:
+		d1    = DescrStatsW(frame.values[~frame.isnull()], weights=ds_ga["cell_area"].values[~frame.isnull()])
+	except Exception as err:
+		print(str(err))
+		breakpoint()
 	stats[f"Mean{var}"] = d1.mean
 	stats[f"std{var}"]  = d1.std
 	if var == "FRI":
@@ -251,6 +278,7 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 	for cq in cquants:
 		stats[f"{cq*100}percentile"] = quant[cq]
 	del frame
+	print(pd.Series(stats))
 	return pd.Series(stats)
 
 
@@ -276,6 +304,9 @@ def syspath():
 		dpath = "./data"
 		chunksize = 500
 		breakpoint()
+	elif sysname == 'DESKTOP-T77KK56':
+		dpath = "./data"
+		backpath = "/mnt/f/fireflies"
 	elif sysname in ['arden-Precision-5820-Tower-X-Series', "arden-worstation"]:
 		# WHRC linux distro
 		dpath = "./data"
