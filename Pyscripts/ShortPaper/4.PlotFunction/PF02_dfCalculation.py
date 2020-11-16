@@ -147,7 +147,8 @@ def main():
 
 			outpath = plotdir+"stats/"
 			cf.pymkdir(outpath) 
-			cf.writemetadata(outpath+f"PF02_{var}stats", [Scriptinfo, gitinfo, keystats])
+			cf.writemetadata(outpath+f"PF02_{var}stats", [Scriptinfo, gitinfo])
+			keystats.to_csv(outpath+f"PF02_{var}stats.csv")
 			# df.groupby("ACC_CD").aream2.sum() * 1e-12
 			print(keystats)
 			ipdb.set_trace()
@@ -258,7 +259,7 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 	quant   = d1.quantile(cquants)
 	for cq in cquants:
 		stats[f"{cq*100}percentile"] = quant[cq]
-	del frame
+	del frame, ds_ga
 	print(pd.Series(stats))
 	return pd.Series(stats)
 
