@@ -43,6 +43,8 @@ import subprocess as subp
 from dask.diagnostics import ProgressBar
 
 from collections import OrderedDict
+from cdo import *
+
 # from scipy import stats
 # from numba import jit
 
@@ -150,6 +152,7 @@ def main():
 			print(keystats)
 			ipdb.set_trace()
 
+#==============================================================================
 
 def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir = "./data/gridarea/"):
 		
@@ -170,32 +173,10 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 
 		ds_ga = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
 		if ds_ga["cell_area"].sum() == 0:
-			print("Grid area failed")
-			# ========== Remove old file ==========
+			print("Grid area failed, trying alternate method that is a bit slower")
 			del ds_ga
-			os.remove(gafn)
-			ftmp = f"/tmp/{dsn}_gridarea_prelim.nc"
-			data = xr.Dataset({"dummy":xr.DataArray(data=np.zeros(ds_dsn[var].shape).astype("float32"), 
-										coords ={
-										"time":[pd.Timestamp.now()], 
-										"latitude":ds_dsn.latitude.values, 
-										"longitude":ds_dsn.longitude.values}, dims=["time", "latitude", "longitude"])})
-			data.longitude.attrs = {"long_name":"longitude", "units":"degrees_east"}
-			data.latitude.attrs = {"long_name":"latitude", "units":"degrees_north"}
-			with ProgressBar():
-				data.to_netcdf(
-					ftmp, 
-					format = 'NETCDF4',
-					unlimited_dims = ["time"])
-			subp.call(f"cdo gridarea {ftmp} {gafn}", shell=True)
-			breakpoint()
-			ds_ga = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
+			ds_ga = _gridcal (datasets, dsn, ds_dsn, gafn, var)
 			
-		else:
-			breakpoint()
-
-
-
 		ds_ga = ds_ga.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 		ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
 
@@ -281,6 +262,34 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 	print(pd.Series(stats))
 	return pd.Series(stats)
 
+
+#==============================================================================
+
+def _gridcal (datasets, dsn, ds_dsn, gafn, var, degmin= 111250.8709452735):
+	# ========== import the python verion of cdo ==========
+	cdo   = Cdo()
+	# ========== Remove old file ==========
+	os.remove(gafn)
+
+	# ========= calculate the area ==========
+	print(f"Starting python CDO gridarea at: {pd.Timestamp.now()}")
+	da = cdo.gridarea(input=datasets[dsn], returnXArray="cell_area")
+	data = xr.Dataset({"cell_area":da}).chunk({"latitude":500})
+	with ProgressBar():
+		data.to_netcdf(
+			gafn, format = 'NETCDF4',)
+
+	del data
+	data = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
+	if data["cell_area"].sum() == 0:
+		raise ValueError("grid cell_area == 0")
+	# data.longitude.attrs = {"long_name":"longitude", "units":"degrees_east"}
+	# data.latitude.attrs  = {"long_name":"latitude", "units":"degrees_north"}
+	# weights = np.cos(np.deg2rad(data.latitude))
+	# data   *=weights
+	# equtpix = (degmin*np.diff(data.longitude.values)[0]) * (degmin*np.diff(data.longitude.values)[0])
+	# data *= equtpix
+	return data 
 
 def syspath():
 	# ========== Create the system specific paths ==========
