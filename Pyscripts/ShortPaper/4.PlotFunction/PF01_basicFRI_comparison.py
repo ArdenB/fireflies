@@ -97,8 +97,8 @@ def main():
 	# vmax    = 80
 	# vmax    = 100
 	for var in ["FRI", "AnBF"]:
-		for dsnames, vmax in zip(dsts, [80, 200]):
-			formats = [".png"]#, ".pdf"] # None
+		for dsnames, vmax in zip(dsts, [10000, 10000]):
+			formats = [".png", ".pdf"] # None
 			# mask    = True
 			if TCF == 0:
 				tcfs = ""
@@ -168,10 +168,12 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	# +++++ Get rid of the excess lats +++++
 	for ax in axs.flat:
 		ax.label_outer()
-
-	# +++++ Add a single colorbar +++++
-	fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
-	
+	if vmax == 10000:
+		# +++++ Add a single colorbar +++++
+		levels = [0, 15, 30, 60, 120, 500, 1000, 3000, 10000, 10001]
+		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max", ticks = levels, spacing = "uniform")
+	else:
+		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
 	# ========== Change parms for the entire plot =========
 	# plt.axis('scaled')
 
@@ -246,13 +248,17 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 		
 
 		# +++++ create hte colormap +++++
-		if vmax == 80:
+		if vmax in [80, 10000]:
 			cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
 		else:
 			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-		
 
 		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		
+		if vmax == 10000:
+			norm   = mpl.colors.BoundaryNorm([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], cmap.N)
+		else:
+			norm=None
 		cmap.set_over(cmapHex[-1] )
 		cmap.set_bad('dimgrey',1.)
 
@@ -272,9 +278,8 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 		cmap.set_bad('dimgrey',1.)
 
 	# ========== Grab the data ==========
-	# breakpoint()
 	im = frame.plot.imshow(
-		ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, add_colorbar=False,
+		ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,
 		transform=ccrs.PlateCarree()) #
 
 	ax.set_extent(bounds, crs=ccrs.PlateCarree())
@@ -329,10 +334,11 @@ def syspath():
 		dpath = "/media/ubuntu/Harbinger/Data51"
 	# elif 'ccrc.unsw.edu.au' in sysname:
 	# 	dpath = "/srv/ccrc/data51/z3466821"
-	elif sysname == 'burrell-pre5820':
+	elif sysname == 'DESKTOP-T77KK56':
 		# The windows desktop at WHRC
 		# dpath = "/mnt/f/Data51/BurntArea"
 		dpath = "./data"
+		backpath = "/mnt/f/fireflies"
 		chunksize = 500
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
