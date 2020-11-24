@@ -43,7 +43,7 @@ import subprocess as subp
 from dask.diagnostics import ProgressBar
 
 from collections import OrderedDict
-from cdo import *
+# from cdo import *
 
 # from scipy import stats
 # from numba import jit
@@ -61,6 +61,7 @@ import matplotlib as mpl
 import palettable 
 
 # import seaborn as sns
+import cartopy as ct
 import matplotlib as mpl 
 import cartopy.crs as ccrs
 import cartopy.feature as cpf
@@ -83,29 +84,78 @@ import myfunctions.PlotFunctions as pf
 # import pdb as ipdb
 import ipdb
 
-print("numpy version  : ", np.__version__)
-print("pandas version : ", pd.__version__)
-print("xarray version : ", xr.__version__)
+print("numpy version   : ", np.__version__)
+print("pandas version  : ", pd.__version__)
+print("xarray version  : ", xr.__version__)
+print("cartopy version : ", ct.__version__)
 
 #==============================================================================
 def main():
 	# ========== find the paths ==========
 	dpath, cpath = syspath()
-	cmaps = ([palettable.colorbrewer.diverging.RdBu_11.mpl_colormap, palettable.colorbrewer.diverging.PuOr_11_r.mpl_colormap])
-	# ========== find the climate path ==========
-	for va, vrng, cmap in zip(["ppt", "tmean"], [[-10.0, 10.0],[-0.10, 0.10]], cmaps):
-		for gp in ["annual", "DJF", "MAM", "JJA", "SON"]:
-			plt.figure(f"{gp} {va}")
-			ds = xr.open_dataset(f"{cpath}TerraClim_{va}_{gp}trend_1985to2015.nc")
-			ds.slope.plot(cmap=cmap, vmin=vrng[0], vmax=vrng[1])
-			plt.show()
-		breakpoint()
-			# for sn in []
+	cmaps = ([
+		palettable.colorbrewer.diverging.RdBu_11.mpl_colormap, 
+		palettable.colorbrewer.diverging.PuOr_11_r.mpl_colormap])
 
-	breakpoint()
+	# ========== Build an ordered dict with key info ==========
+	setup = OrderedDict()
+	setup["ppt"]   = ({"vmin":-10, "vmax":10, "cmap":palettable.colorbrewer.diverging.RdBu_11.mpl_colormap})
+	setup["tmean"] = ({"vmin":-0.10, "vmax":0.10, "cmap":palettable.colorbrewer.diverging.PuOr_11_r.mpl_colormap})
+
+	# ========== Build the annual plots ==========
+	AnnualPlotmaker(setup, dpath, cpath)
+
+	# # ========== find the climate path ==========
+	# for va, vrng, cmap in zip(["ppt", "tmean"], [[-10.0, 10.0],[-0.10, 0.10]], cmaps):
+
+	# 	for timeperiod in [["annual"], ["DJF", "MAM", "JJA", "SON"]]:
+	# 		plt.figure(f"{gp} {va}")
+	# 		ds = xr.open_dataset(f"{cpath}TerraClim_{va}_{gp}trend_1985to2015.nc")
+
+	# 	ds.slope.plot(cmap=cmap, vmin=vrng[0], vmax=vrng[1])
+	# 	plt.show()
+	# 	breakpoint()
+	# 		# for sn in []
+
+	# breakpoint()
 
 
 #==============================================================================
+def AnnualPlotmaker(setup, dpath, cpath):
+	""" Function fo making the annual plot
+	args:
+		setup: Ordered dict 
+			contains the cmap and vrng infomation
+		dpath:	str
+		cpath:	str
+			path to the climate data
+	"""
+	# ========== Create the figure ==========
+	# ========== load the datasets ==========
+	for va in setup:
+		ds = xr.open_dataset(f"{cpath}TerraClim_{va}_annualtrend_1985to2015.nc")
+		p  = ds.slope.plot(
+			cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
+			transform=ccrs.PlateCarree(), 
+			subplot_kws=dict(projection=ccrs.Orthographic(ds.longitude.median().values, ds.latitude.median().values)))
+		p.axes.coastlines()
+		p.axes.gridlines()
+		plt.show()
+		breakpoint()
+
+def Seasonalplotmaker(va, vrng, cmap, timeperiod):
+	""" 
+	Function to make a plot
+	args:
+		va:		str
+			name of the climate variable
+		vrng:	list len =2
+			the vmin and vmax
+		cmap:
+			the colormap
+	"""
+	pass
+
 
 def syspath():
 	# ========== Create the system specific paths ==========
