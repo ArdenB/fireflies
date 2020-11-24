@@ -249,7 +249,8 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 
 		# +++++ create hte colormap +++++
 		if vmax in [80, 10000]:
-			cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
+			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
+			cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
 		else:
 			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
 
@@ -339,6 +340,10 @@ def syspath():
 		# dpath = "/mnt/f/Data51/BurntArea"
 		dpath = "./data"
 		backpath = "/mnt/f/fireflies"
+		chunksize = 500
+	elif sysname == 'DESKTOP-KMJEPJ8':
+		dpath = "./data"
+		backpath = "/mnt/g/fireflies"
 		chunksize = 500
 	elif sysname == 'arden-Precision-5820-Tower-X-Series':
 		# WHRC linux distro
