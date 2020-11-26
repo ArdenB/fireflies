@@ -92,10 +92,10 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["GFED", "MODIS",]# "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale = ({"GFED":1, "MODIS":2, "esacci":4, "COPERN_BA":3, "HANSEN_AFmask":4, "HANSEN":4})
-	dsts = [dsnams2, dsnams1]
+	dsts = [dsnams1, dsnams2]
 	proj = "polar"
 	# proj = "latlon"
 	# vmax    = 120
@@ -164,7 +164,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		longMid=np.mean([-10.0, 180.0])
 		fig, axs = plt.subplots(
 			len(datasets), 1, sharex=True, 
-			figsize=(16,9), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+			figsize=(14,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
 	else:
 		fig, axs = plt.subplots(
 			len(datasets), 1, sharex=True, 
@@ -219,100 +219,19 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 		warn.warn(f"File {datasets[dsn]} could not be found")
 		breakpoint()
 	else:
-		ds_dsn = xr.open_dataset(datasets[dsn])
-	# ipdb.set_trace()
+		frame = _fileopen(datasets, dsn, var, scale, proj, mask, compath, region)
 
-	# ========== Get the data for the frame ==========
-	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
-	
-	if proj == "polar" and not dsn == "GFED":
-		frame = frame.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad", keep_attrs=True).mean()
-
-	bounds = [-10.0, 180.0, 70.0, 40.0]
-
-	# ========== mask ==========
-	if mask:
-		# +++++ Setup the paths +++++
-		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
-		stpath = compath + "/masks/broad/"
-
-		if not dsn.startswith("H"):
-			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
-		else:
-			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
-
-		# +++++ Check if the mask exists yet +++++
-		if os.path.isfile(fnmask):
-			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
-				
-				msk    = dsmask.mask.isel(time=0).astype("float32")
-				
-				if proj == "polar" and not dsn == "GFED":
-					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
-				
-				msk = msk.values
-
-				# +++++ Change the boolean mask to NaNs +++++
-				msk[msk == 0] = np.NAN
-				
-				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
-				# +++++ mask the frame +++++
-				frame *= msk
-
-				# +++++ close the mask +++++
-				msk = None
-				print(f"masking complete, begining ploting at {pd.Timestamp.now()}")
-
-
-		else:
-			print("No mask exists for ", dsn)
 	
 	# ========== Set the colors ==========
-	if var == "FRI":
-		# +++++ set the min and max values +++++
-		vmin = 0.0
-		
+	cmap, norm, vmin, vmax = _colours(var, vmax, )
 
-		# +++++ create hte colormap +++++
-		if vmax in [80, 10000]:
-			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
-			cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
-		else:
-			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-
-		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
-		
-		if vmax == 10000:
-			norm   = mpl.colors.BoundaryNorm([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], cmap.N)
-		else:
-			norm=None
-		cmap.set_over(cmapHex[-1] )
-		cmap.set_bad('dimgrey',1.)
-		breakpoint()
-
-	else:
-		# ========== Set the colors ==========
-		vmin = 0.0
-		vmax = 0.20
-
-		# +++++ create the colormap +++++
-		# cmapHex = palettable.matplotlib.Inferno_10.hex_colors
-		# cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
-		cmapHex = palettable.colorbrewer.sequential.OrRd_9.hex_colors
-		
-
-		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
-		cmap.set_over(cmapHex[-1] )
-		cmap.set_bad('dimgrey',1.)
 
 	# ========== Grab the data ==========
 	if proj == "polar":
 		# .imshow
-		im = frame.plot(
-			ax=ax, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,
-			transform=ccrs.PlateCarree(),
-			subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}) #
+
+		im = frame.plot(ax=ax, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,transform=ccrs.PlateCarree()) #
+			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
 		ax.gridlines()
 	else:
 		im = frame.plot.imshow(
@@ -343,9 +262,10 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 
 
 	# ========== Add features to the map ==========
+	coast_50m = cpf.GSHHSFeature(scale="high")
+	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-	ax.add_feature(cpf.COASTLINE, zorder=101)
-	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+	ax.add_feature(coast_50m, zorder=101, alpha=0.5)
 	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
 	ax.add_feature(cpf.RIVERS, zorder=104)
 	# ax.gridlines()
@@ -353,11 +273,93 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 
 	# =========== Setup the subplot title ===========
 	ax.set_title(f"{string.ascii_lowercase[num]}) {dsn}", loc= 'left')
-	plt.show()
-	breakpoint()
-	sys.exit()
 
 	return im
+#==============================================================================
+def _fileopen(datasets, dsn, var, scale, proj, mask, compath, region):
+		ds_dsn = xr.open_dataset(datasets[dsn])
+
+		# ========== Get the data for the frame ==========
+		frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
+			dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
+		
+		if proj == "polar" and not dsn == "GFED":
+			frame = frame.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad", keep_attrs=True).mean()
+
+		bounds = [-10.0, 180.0, 70.0, 40.0]
+
+		# ========== mask ==========
+		if mask:
+			# +++++ Setup the paths +++++
+			# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
+			stpath = compath + "/masks/broad/"
+
+			if not dsn.startswith("H"):
+				fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
+			else:
+				fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+
+			# +++++ Check if the mask exists yet +++++
+			if os.path.isfile(fnmask):
+				with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
+					
+					msk    = dsmask.mask.isel(time=0).astype("float32")
+					
+					if proj == "polar" and not dsn == "GFED":
+						msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
+					
+					msk = msk.values
+
+					# +++++ Change the boolean mask to NaNs +++++
+					msk[msk == 0] = np.NAN
+					
+					print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+					# +++++ mask the frame +++++
+					frame *= msk
+
+					# +++++ close the mask +++++
+					msk = None
+					print(f"masking complete, begining ploting at {pd.Timestamp.now()}")
+
+
+			else:
+				print("No mask exists for ", dsn)
+
+def _colours(var, vmax, )
+	norm=None
+	if var == "FRI":
+		# +++++ set the min and max values +++++
+		vmin = 0.0
+		# +++++ create hte colormap +++++
+		if vmax in [80, 10000]:
+			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
+			cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
+		else:
+			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		
+		if vmax == 10000:
+			norm   = mpl.colors.BoundaryNorm([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], cmap.N)
+
+		cmap.set_over(cmapHex[-1] )
+		cmap.set_bad('dimgrey',1.)
+
+	else:
+		# ========== Set the colors ==========
+		vmin = 0.0
+		vmax = 0.20
+
+		# +++++ create the colormap +++++
+		# cmapHex = palettable.matplotlib.Inferno_10.hex_colors
+		# cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+		cmapHex = palettable.colorbrewer.sequential.OrRd_9.hex_colors
+		
+
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		cmap.set_over(cmapHex[-1] )
+		cmap.set_bad('dimgrey',1.)
+	return cmap, norm, vmin, vmax
 
 
 def syspath():
@@ -396,6 +398,8 @@ def syspath():
 	else:
 		ipdb.set_trace()
 	return dpath, backpath
+
 #==============================================================================
+
 if __name__ == '__main__':
 	main()

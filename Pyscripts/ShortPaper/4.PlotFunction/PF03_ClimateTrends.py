@@ -167,9 +167,9 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath):
 
 
 			ax.gridlines()
-			coast_50m = cpf.GSHHSFeature(scale="high")
 
 			# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
+			coast_50m = cpf.GSHHSFeature(scale="high")
 			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 			ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
 			ax.add_feature(coast_50m, zorder=101, alpha=0.5)
