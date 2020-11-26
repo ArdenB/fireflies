@@ -59,6 +59,7 @@ import palettable
 
 # import seaborn as sns
 import matplotlib as mpl 
+import cartopy as ct
 import cartopy.crs as ccrs
 import cartopy.feature as cpf
 import matplotlib.ticker as mticker
@@ -82,6 +83,7 @@ import ipdb
 print("numpy version  : ", np.__version__)
 print("pandas version : ", pd.__version__)
 print("xarray version : ", xr.__version__)
+print("cartopy version : ", ct.__version__)
 
 #==============================================================================
 
@@ -92,7 +94,10 @@ def main():
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
+	scale = ({"GFED":1, "MODIS":2, "esacci":4, "COPERN_BA":3, "HANSEN_AFmask":4, "HANSEN":4})
 	dsts = [dsnams2, dsnams1]
+	proj = "polar"
+	# proj = "latlon"
 	# vmax    = 120
 	# vmax    = 80
 	# vmax    = 100
@@ -107,7 +112,7 @@ def main():
 
 
 			# ========== Setup the plot dir ==========
-			plotdir = "./plots/ShortPaper/"
+			plotdir = "./plots/ShortPaper/PF01_FRI/"
 			cf.pymkdir(plotdir)
 			# compath = "/media/ubuntu/Seagate Backup Plus Drive"
 			compath, backpath = syspath()
@@ -131,17 +136,17 @@ def main():
 					# ipdb.set_trace()
 				
 				for mask in [True, False]:
-					plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath)
+					plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
 
-				ipdb.set_trace()
+				# ipdb.set_trace()
 
 #==============================================================================
 
-def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath):
+def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
-	plotfname = plotdir + "PF01_%s_MW_%02dDegBox_V2_%s" % (var, mwb, "_".join(datasets.keys()))
+	plotfname = plotdir + "PF01_%s_MW_%02dDegBox_V2_%s_%s" % (var, mwb, proj, "_".join(datasets.keys()))
 	if mask:
 		plotfname += "_ForestMask"
 
@@ -154,14 +159,24 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
 		
 	# ========== setup the figure ==========
-	fig, axs = plt.subplots(
-		len(datasets), 1, sharex=True, 
-		figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
+	if proj == "polar":
+		latiMid=np.mean([70.0, 40.0])
+		longMid=np.mean([-10.0, 180.0])
+		fig, axs = plt.subplots(
+			len(datasets), 1, sharex=True, 
+			figsize=(16,9), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+	else:
+		fig, axs = plt.subplots(
+			len(datasets), 1, sharex=True, 
+			figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
+	# bounds = [-10.0, 180.0, 70.0, 40.0]
+	# breakpoint()
 
 	# ========== Loop over the figure ==========
 	for (num, ax), dsn, in zip(enumerate(axs), datasets):
 		# make the figure
-		im = _subplotmaker(num, ax, var, dsn, datasets, mask, compath, backpath, vmax = vmax)
+		im = _subplotmaker(num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, vmax = vmax)
+		# breakpoint()
 		ax.set_aspect('equal')
 
 	# ========== Make the final figure adjusments ==========
@@ -176,6 +191,8 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
 	# ========== Change parms for the entire plot =========
 	# plt.axis('scaled')
+	plt.show()
+	sys.exit()
 
 	if not (formats is None): 
 		print("starting plot save at:", pd.Timestamp.now())
@@ -193,7 +210,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = "SIBERIA", vmax = 80.0):
+def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, region = "SIBERIA", vmax = 80.0,):
 	
 
 	# ========== open the dataset ==========
@@ -208,6 +225,10 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 	# ========== Get the data for the frame ==========
 	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
 		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
+	
+	if proj == "polar" and not dsn == "GFED":
+		frame = frame.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad", keep_attrs=True).mean()
+
 	bounds = [-10.0, 180.0, 70.0, 40.0]
 
 	# ========== mask ==========
@@ -225,7 +246,12 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 		if os.path.isfile(fnmask):
 			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
 				
-				msk    = dsmask.mask.isel(time=0).astype("float32").values
+				msk    = dsmask.mask.isel(time=0).astype("float32")
+				
+				if proj == "polar" and not dsn == "GFED":
+					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
+				
+				msk = msk.values
 
 				# +++++ Change the boolean mask to NaNs +++++
 				msk[msk == 0] = np.NAN
@@ -236,6 +262,7 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 
 				# +++++ close the mask +++++
 				msk = None
+				print(f"masking complete, begining ploting at {pd.Timestamp.now()}")
 
 
 		else:
@@ -262,6 +289,7 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 			norm=None
 		cmap.set_over(cmapHex[-1] )
 		cmap.set_bad('dimgrey',1.)
+		breakpoint()
 
 	else:
 		# ========== Set the colors ==========
@@ -279,11 +307,40 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 		cmap.set_bad('dimgrey',1.)
 
 	# ========== Grab the data ==========
-	im = frame.plot.imshow(
-		ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,
-		transform=ccrs.PlateCarree()) #
+	if proj == "polar":
+		# .imshow
+		im = frame.plot(
+			ax=ax, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,
+			transform=ccrs.PlateCarree(),
+			subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}) #
+		ax.gridlines()
+	else:
+		im = frame.plot.imshow(
+			ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,
+			transform=ccrs.PlateCarree()) #
 
-	ax.set_extent(bounds, crs=ccrs.PlateCarree())
+		ax.set_extent(bounds, crs=ccrs.PlateCarree())
+		# =========== Set up the gridlines ==========
+		gl = ax.gridlines(
+			crs=ccrs.PlateCarree(), draw_labels=True, linewidth=2, color='gray', alpha=0.5, 
+			linestyle='--', zorder=105)
+
+		# +++++ get rid of the excess lables +++++
+		gl.xlabels_top = False
+		gl.ylabels_right = False
+		if not dsn == [dss for dss in datasets][-1]:
+			# Get rid of lables in the middle of the subplot
+			gl.xlabels_bottom = False
+			# ax.axes.xaxis.set_ticklabels([])
+
+
+		gl.xlocator = mticker.FixedLocator(np.arange(bounds[0], bounds[1]+10.0, 20.0)+10)
+		gl.ylocator = mticker.FixedLocator(np.arange(bounds[2], bounds[3]-10.0, -10.0))
+		
+		gl.xformatter = LONGITUDE_FORMATTER
+		gl.yformatter = LATITUDE_FORMATTER
+		ax.outline_patch.set_visible(False)
+
 
 	# ========== Add features to the map ==========
 	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
@@ -291,31 +348,14 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, region = 
 	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
 	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
 	ax.add_feature(cpf.RIVERS, zorder=104)
-	ax.outline_patch.set_visible(False)
 	# ax.gridlines()
 
-	# =========== Set up the gridlines ==========
-	gl = ax.gridlines(
-		crs=ccrs.PlateCarree(), draw_labels=True, linewidth=2, color='gray', alpha=0.5, 
-		linestyle='--', zorder=105)
-
-	# +++++ get rid of the excess lables +++++
-	gl.xlabels_top = False
-	gl.ylabels_right = False
-	if not dsn == [dss for dss in datasets][-1]:
-		# Get rid of lables in the middle of the subplot
-		gl.xlabels_bottom = False
-		# ax.axes.xaxis.set_ticklabels([])
-
-
-	gl.xlocator = mticker.FixedLocator(np.arange(bounds[0], bounds[1]+10.0, 20.0)+10)
-	gl.ylocator = mticker.FixedLocator(np.arange(bounds[2], bounds[3]-10.0, -10.0))
-	
-	gl.xformatter = LONGITUDE_FORMATTER
-	gl.yformatter = LATITUDE_FORMATTER
 
 	# =========== Setup the subplot title ===========
-	ax.set_title(f"{string.ascii_lowercase[num]}. {dsn}", loc= 'left')
+	ax.set_title(f"{string.ascii_lowercase[num]}) {dsn}", loc= 'left')
+	plt.show()
+	breakpoint()
+	sys.exit()
 
 	return im
 

@@ -109,7 +109,7 @@ def main():
 	# ========== Load the datasets ==========
 	# dsn  = "GFED"
 	# dsn  = "MODIS"
-	dsn  = "esacci"
+	dsn    = "esacci"
 
 	tmpath = "./results/ProjectSentinal/FRImodeling/"
 	cf.pymkdir(tmpath)
@@ -137,10 +137,12 @@ def main():
 
 
 	# ========== Calculate the future ==========
-	for sen in sens:
-		dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-				va, drop, BFmin, DrpNF, tmpath,sub, transform, fmode="trend", 
-				rammode=rammode, sen=sen, force = False)
+	for sigmask in [True, False]:
+		for sen in sens:
+			for dsn in ["esacci", "MODIS", "GFED"]:
+				dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+						va, drop, BFmin, DrpNF, tmpath,sub, transform, sigmask, fmode="trend", 
+						rammode=rammode, sen=sen, force = False)
 		# plotmaker(va, dsX, colnames, BFmin)
 
 	# FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
@@ -202,7 +204,7 @@ def plotmaker(va, dsX, colnames, BFmin):
 
 
 def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, 
-	fndt, va, drop, BFmin, DrpNF, tmpath, sub, transform, fmode="TCfut",
+	fndt, va, drop, BFmin, DrpNF, tmpath, sub, transform, sigmask, fmode="TCfut",
 	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False, xgroup=10):
 
 	# ========== Covert to dataset and save the results ==========
@@ -211,6 +213,9 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		fnout += "_forests"
 	else:
 		fnout += "_nomask"
+	
+	if sigmask:
+		fnout += "_sigclim"	
 	fnout += ".nc"
 
 	# ========== Build the dataframe ==========
@@ -257,7 +262,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 					print(f"\n Starting longitude slice {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
 					with dask.config.set(**{'array.slicing.split_large_chunks': True}):
 						res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-							mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, fmode="trend", 
+							mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, sigmask, fmode="trend", 
 							rammode="complex", sen=sen)
 					res.to_csv(partfn)
 					res = None
@@ -311,7 +316,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 			# 	dfX  = pd.concat(df_list)
 		else:
 			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, fmode="trend", 
+				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, sigmask, fmode="trend", 
 				rammode=rammode, sen=sen)
 		
 			# ========== Convert the dataframe to an array ==========
@@ -338,7 +343,7 @@ def FuturePrediction(df_org,
 	dsn, models, box, mwb, 
 	dpath, cpath, tcfs, stdt, fndt, 
 	mask, ds_bf, va, drop, BFmin, 
-	DrpNF, lats, lons, tmpath, fmode="TCfut",
+	DrpNF, lats, lons, tmpath, sigmask, fmode="TCfut",
 	sen=4, rammode = "simple", fut="", splits = 10, version=0
 	):
 	"""
@@ -408,8 +413,10 @@ def FuturePrediction(df_org,
 		X  = df[subs].copy().drop(drop, axis=1, errors='ignore')
 	else:
 		# ========== Loop over the trends ==========
-		X = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop, splits=splits)
+		X = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop, sigmask, splits=splits)
 	print(f"Future climate data loaded at: {pd.Timestamp.now()}")
+	# breakpoint()
+	# sys.exit()
 	# =============================================
 	# ========== Estimate the future values ==========
 	# =============================================
@@ -773,7 +780,7 @@ def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lat
 	df_obs.drop(drop, axis=1, errors='ignore', inplace=True)
 	return 	df_obs #return only the relevant subset
 
-def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop, splits=10):
+def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop,sigmask, splits=10):
 	"""
 	funtion to calculate future climate an arbitary number of years into the 
 	future
@@ -797,10 +804,13 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, 
 				continue
 			# ========== make the fn and loat the file ==========
 			fn  = cpath + f"TerraClim_{cvar}_{sea}trend_{stdt.year}to{fndt.year}.nc"
-			ds_seas = xr.open_dataset(fn).drop(["intercept", "rho", "pval", "FDRsig"])#.squeeze("time",drop=True)
+			ds_seas = xr.open_dataset(fn).drop(["intercept", "rho", "pval", "FDRsig"]).astype(np.float32)#.squeeze("time",drop=True)
 			ds_seas = ds_seas.chunk({"latitude": int(ds_seas.latitude.size / splits)})
 
 			ds_co, SF = _roller(mwb, ds_seas, f"{cvar}{sea}trend", "trend", times = None)
+			if sigmask:
+				ds_sig = xr.open_dataset(fn).drop(["slope","intercept", "rho", "pval", ]).fillna(0).astype(np.float32)#"FDRsig"
+				ds_co["slope"]  *= ds_sig["FDRsig"]
 			ds_co = ds_co.chunk({"latitude": int(ds_co.latitude.size / splits)})
 			if rammode in  ["simple", "full"]:
 				vals = _reindexer(ds_co, lats, lons, "trend")
@@ -826,6 +836,10 @@ def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, 
 					return df_out
 				df_list = [_subslice(ds_co, latsub, lons, "trend", gpnum) for gpnum, latsub in enumerate(Output)]
 				vals  = pd.concat(df_list)
+			else:
+				print("unknown rammode")
+				breakpoint()
+				sys.exit()
 
 			# ========== Build a temp dataframe to match the indexs and provent issues ==========
 			vals = vals[subs]
@@ -1017,6 +1031,11 @@ def syspath():
 		dpath = "./data"
 		chunksize = 300
 		cpath  = "/mnt/g/Data51/Climate/TerraClimate/"
+	elif sysname == 'DESKTOP-KMJEPJ8':
+		dpath = "./data"
+		chunksize = 300
+		cpath  = "/mnt/i/Data51/Climate/TerraClimate/"
+
 	elif sysname =='LAPTOP-8C4IGM68':
 		dpath = "./data"
 		chunksize = 300
