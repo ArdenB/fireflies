@@ -214,7 +214,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 			yv = len(datasets)
 			xv = 1
 		fig, axs = plt.subplots(
-			yv, xv, figsize=(14,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+			yv, xv, figsize=(20,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
 	else:
 		fig, axs = plt.subplots(
 			len(datasets), 1, sharex=True, 
@@ -243,6 +243,9 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	
 	# ========== Change parms for the entire plot =========
 	# plt.axis('scaled')
+	plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.10,wspace=0.0)
+
+	print("Starting plot show at:", pd.Timestamp.now())
 	plt.show()
 	sys.exit()
 
@@ -288,7 +291,7 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 			cmap=cmap, norm=norm, 
 			transform=ccrs.PlateCarree(),
 			# add_colorbar=False,
-			cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":0.97, "ticks":levels, "spacing":"uniform"}
+			cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":0.85, "ticks":levels, "spacing":"uniform"}
 			) #
 			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
 		ax.gridlines()

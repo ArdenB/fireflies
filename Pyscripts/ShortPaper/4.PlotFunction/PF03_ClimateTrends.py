@@ -187,6 +187,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath):
 			print(sea, va, ds.slope.quantile([0.01,0.05, 0.50,0.95,0.99]))
 
 	plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.135,wspace=0.0)
+	# plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.063, wspace=0.2)
 	# ========== Save the plots ==========
 	plotfname = f"{ppath}PF03_SeasonalClimateTrend."
 	for fmt in ["pdf", "png"]:
@@ -275,6 +276,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 
 		
 	# ========== Save the plots ==========
+
 	plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.063, wspace=0.2)
 	plotfname = f"{ppath}PF03_AnnualClimateTrend."
 	for fmt in ["pdf", "png"]:
