@@ -92,7 +92,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["GFED", "MODIS",]# "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["MODIS", "GFED", ]# "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale = ({"GFED":1, "MODIS":2, "esacci":4, "COPERN_BA":3, "HANSEN_AFmask":4, "HANSEN":4})
 	dsts = [dsnams1, dsnams2]
@@ -103,7 +103,7 @@ def main():
 	# vmax    = 100
 	for var in ["FRI", "AnBF"]:
 		for dsnames, vmax in zip(dsts, [10000, 10000]):
-			formats = [".png", ".pdf"] # None
+			formats = [".png", ] # None ".pdf"
 			# mask    = True
 			if TCF == 0:
 				tcfs = ""
@@ -191,13 +191,13 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
 	# ========== Change parms for the entire plot =========
 	# plt.axis('scaled')
-	plt.show()
-	sys.exit()
+	# plt.show()
+	# sys.exit()
 
 	if not (formats is None): 
-		print("starting plot save at:", pd.Timestamp.now())
 		# ========== loop over the formats ==========
 		for fmt in formats:
+			print(f"starting {fmt} plot save at:{pd.Timestamp.now()}")
 			plt.savefig(plotfname+fmt)#, dpi=dpi)
 	print("Starting plot show at:", pd.Timestamp.now())
 	
@@ -232,7 +232,7 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 
 		im = frame.plot(ax=ax, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,transform=ccrs.PlateCarree()) #
 			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
-		ax.gridlines()
+		# ax.gridlines()
 	else:
 		im = frame.plot.imshow(
 			ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,
@@ -262,70 +262,77 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 
 
 	# ========== Add features to the map ==========
-	coast_50m = cpf.GSHHSFeature(scale="high")
-	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
-	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-	ax.add_feature(coast_50m, zorder=101, alpha=0.5)
-	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-	ax.add_feature(cpf.RIVERS, zorder=104)
+	# coast_50m = cpf.GSHHSFeature(scale="high")
+	# ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+	# ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+	# ax.add_feature(coast_50m, zorder=101, alpha=0.5)
+	# ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	# ax.add_feature(cpf.RIVERS, zorder=104)
 	# ax.gridlines()
 
 
 	# =========== Setup the subplot title ===========
 	ax.set_title(f"{string.ascii_lowercase[num]}) {dsn}", loc= 'left')
-
+	# plt.show()
+	# breakpoint()
+	# sys.exit()
 	return im
 #==============================================================================
 def _fileopen(datasets, dsn, var, scale, proj, mask, compath, region):
-		ds_dsn = xr.open_dataset(datasets[dsn])
+	ds_dsn = xr.open_dataset(datasets[dsn])
 
-		# ========== Get the data for the frame ==========
-		frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-			dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
-		
-		if proj == "polar" and not dsn == "GFED":
-			frame = frame.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad", keep_attrs=True).mean()
+	# ========== Get the data for the frame ==========
+	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
+	
+	if proj == "polar" and not dsn == "GFED":
+		# ========== Coarsen to make plotting easier =========
+		frame = frame.coarsen(
+			{"latitude":scale[dsn], "longitude":scale[dsn]
+			}, boundary ="pad", keep_attrs=True).min()
 
-		bounds = [-10.0, 180.0, 70.0, 40.0]
+	bounds = [-10.0, 180.0, 70.0, 40.0]
 
-		# ========== mask ==========
-		if mask:
-			# +++++ Setup the paths +++++
-			# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
-			stpath = compath + "/masks/broad/"
+	# ========== mask ==========
+	if mask:
+		# +++++ Setup the paths +++++
+		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
+		stpath = compath + "/masks/broad/"
 
-			if not dsn.startswith("H"):
-				fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
-			else:
-				fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+		if not dsn.startswith("H"):
+			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
+		else:
+			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
 
-			# +++++ Check if the mask exists yet +++++
-			if os.path.isfile(fnmask):
-				with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
-					
-					msk    = dsmask.mask.isel(time=0).astype("float32")
-					
-					if proj == "polar" and not dsn == "GFED":
-						msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
-					
-					msk = msk.values
+		# +++++ Check if the mask exists yet +++++
+		if os.path.isfile(fnmask):
+			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
+				
+				msk    = dsmask.mask.isel(time=0).astype("float32")
+				
+				if proj == "polar" and not dsn == "GFED":
+					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
+				
+				msk = msk.values
 
-					# +++++ Change the boolean mask to NaNs +++++
-					msk[msk == 0] = np.NAN
-					
-					print("Masking %s frame at:" % dsn, pd.Timestamp.now())
-					# +++++ mask the frame +++++
-					frame *= msk
+				# +++++ Change the boolean mask to NaNs +++++
+				msk[msk == 0] = np.NAN
+				
+				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+				# +++++ mask the frame +++++
+				frame *= msk
 
-					# +++++ close the mask +++++
-					msk = None
-					print(f"masking complete, begining ploting at {pd.Timestamp.now()}")
+				# +++++ close the mask +++++
+				msk = None
+				print(f"masking complete, begining ploting at {pd.Timestamp.now()}")
 
 
-			else:
-				print("No mask exists for ", dsn)
+		else:
+			print("No mask exists for ", dsn)
 
-def _colours(var, vmax, )
+		return frame
+
+def _colours(var, vmax):
 	norm=None
 	if var == "FRI":
 		# +++++ set the min and max values +++++
