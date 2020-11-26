@@ -149,9 +149,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath):
 			p  = ds.slope.isel(time=0).plot(
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
-				    cbar_kwargs={
-				    "pad": 0.02, "shrink":0.97, "extend":"both"
-				    })
+				    cbar_kwargs={"pad": 0.02, "shrink":0.97, "extend":"both"})
 			# 
 			# ========== work out the stippling ==========
 			slats, slons = _stippling(ds, squeeze=30, nanfrac = 0.15, sigfrac=0.5)

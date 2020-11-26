@@ -92,9 +92,9 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["MODIS", "GFED", ]# "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
-	scale = ({"GFED":1, "MODIS":2, "esacci":4, "COPERN_BA":3, "HANSEN_AFmask":4, "HANSEN":4})
+	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	dsts = [dsnams1, dsnams2]
 	proj = "polar"
 	# proj = "latlon"
@@ -103,7 +103,7 @@ def main():
 	# vmax    = 100
 	for var in ["FRI", "AnBF"]:
 		for dsnames, vmax in zip(dsts, [10000, 10000]):
-			formats = [".png", ] # None ".pdf"
+			formats = [".png", ".pdf"] # None 
 			# mask    = True
 			if TCF == 0:
 				tcfs = ""
@@ -136,11 +136,56 @@ def main():
 					# ipdb.set_trace()
 				
 				for mask in [True, False]:
+					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
+					# breakpoint()
 					plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
 
 				# ipdb.set_trace()
 
 #==============================================================================
+def testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, region = "SIBERIA"):
+	# ========== Setup the font ==========
+	font = {'weight' : 'bold', #,
+			# 'size'   : mapdet.latsize
+			}
+
+	mpl.rc('font', **font)
+	plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
+		
+	# ========== setup the figure ==========
+	if proj == "polar":
+		latiMid=np.mean([70.0, 40.0])
+		longMid=np.mean([-10.0, 180.0])
+		for dsn in datasets:
+			print(f"{dsn} start at: {pd.Timestamp.now()}")
+			fig, ax = plt.subplots(
+				1, 1, figsize=(20,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+			
+			frame = _fileopen(datasets, dsn, var, scale, proj, mask, compath, region)
+			# ========== Set the colors ==========
+			cmap, norm, vmin, vmax, levels = _colours(var, vmax, )
+			
+			# ========== Creat the plot ==========
+			im = frame.compute().plot(
+				ax=ax, vmin=vmin, vmax=vmax, 
+				cmap=cmap, norm=norm, #add_colorbar=False,
+				transform=ccrs.PlateCarree(),
+				cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":0.97, "ticks":levels, "spacing":"uniform"}
+				) #
+				# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
+			ax.gridlines()
+			coast_50m = cpf.GSHHSFeature(scale="high")
+			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+			ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+			ax.add_feature(coast_50m, zorder=101, alpha=0.5)
+			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+			ax.add_feature(cpf.RIVERS, zorder=104)
+			print(f"Starting testplot show for {dsn} at:{pd.Timestamp.now()}")
+			plt.show()
+			breakpoint()
+
+
+
 
 def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale):
 	"""Function builds a basic stack of maps """
@@ -162,9 +207,14 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	if proj == "polar":
 		latiMid=np.mean([70.0, 40.0])
 		longMid=np.mean([-10.0, 180.0])
+		if len(datasets) == 4:
+			yv = 2
+			xv = 2
+		else:
+			yv = len(datasets)
+			xv = 1
 		fig, axs = plt.subplots(
-			len(datasets), 1, sharex=True, 
-			figsize=(14,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+			yv, xv, figsize=(14,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
 	else:
 		fig, axs = plt.subplots(
 			len(datasets), 1, sharex=True, 
@@ -173,7 +223,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	# breakpoint()
 
 	# ========== Loop over the figure ==========
-	for (num, ax), dsn, in zip(enumerate(axs), datasets):
+	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
 		# make the figure
 		im = _subplotmaker(num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, vmax = vmax)
 		# breakpoint()
@@ -181,18 +231,20 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 
 	# ========== Make the final figure adjusments ==========
 	# +++++ Get rid of the excess lats +++++
-	for ax in axs.flat:
-		ax.label_outer()
-	if vmax == 10000:
-		# +++++ Add a single colorbar +++++
-		levels = [0, 15, 30, 60, 120, 500, 1000, 3000, 10000, 10001]
-		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max", ticks = levels, spacing = "uniform")
-	else:
-		fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
+	if not proj == "polar":
+		for ax in axs.flat:
+			ax.label_outer()
+		if vmax == 10000:
+			# +++++ Add a single colorbar +++++
+			levels = [0, 15, 30, 60, 120, 500, 1000, 3000, 10000, 10001]
+			fig.colorbar(im, ax=axs.ravel().tolist(), extend="max", ticks = levels, spacing = "uniform")
+		else:
+			fig.colorbar(im, ax=axs.ravel().tolist(), extend="max")
+	
 	# ========== Change parms for the entire plot =========
 	# plt.axis('scaled')
-	# plt.show()
-	# sys.exit()
+	plt.show()
+	sys.exit()
 
 	if not (formats is None): 
 		# ========== loop over the formats ==========
@@ -223,20 +275,29 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 
 	
 	# ========== Set the colors ==========
-	cmap, norm, vmin, vmax = _colours(var, vmax, )
+	cmap, norm, vmin, vmax, levels = _colours(var, vmax, )
 
 
 	# ========== Grab the data ==========
 	if proj == "polar":
 		# .imshow
+		# breakpoint()
 
-		im = frame.plot(ax=ax, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,transform=ccrs.PlateCarree()) #
+		im = frame.compute().plot(
+			ax=ax, vmin=vmin, vmax=vmax, 
+			cmap=cmap, norm=norm, 
+			transform=ccrs.PlateCarree(),
+			# add_colorbar=False,
+			cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":0.97, "ticks":levels, "spacing":"uniform"}
+			) #
 			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
-		# ax.gridlines()
+		ax.gridlines()
 	else:
 		im = frame.plot.imshow(
-			ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, add_colorbar=False,
-			transform=ccrs.PlateCarree()) #
+			ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, 
+			transform=ccrs.PlateCarree(), 
+			add_colorbar=False,
+			) #
 
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
 		# =========== Set up the gridlines ==========
@@ -262,13 +323,12 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 
 
 	# ========== Add features to the map ==========
-	# coast_50m = cpf.GSHHSFeature(scale="high")
-	# ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
-	# ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-	# ax.add_feature(coast_50m, zorder=101, alpha=0.5)
-	# ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-	# ax.add_feature(cpf.RIVERS, zorder=104)
-	# ax.gridlines()
+	coast_50m = cpf.GSHHSFeature(scale="high")
+	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+	ax.add_feature(coast_50m, zorder=101, alpha=0.5)
+	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	ax.add_feature(cpf.RIVERS, zorder=104)
 
 
 	# =========== Setup the subplot title ===========
@@ -289,7 +349,7 @@ def _fileopen(datasets, dsn, var, scale, proj, mask, compath, region):
 		# ========== Coarsen to make plotting easier =========
 		frame = frame.coarsen(
 			{"latitude":scale[dsn], "longitude":scale[dsn]
-			}, boundary ="pad", keep_attrs=True).min()
+			}, boundary ="pad", keep_attrs=True).min().compute()
 
 	bounds = [-10.0, 180.0, 70.0, 40.0]
 
@@ -330,10 +390,11 @@ def _fileopen(datasets, dsn, var, scale, proj, mask, compath, region):
 		else:
 			print("No mask exists for ", dsn)
 
-		return frame
+	return frame
 
 def _colours(var, vmax):
 	norm=None
+	levels = None
 	if var == "FRI":
 		# +++++ set the min and max values +++++
 		vmin = 0.0
@@ -341,6 +402,7 @@ def _colours(var, vmax):
 		if vmax in [80, 10000]:
 			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
 			cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
+			levels = [0, 15, 30, 60, 120, 500, 1000, 3000, 10000, 10001]
 		else:
 			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
 
@@ -366,7 +428,7 @@ def _colours(var, vmax):
 		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
 		cmap.set_over(cmapHex[-1] )
 		cmap.set_bad('dimgrey',1.)
-	return cmap, norm, vmin, vmax
+	return cmap, norm, vmin, vmax, levels
 
 
 def syspath():
