@@ -258,16 +258,17 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 			facecolors='none', edgecolors="none",  
 			alpha=0.35, transform=ccrs.PlateCarree())
 		ax.gridlines()
-		coast_50m = cpf.GSHHSFeature(scale="high")
+		coast = cpf.GSHHSFeature(scale="intermediate")
                                         # edgecolor='face',
                                         # facecolor=cfeature.COLORS['land']
 
 		# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
 		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-		ax.add_feature(coast_50m, zorder=101, alpha=0.5)
+		ax.add_feature(coast, zorder=101, alpha=0.5)
 		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
 		ax.add_feature(cpf.RIVERS, zorder=104)
+		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
 		# ========== Set the titles ==========
 		vanm = setup[va]["lname"]
 		ax.set_title("")

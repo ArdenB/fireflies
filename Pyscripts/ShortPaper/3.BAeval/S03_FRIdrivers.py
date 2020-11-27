@@ -138,17 +138,18 @@ def main():
 
 	# ========== Calculate the future ==========
 	for sigmask in [True, False]:
-		for sen in sens:
-			for dsn in ["esacci", "MODIS", "GFED"]:
+		for dsn in ["GFED", "MODIS", "esacci", ]:
+			for sen in sens:
 				dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 						va, drop, BFmin, DrpNF, tmpath,sub, transform, sigmask, fmode="trend", 
 						rammode=rammode, sen=sen, force = False)
-		# plotmaker(va, dsX, colnames, BFmin)
+			# plotmaker(va, dsX, colnames, BFmin)
 
-	# FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
-	# 	mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
-	# 	rammode="full")
 	breakpoint()
+	# ========== prediction using the future dataset from terraclimate ==========
+	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
+		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
+		rammode="full")
 
 #==============================================================================
 def plotmaker(va, dsX, colnames, BFmin):
@@ -1113,4 +1114,4 @@ def tempNCmaker(ds, fnout, var):
 #==============================================================================
 
 if __name__ == '__main__':
-	main()   
+	main()

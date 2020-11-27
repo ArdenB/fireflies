@@ -88,14 +88,14 @@ print("cartopy version : ", ct.__version__)
 #==============================================================================
 
 def main():
-
+	warn.warn("\n TO DO: add to the variaable attrs so the plots have units. Also implement a better downsampling")
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
-	dsts = [dsnams1, dsnams2]
+	dsts = [dsnams2, dsnams1]
 	proj = "polar"
 	# proj = "latlon"
 	# vmax    = 120
@@ -174,10 +174,10 @@ def testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, bac
 				) #
 				# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
 			ax.gridlines()
-			coast_50m = cpf.GSHHSFeature(scale="high")
+			coast = cpf.GSHHSFeature(scale="intermediate") #"high"
 			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 			ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-			ax.add_feature(coast_50m, zorder=101, alpha=0.5)
+			ax.add_feature(coast, zorder=101, alpha=0.5)
 			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
 			ax.add_feature(cpf.RIVERS, zorder=104)
 			print(f"Starting testplot show for {dsn} at:{pd.Timestamp.now()}")
@@ -196,12 +196,13 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		plotfname += "_ForestMask"
 
 	# ========== Setup the font ==========
-	font = {'weight' : 'bold', #,
-			# 'size'   : mapdet.latsize
-			}
-
+	# ========== set the mpl rc params ==========
+	font = {'weight' : 'bold'}
 	mpl.rc('font', **font)
-	plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+
+	# mpl.rc('font', **font)
+	# plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
 		
 	# ========== setup the figure ==========
 	if proj == "polar":
@@ -210,22 +211,25 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		if len(datasets) == 4:
 			yv = 2
 			xv = 2
+			shrink=0.85
 		else:
 			yv = len(datasets)
 			xv = 1
+			shrink=0.95
 		fig, axs = plt.subplots(
 			yv, xv, figsize=(20,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
 	else:
 		fig, axs = plt.subplots(
 			len(datasets), 1, sharex=True, 
 			figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
+		shrink = None
 	# bounds = [-10.0, 180.0, 70.0, 40.0]
 	# breakpoint()
 
 	# ========== Loop over the figure ==========
 	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
 		# make the figure
-		im = _subplotmaker(num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, vmax = vmax)
+		im = _subplotmaker(num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, vmax = vmax, shrink=shrink)
 		# breakpoint()
 		ax.set_aspect('equal')
 
@@ -243,11 +247,14 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	
 	# ========== Change parms for the entire plot =========
 	# plt.axis('scaled')
-	plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.10,wspace=0.0)
+	if len (datasets) == 4:
+		plt.subplots_adjust(top=0.99,bottom=0.010, left=0.010, right=0.97, hspace=0.00,wspace=0.0)
+	else:
+		plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.993,hspace=0.063,wspace=0.0)
 
-	print("Starting plot show at:", pd.Timestamp.now())
-	plt.show()
-	sys.exit()
+	# print("Starting plot show at:", pd.Timestamp.now())
+	# plt.show()
+	# sys.exit()
 
 	if not (formats is None): 
 		# ========== loop over the formats ==========
@@ -265,7 +272,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, region = "SIBERIA", vmax = 80.0,):
+def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, region = "SIBERIA", vmax = 80.0,shrink=0.85):
 	
 
 	# ========== open the dataset ==========
@@ -332,6 +339,7 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 	ax.add_feature(coast_50m, zorder=101, alpha=0.5)
 	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
 	ax.add_feature(cpf.RIVERS, zorder=104)
+	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
 
 
 	# =========== Setup the subplot title ===========
@@ -352,9 +360,10 @@ def _fileopen(datasets, dsn, var, scale, proj, mask, compath, region):
 		# ========== Coarsen to make plotting easier =========
 		frame = frame.coarsen(
 			{"latitude":scale[dsn], "longitude":scale[dsn]
-			}, boundary ="pad", keep_attrs=True).min().compute()
+			}, boundary ="pad", keep_attrs=True).mean().compute()
 
 	bounds = [-10.0, 180.0, 70.0, 40.0]
+	frame.attrs = {'long_name':"FRI", "units":"years"}
 
 	# ========== mask ==========
 	if mask:
