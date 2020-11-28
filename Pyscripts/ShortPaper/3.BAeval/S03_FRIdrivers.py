@@ -146,6 +146,7 @@ def main():
 			# plotmaker(va, dsX, colnames, BFmin)
 
 	breakpoint()
+	sys.exit()
 	# ========== prediction using the future dataset from terraclimate ==========
 	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
 		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
@@ -209,6 +210,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False, xgroup=10):
 
 	# ========== Covert to dataset and save the results ==========
+	print(f"Starting {dsn} v{version} {sen}yr {fmode}Prediction at: {pd.Timestamp.now()}")
 	fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction"
 	if DrpNF:
 		fnout += "_forests"
@@ -292,6 +294,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 				# =========== Open as a multifile dataset ===========
 				dsX = xr.open_mfdataset(store)
 				dsX = dsX.sortby("latitude", ascending=False)
+				colnames = dft.columns
 
 			else:
 				print(f"Using dask to read in estimates starting at {pd.Timestamp.now()}")
@@ -303,6 +306,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 					# dfx.to_hdf(hdf5nm, key="dfX")
 				# ========== Convert the dataframe to an array ==========
 				dsX = dfX.to_xarray()
+				colnames = dfX.columns
 			# if  rammode == "extreme":
 				# Included to deal with a weird glitch 
 				# df_list = []
@@ -332,8 +336,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		for fn in df_nlist:
 			if os.path.isfile(fn):
 				os.remove(fn)
-		colnames = dfX.columns
-		warn.warn("To DO: save performance metrics and dropped variables")
+
 	else:
 		dsX = xr.open_dataset(fnout)
 		colnames =  [kk for kk in dsX.data_vars]

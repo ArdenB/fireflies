@@ -95,7 +95,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["GFED", "MODIS", "esacci"]# 
+	dsnams1 = ["esacci", "MODIS", "GFED", ]# 
 	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	BFmin = 0.0001
 	DrpNF = True # False
@@ -121,9 +121,11 @@ def main():
 
 
 def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens, scale, formats, sigmask, fmode="trend",
-	 version=0, force = False, DrpNF=True):
+	 version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0]):
 	# ========== make the plot name ==========
 	plotfname = f"{plotdir}PF04_FRIprediction_{dsn}_{model}" 
+	if sigmask:
+		plotfname += "_sigclim"	
 
 	# ========== set the mpl rc params ==========
 	font = {'weight' : 'bold'}
@@ -134,7 +136,6 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	dax = []
 	dac = []
 	for sen in sens:
-		print(f"Starting the load for {dsn} {sen}yr prediction at: {pd.Timestamp.now()}")
 		fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction"
 		if DrpNF:
 			fnout += "_forests"
@@ -142,12 +143,13 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 			fnout += "_nomask"
 		
 		if sigmask:
+			# plotfname += "_sigclim"	
 			fnout     += "_sigclim"	
-			plotfname += "_sigclim"	
 		fnout += ".nc"
 
 		# ========== Check if a file exists ==========
 		if os.path.isfile(fnout):
+			print(f"Starting the load for {dsn} {sen}yr prediction at: {pd.Timestamp.now()}")
 			ds = xr.open_dataset(fnout)
 			for tp in ["cur", "fut"]:
 				da = ds[f"{va}_{model}_{tp}"].rename("FRI")#.coarsen()
@@ -168,6 +170,9 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	# ========== Build a single file by taking the mean of the current, theen merging the rest ==========
 	if len(dac) > 1:
 		daM = xr.merge([xr.concat(dac, dim="ver").mean(dim="ver")] + dax)
+	elif len(dac) == 0:
+		print(f"{dsn} is missing all results, going to next dataset")
+		return
 	else:
 		daM = xr.merge(dac + dax)
 
@@ -185,7 +190,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	cmap, norm, vmin, vmax, levels = _colours("FRI", 10000)
 	# breakpoint()
 	px = daM.FRI.plot(x="longitude", y="latitude", col="time", col_wrap=2,
-		vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, size = 8, 
+		vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, size = 8, #extent=bounds,
 		transform=ccrs.PlateCarree(),
 		add_colorbar=False,
 		subplot_kws={"projection": ccrs.Orthographic(longMid, latiMid)},
@@ -203,6 +208,9 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 
 		ax.set_title("")
 		ax.set_title(f"{dsn} - {model} ({pd.Timestamp(tm).year - 30} to {pd.Timestamp(tm).year})", loc= 'left')
+		if dsn == "esacci":
+			# breakpoint()
+			ax.set_extent(bounds, crs = ccrs.PlateCarree())
 	
 	plt.subplots_adjust(top=.99, bottom=0.01, left=0.009, right=0.991, hspace=0.0, wspace=0.02)
 	
