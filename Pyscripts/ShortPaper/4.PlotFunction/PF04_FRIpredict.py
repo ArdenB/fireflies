@@ -107,7 +107,7 @@ def main():
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/PF04_Predictions/"
 	cf.pymkdir(plotdir)
-	formats = [".png"]#, ".pdf"]
+	formats = [".png", ".pdf"]
 
 	for dsn in dsnams1:
 		for sigmask in [True, False]:

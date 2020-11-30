@@ -144,7 +144,7 @@ def ClimateChangeCal(box, stdt, fndt, tstep, cpath, force, var, fnt):
 		# time=slice(stdt, fndt),
 		latitude=slice(box[3], box[2]), 
 		longitude=slice(box[0], box[1])))
-	# ========== select and reduce the dataset ==========
+	# ========== select and reduce the dataset into annual and seasonal components ==========
 	with ProgressBar():
 		if tstep == "annual":
 			ds_re = ds_cli.resample(time="Y").reduce(fnt).compute()
@@ -176,6 +176,7 @@ def ClimateChangeCal(box, stdt, fndt, tstep, cpath, force, var, fnt):
 	# Build a numpy array 
 	arr_out =  np.zeros([5, arr.shape[1]])
 	arr_out[:] = np.nan
+	
 	# ===== Work out multisig =====
 	pvalue_adj, _,_,_ =  smsM.multipletests(res[-4, :], method="fdr_bh", alpha=0.10)
 	arr_out[:, ~bn.anynan(arr, axis=0)] = np.vstack([res,pvalue_adj.astype(float)])

@@ -39,6 +39,7 @@ from netCDF4 import Dataset, num2date, date2num
 from scipy import stats
 import rasterio
 import xarray as xr
+import dask
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client
 from numba import jit
@@ -64,7 +65,7 @@ import ipdb
 # ========== Import specific packages  ==========
 # from rasterio.warp import transform
 # from shapely.geometry import Polygon
-# import geopandas as gpd
+import geopandas as gpd
 # from rasterio import features
 # from affine import Affine
 # # import fiona as fi
@@ -80,39 +81,40 @@ import myfunctions.corefunctions as cf
 #==============================================================================
 
 def main():
-	# ==========
-	force = False
-	
-	# ========== Get the path ==========
-	dpath, chunksize = syspath()
+	with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+		# ==========
+		force = False
+		
+		# ========== Get the path ==========
+		dpath, chunksize = syspath()
 
-	# client = Client(n_workers=4, threads_per_worker=2, memory_limit='15GB')
-	client = None
+		# client = Client(n_workers=4, threads_per_worker=2, memory_limit='15GB')
+		client = None
 
-	# ========== Make the files ==========
-	# fnames = ActiveFireMask(dpath, force, client,)
-	fnames = None
-	ymin   = 2001
-	ymax   = 2019
-	
-	# ========== Build some netcdf versions ==========
-	fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci")
+		# ========== Make the files ==========
+		# fnames = ActiveFireMask(dpath, force, client,)
+		fnames = None
+		ymin   = 2002
+		ymax   = 2003
+		
+		# ========== Build some netcdf versions ==========
+		fns_NC = MODIS_shptoNC(dpath, fnames, force, client, ymin, ymax, dsn = "esacci")
 
-	# ========== Resample the Hansen ==========
-	for TCF in [10, 50]: # 0. , 50.
-		# force=True
-		weight_cal(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci")
+		# ========== Resample the Hansen ==========
+		for TCF in [0, 10, 50]:# , 50.
+			# force=True
+			weight_cal(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci")
 
-		flyr_nm, tmpnm = Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF, dsn = "esacci")
+			flyr_nm, tmpnm = Hansen_resizer(dpath, force, fns_NC, client, ymin, ymax, TCF, dsn = "esacci")
 
-		# ========== Mask out the active fire  ==========
-		fn_afm = ActiveFireMasking(dpath, force, flyr_nm, fns_NC, ymin, ymax, client, TCF, dsn = "esacci")
-		# breakpoint()
+			# ========== Mask out the active fire  ==========
+			fn_afm = ActiveFireMasking(dpath, force, flyr_nm, fns_NC, ymin, ymax, client, TCF, dsn = "esacci")
+			# breakpoint()
 
-	# ipdb.set_trace()
-	for fn in tmpnm:
-		if os.path.isfile(fn):
-			os.remove(fn)
+		# ipdb.set_trace()
+		for fn in tmpnm:
+			if os.path.isfile(fn):
+				os.remove(fn)
 
 
 def weight_cal(dpath, force, fns_NC, client, ymin, ymax, TCF,  dsn = "esacci"):
@@ -501,6 +503,9 @@ def syspath():
 		# dpath = "/mnt/h/Data51"
 		# clpath = "/mnt/d/Data51/climate/TerraClimate"
 		dpath = "/mnt/d/Data51"
+		chunksize = 50
+	elif sysname == 'DESKTOP-KMJEPJ8':
+		dpath = "/mnt/i/Data51"
 		chunksize = 50
 	elif sysname == "ubuntu":
 		# Work PC
