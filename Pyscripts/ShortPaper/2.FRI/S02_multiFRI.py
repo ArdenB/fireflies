@@ -545,7 +545,7 @@ def syspath():
 		dpath = "/srv/ccrc/data51/z3466821"
 		chunksize = 20
 		# chunksize = 5000
-	elif sysname in ['burrell-pre5820', 'LAPTOP-8C4IGM68']:
+	elif sysname in ['burrell-pre5820', 'LAPTOP-8C4IGM68', 'DESKTOP-KMJEPJ8']:
 		# The windows desktop at WHRC
 		# dpath = "/mnt/f/Data51"
 		dpath = "./data"
