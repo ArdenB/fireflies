@@ -78,20 +78,21 @@ def main():
 	
 	# ========== select and analysis scale ==========
 	mwbox = [1, 2, 5]#, 10] #in decimal degrees
-	# force = True
-	force = False
 	maskds = "esacci"
+	maskforce = False # Added to allow skiping of the mask
 	for dsn in data:
 		print(dsn)
 		# ========== Set up the filename and global attributes =========
 		if dsn.startswith("HANSEN"):
 			ppath = dpath + "/BurntArea/HANSEN/FRI/"
+			force = True
 		else:
 			ppath = dpath + "/BurntArea/%s/FRI/" %  dsn
+			force = False
 		cf.pymkdir(ppath)
 		
 		# ========== Get the dataset =========
-		mask = landseamaks(data, dsn, dpath, force,  )
+		mask = landseamaks(data, dsn, dpath, maskforce )
 
 		# ========== Calculate the annual burn frewuency =========
 		ds_ann = ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize, TCF)
