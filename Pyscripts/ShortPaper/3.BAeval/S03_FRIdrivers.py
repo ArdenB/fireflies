@@ -143,6 +143,10 @@ def main():
 				dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 						va, drop, BFmin, DrpNF, tmpath,sub, transform, sigmask, fmode="trend", 
 						rammode=rammode, sen=sen, force = False)
+				if sigmask == False and sen == 100:
+					dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
+							va, drop, BFmin, DrpNF, tmpath, sub, transform, sigmask, fmode="TCfut", 
+							rammode=rammode, sen=sen, force = False, tdelta=4)
 			# plotmaker(va, dsX, colnames, BFmin)
 
 	breakpoint()
@@ -207,7 +211,7 @@ def plotmaker(va, dsX, colnames, BFmin):
 
 def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, 
 	fndt, va, drop, BFmin, DrpNF, tmpath, sub, transform, sigmask, fmode="TCfut",
-	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False, xgroup=10):
+	sen=4, rammode = "simple", fut="", splits = 10, version=0, force = False, xgroup=10, tdelta=None):
 
 	# ========== Covert to dataset and save the results ==========
 	print(f"Starting {dsn} v{version} {sen}yr {fmode}Prediction at: {pd.Timestamp.now()}")
@@ -228,7 +232,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		df, mask, ds_bf, latin, lonin = dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, sub)
 
 		# ========== Calculate the ML models ==========
-		modfn  = f"{tmpath}models/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction.dat" 
+		modfn  = f"{tmpath}models/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_trendPrediction.dat" # use trend model for TCfuture as well, makes no difference
 		if not os.path.isfile(modfn):
 			models = MLmodeling(df, va, drop, BFmin, DrpNF, trans = transform)
 			pickle.dump(models, open(modfn, "wb"))
@@ -265,8 +269,8 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 					print(f"\n Starting longitude slice {gpnum} of {xgroup} at: {pd.Timestamp.now()}")
 					with dask.config.set(**{'array.slicing.split_large_chunks': True}):
 						res = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
-							mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, sigmask, fmode="trend", 
-							rammode="complex", sen=sen)
+							mask, ds_bf, va, drop, BFmin, DrpNF, latsub, lons, tmpath, sigmask, fmode=fmode, 
+							rammode="complex", sen=sen, tdelta=tdelta)
 					res.to_csv(partfn)
 					res = None
 				else:
@@ -322,7 +326,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		else:
 			dfX = FuturePrediction(df, dsn, models, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 				mask, ds_bf, va, drop, BFmin, DrpNF, lats, lons, tmpath, sigmask, fmode="trend", 
-				rammode=rammode, sen=sen)
+				rammode=rammode, sen=sen, tdelta=tdelta)
 		
 			# ========== Convert the dataframe to an array ==========
 			dsX = dfX.to_xarray()
@@ -348,7 +352,7 @@ def FuturePrediction(df_org,
 	dpath, cpath, tcfs, stdt, fndt, 
 	mask, ds_bf, va, drop, BFmin, 
 	DrpNF, lats, lons, tmpath, sigmask, fmode="TCfut",
-	sen=4, rammode = "simple", fut="", splits = 10, version=0
+	sen=4, rammode = "simple", fut="", splits = 10, version=0, tdelta=None
 	):
 	"""
 	Function to get predictions of FRI based on future climate.
@@ -408,13 +412,7 @@ def FuturePrediction(df_org,
 	# ========== make the future datasets ==========
 	print(f"Loading in the future climate data at: {pd.Timestamp.now()}")
 	if fmode=="TCfut":
-		df_pre   = _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen)
-		df_tmean = _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen)
-		# ========== Build a dataframe ==========
-		df = dfX.merge(df_pre, left_index=True, right_index=True)
-		df = df.merge(df_tmean, left_index=True, right_index=True)
-		df = df.merge(msk, left_index=True, right_index=True)
-		X  = df[subs].copy().drop(drop, axis=1, errors='ignore')
+		X = _TerraclimateFuture(df_obs, dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen, tdelta, msk, dfX, subs)
 	else:
 		# ========== Loop over the trends ==========
 		X = _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop, sigmask, splits=splits)
@@ -459,7 +457,8 @@ def FuturePrediction(df_org,
 			# ========== Create a nue column in the table ==========
 			print(f"Predicting {mod} {modi} took: {pd.Timestamp.now()-tx0}")
 			dfX[f"{va}_{mod}_{modi}"] = np.NaN
-			dfX[f"{va}_{mod}_{modi}"][subs] = y_pred
+			dfX.loc[subs, f"{va}_{mod}_{modi}"] = y_pred
+			# dfX[f"{va}_{mod}_{modi}"][subs] = y_pred
 
 	return dfX
 
@@ -784,6 +783,28 @@ def _Obsclim(tmpath, dsn, dfX, cpath, mwb, stdt, fndt, msk, ds_bf, va, drop, lat
 	df_obs.drop(drop, axis=1, errors='ignore', inplace=True)
 	return 	df_obs #return only the relevant subset
 
+def _TerraclimateFuture(df_obs, dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen, tdelta, msk, dfX, subs):
+	""" Function to load tarraclimate future data, this is function to free up memory after the load is complete"""
+
+	# ========== copy the obs datasets =========
+	df_out = df_obs.copy()
+	# ========== set all the clim values i'm about to load in to NaN ==========
+	for cl in df_out.columns:
+		if not cl in ["AnBF", "FRI", "datamask", "treecover2000"]:
+			df_out[cl] = np.NaN
+
+	for clfunc in [ _futurePre, _futureTemp]:
+		df_climate   = clfunc(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen, tdelta, subs)
+		assert df_climate.index.equals(df_out.index), "Dataframes have different indexes"
+
+		for cl in df_climate.columns:
+			df_out[cl] = df_climate[cl]
+		# Remove from memory
+		del df_climate
+	# ========== check for nan values ==========
+	assert not df_out.isnull().any().any(), "There are un-explained nulls in the climate data"
+	return df_out
+
 def _ctrend_cal(cpath, stdt, fndt, mwb, df_obs, sen, lats, lons, rammode, subs, dfX, msk, drop,sigmask, splits=10):
 	"""
 	funtion to calculate future climate an arbitary number of years into the 
@@ -923,12 +944,12 @@ def _roller(mwb, ds_cli, dsn, var, times = None):
 			{"latitude":SF}, center = True, min_periods=1).mean().compute()
 	return ds_out, SF
 
-def _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
+def _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen, tdelta, subs):
 	# =================================================
 	# ========== Load the precipitation data ==========
 	# =================================================
 	var = "ppt"
-	fnout = f"{cpath}smoothed/TerraClimate_fut{sen}deg_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
+	fnout = f"{cpath}smoothed/TerraClimate_fut{tdelta}deg_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
 	if os.path.isfile(fnout):
 		ds_out = xr.open_dataset(fnout, chunks = {"longitude":265})
 	else:
@@ -954,19 +975,20 @@ def _futurePre(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
 	with ProgressBar():
 		ds_msu = ds_out.reindex({
 			"latitude" :lats, 
-			"longitude":lons}, method = "nearest")
-	breakpoint()
-	# ========== Convert to dataframe ==========
-	df_msu =  ds_msu.to_dataframe().unstack()
-	df_msu.columns = [''.join(col).strip() for col in df_msu.columns.values]
-	return df_msu
+			"longitude":lons}, method = "nearest").compute()
 
-def _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
+	# ========== Convert to dataframe ==========
+	df_msu =  ds_msu.to_dataframe().unstack().sort_index(ascending=[False, True])
+	df_msu.columns = [''.join(col).strip() for col in df_msu.columns.values]
+	assert df_msu.index.equals(subs.index), "Dataframes have different indexes"
+	return df_msu[subs]
+
+def _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen, tdelta, subs):
 	# ===============================================
 	# ========== Load the temperature data ==========
 	# ===============================================
 	var = "tmean"
-	fnout = f"{cpath}smoothed/TerraClimate_fut{sen}deg_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
+	fnout = f"{cpath}smoothed/TerraClimate_fut{tdelta}deg_{var}_{mwb}degMW_SeasonalClimatology_{stdt.year}to{fndt.year}.nc"
 	if os.path.isfile(fnout):
 		ds_out = xr.open_dataset(fnout, chunks = {"longitude":265})
 	else:
@@ -990,7 +1012,7 @@ def _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
 		ds = ds.sel(dict(
 			# time=slice(stdt, fndt),
 			latitude=slice(box[3], box[2]), 
-			longitude=slice(box[0], box[1])))
+			longitude=slice(box[0], box[1]))).compute()
 
 		# ========== roll the dataset ==========
 		ds_out, SF = _roller(mwb, ds, dsn, "tmean")
@@ -1005,9 +1027,10 @@ def _futureTemp(dsn, cpath, box, mwb, tcfs, stdt, fndt, ds_bf, lats, lons, sen):
 			"latitude" :lats, 
 			"longitude":lons}, method = "nearest")
 	# ========== Convert to dataframe ==========
-	df_msu =  ds_msu.to_dataframe().unstack()
+	df_msu =  ds_msu.to_dataframe().unstack().sort_index(ascending=[False, True])
 	df_msu.columns = [''.join(col).strip() for col in df_msu.columns.values]
-	return df_msu
+	assert df_msu.index.equals(subs.index), "Dataframes have different indexes"
+	return df_msu[subs]
 	
 def syspath():
 	# ========== Create the system specific paths ==========

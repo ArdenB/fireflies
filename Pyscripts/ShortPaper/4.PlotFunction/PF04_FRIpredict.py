@@ -95,7 +95,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["esacci", "MODIS", "GFED", ]# 
+	dsnams1 = ["MODIS", "GFED", ]#"esacci",  "GFED", ]# 
 	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	BFmin = 0.0001
 	DrpNF = True # False
@@ -107,21 +107,19 @@ def main():
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/PF04_Predictions/"
 	cf.pymkdir(plotdir)
-	formats = [".png", ".pdf"]
+	formats = [".png"]#, ".pdf"]
 
 	for dsn in dsnams1:
 		for sigmask in [True, False]:
 			for model in ["XGBoost", "OLS"]:
 				futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, 
 					tmpath, sub, sens, scale, formats, sigmask, fmode="trend",
-					 version=0, force = False)
+					 version=0, force = False, incTCfut=True)
 		# breakpoint()
 
 
-
-
 def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens, scale, formats, sigmask, fmode="trend",
-	 version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0]):
+	 version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0], incTCfut=False):
 	# ========== make the plot name ==========
 	plotfname = f"{plotdir}PF04_FRIprediction_{dsn}_{model}" 
 	if sigmask:
@@ -133,40 +131,49 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 
 	# ========== Covert to dataset and save the results ==========
-	dax = []
-	dac = []
+	fnames = []
+	yrw    = []
+	trnd   = []
 	for sen in sens:
-		fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction"
-		if DrpNF:
-			fnout += "_forests"
-		else:
-			fnout += "_nomask"
-		
-		if sigmask:
-			# plotfname += "_sigclim"	
-			fnout     += "_sigclim"	
-		fnout += ".nc"
-
-		# ========== Check if a file exists ==========
+		fnout = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_{fmode}Prediction_{'forests' if DrpNF else 'nomask'}_{'sigclim' if sigmask else ''}.nc"
 		if os.path.isfile(fnout):
-			print(f"Starting the load for {dsn} {sen}yr prediction at: {pd.Timestamp.now()}")
-			ds = xr.open_dataset(fnout)
-			for tp in ["cur", "fut"]:
-				da = ds[f"{va}_{model}_{tp}"].rename("FRI")#.coarsen()
-				if scale[dsn] > 1:
-					da = da.coarsen(
-						{"latitude":scale[dsn], "longitude":scale[dsn]}, 
-						boundary ="pad", keep_attrs=True).mean().compute().rename("FRI")
-				if tp == "fut":
-					da["time"] = [pd.Timestamp(f"{pd.Timestamp(da.time.values[0]).year + sen}-12-31")]
-					# ========== Convert to FRI ==========
-					dax.append(1.0/da)
-				else:
-					# ========== Convert to FRI ==========
-					dac.append(1.0/da)
+			fnames.append(fnout)
+			yrw.append(pd.Timestamp(f"{2015 + sen}-12-31"))
+			trnd.append(False)
 		else:
 			print(f"{dsn} {sen}yr file is missing")
-				# da["name"] = "FRI"
+		if sen == 100 and incTCfut:
+			fnt = f"{tmpath}S03_FRIdrivers_{dsn}_v{version}_{sen}yr_TCfutPrediction_{'forests' if DrpNF else 'nomask'}.nc"
+			if os.path.isfile(fnt):
+				fnames.append(fnt)
+				yrw.append(pd.Timestamp(f"{2015 + sen}-12-31 12:00:00"))
+				trnd.append(True)
+			else:
+				print(f"{dsn} {sen}yr TCpred file is missing")
+
+	dax = []
+	dac = []
+	# ========== Check if a file exists ==========
+	for fnout, tm, tskip  in zip(fnames, yrw, trnd):
+		print(f"Starting the load for {dsn} {tm} prediction at: {pd.Timestamp.now()}")
+		ds = xr.open_dataset(fnout)
+		for tp in ["cur", "fut"]:
+			if tskip and tp == "cur":
+				# Skip current predictions for TCpred datasets as they use the same model as tthe trend ones
+				continue
+			da = ds[f"{va}_{model}_{tp}"].rename("FRI")#.coarsen()
+			if scale[dsn] > 1:
+				da = da.coarsen(
+					{"latitude":scale[dsn], "longitude":scale[dsn]}, 
+					boundary ="pad", keep_attrs=True).mean().compute().rename("FRI")
+			if tp == "fut":
+				da["time"] = [tm]#pd.Timestamp(f"{pd.Timestamp(da.time.values[0]).year + sen}-12-31")
+				# ========== Convert to FRI ==========
+				dax.append(1.0/da)
+			else:
+				# ========== Convert to FRI ==========
+				dac.append(1.0/da)
+			# da["name"] = "FRI"
 	# ========== Build a single file by taking the mean of the current, theen merging the rest ==========
 	if len(dac) > 1:
 		daM = xr.merge([xr.concat(dac, dim="ver").mean(dim="ver")] + dax)
@@ -207,10 +214,11 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)	
 
 		ax.set_title("")
-		ax.set_title(f"{dsn} - {model} ({pd.Timestamp(tm).year - 30} to {pd.Timestamp(tm).year})", loc= 'left')
-		if dsn == "esacci":
-			# breakpoint()
-			ax.set_extent(bounds, crs = ccrs.PlateCarree())
+		istrend = (pd.Timestamp(tm).hour == 0)
+		ax.set_title(f"{dsn} - {model} {'ObsTrend' if istrend else 'TCpred'} ({pd.Timestamp(tm).year - 30} to {pd.Timestamp(tm).year})", loc= 'left')
+		ax.set_extent(bounds, crs = ccrs.PlateCarree())
+		# if dsn == "esacci":
+		# 	# breakpoint()
 	
 	plt.subplots_adjust(top=.99, bottom=0.01, left=0.009, right=0.991, hspace=0.0, wspace=0.02)
 	
