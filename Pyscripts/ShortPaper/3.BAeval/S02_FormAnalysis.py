@@ -185,7 +185,6 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 		print (dsn)
 		if "*" in data[dsn]["fname"]:
 			fnames = glob.glob(data[dsn]["fname"])
-			breakpoint()
 			# ===== open the dataset =====
 			ds = xr.open_mfdataset(fnames, chunks=data[dsn]["chunks"], combine='nested', concat_dim="time")
 			# ========== fiz a time issue ==========
@@ -206,8 +205,7 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 			with ProgressBar():
 				dsH = xr.open_dataset("/mnt/i/Data51/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc", 
 					chunks=data[dsn]["chunks"]).sel(dict(latitude=slice(dfc.lat.max(), dfc.lat.min()), longitude=slice(dfc.lon.min(), dfc.lon.max()))).compute()
-			breakpoint()
-			for n in range(0, 18):
+			for n in range(0, 5):
 				with ProgressBar():
 					da = ds[data[dsn]["var"]].isel(time=n).sel(dict(latitude=slice(dfc.lat.max(), dfc.lat.min()), 
 						longitude=slice(dfc.lon.min(), dfc.lon.max()))).compute()
@@ -277,7 +275,8 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 			# if bnyr == []:
 			# 	breakpoint()
 			# else:
-			# 	breakpoint()
+			warn.warn("Hansen needs to be modified here")
+			breakpoint()
 			if len(bnyr) == 0 and len(dfda) > 0: 
 				FP = len(dfda)
 
@@ -938,13 +937,6 @@ def Field_data(df, site_coords, force=False):
 def datasets(dpath):
 	# ========== set the filnames ==========
 	data= OrderedDict()
-	data["Hansen"] = ({
-		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
-		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 10000},
-		"rename":None, 
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
-		})
 	data["Hansen_AFM"] = ({
 		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
 		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
@@ -953,6 +945,13 @@ def datasets(dpath):
 		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
 		})
 	# 
+	data["Hansen"] = ({
+		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
+		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 10000},
+		"rename":None, 
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
 	data["COPERN_BA"] = ({
 		'fname':dpath + "COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
 		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",

@@ -71,13 +71,13 @@ import myfunctions.corefunctions as cf
 
 def main():
 	# ========== Setup the paths ==========
-	# TCF = 10
-	TCF = 50
+	TCF = 10
+	# TCF = 50
 	dpath, chunksize = syspath()
 	data  = datasets(dpath, chunksize, TCF=TCF)
 	
 	# ========== select and analysis scale ==========
-	mwbox = [1, 2, 5]#, 10] #in decimal degrees
+	mwbox = [1]#, 2, 5]#, 10] #in decimal degrees
 	maskds = "esacci"
 	maskforce = False # Added to allow skiping of the mask
 	for dsn in data:
@@ -313,7 +313,7 @@ def ANNcalculator(data, dsn, mask, force, ppath, dpath, chunksize, TCF):
 		ds_flat = tempNCmaker(
 			ds_flat, tpath, tname, "AnBF", 
 			data[dsn]["chunks"], skip=False, name="%s annual BA" % dsn)
-		breakpoint()
+		# breakpoint()
 	
 	else:
 		print("Opening existing Annual Burn Fraction file")

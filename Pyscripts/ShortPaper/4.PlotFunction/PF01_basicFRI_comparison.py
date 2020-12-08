@@ -90,18 +90,19 @@ print("cartopy version : ", ct.__version__)
 def main():
 	warn.warn("\n TO DO: add to the variaable attrs so the plots have units. Also implement a better downsampling")
 	# ========== Setup the params ==========
-	TCF = 10
+	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
-	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
-	dsts = [dsnams2, dsnams1]
-	proj = "polar"
+	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
+	dsts    = [dsnams2, dsnams1]
+	dsinfo  = dsinfomaker()
+	proj    = "polar"
 	# proj = "latlon"
 	# vmax    = 120
 	# vmax    = 80
 	# vmax    = 100
-	for var in ["FRI", "AnBF"]:
+	for var in ["FRI"]:#, "AnBF"]:
 		for dsnames, vmax in zip(dsts, [10000, 10000]):
 			formats = [".png", ".pdf"] # None 
 			# mask    = True
@@ -138,12 +139,12 @@ def main():
 				for mask in [True, False]:
 					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
 					# breakpoint()
-					plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
+					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
 
 				# ipdb.set_trace()
 
 #==============================================================================
-def testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, region = "SIBERIA"):
+def testplotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, region = "SIBERIA"):
 	# ========== Setup the font ==========
 	font = {'weight' : 'bold', #,
 			# 'size'   : mapdet.latsize
@@ -187,7 +188,7 @@ def testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, bac
 
 
 
-def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale):
+def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
@@ -229,7 +230,7 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 	# ========== Loop over the figure ==========
 	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
 		# make the figure
-		im = _subplotmaker(num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, vmax = vmax, shrink=shrink)
+		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, vmax = vmax, shrink=shrink)
 		# breakpoint()
 		ax.set_aspect('equal')
 
@@ -272,7 +273,24 @@ def plotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpat
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, region = "SIBERIA", vmax = 80.0,shrink=0.85):
+def dsinfomaker(SR="SR"):
+	"""
+	Contains infomation about the Different datasets
+	"""
+	dsinfo = OrderedDict()
+	# ==========
+	dsinfo["GFED"]          = ({"alias":"GFED4.1","long_name":"FRI", "units":"yrs"})
+	dsinfo["MODIS"]         = ({"alias":"MCD64A1", "long_name":"FRI","units":"yrs", "version":"v006"})
+	dsinfo["esacci"]        = ({"alias":, "long_name":"FRI","units":"yrs"})
+	dsinfo["COPERN_BA"]     = ({"alias":"CGLS", "long_name":"FRI","units":"yrs"})
+	dsinfo["HANSEN_AFmask"] = ({"alias":"Hansen GFC & MCD14ML", "long_name":f'FRI$_{{{SR}}}$',"units":"yrs"})
+	dsinfo["HANSEN"]        = ({"alias":"Hansen GFC", "long_name":"DRI","units":"yrs"})
+
+
+	return dsinfomaker
+
+
+def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, region = "SIBERIA", vmax = 80.0,shrink=0.85):
 	
 
 	# ========== open the dataset ==========
@@ -281,7 +299,7 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 		warn.warn(f"File {datasets[dsn]} could not be found")
 		breakpoint()
 	else:
-		frame = _fileopen(datasets, dsn, var, scale, proj, mask, compath, region)
+		frame = _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region)
 
 	
 	# ========== Set the colors ==========
@@ -343,13 +361,13 @@ def _subplotmaker(num, ax, var, dsn, datasets, mask,compath, backpath, proj,scal
 
 
 	# =========== Setup the subplot title ===========
-	ax.set_title(f"{string.ascii_lowercase[num]}) {dsn}", loc= 'left')
+	ax.set_title(f"{string.ascii_lowercase[num]}) {dsinfo[dsn]["alias"]}", loc= 'left')
 	# plt.show()
 	# breakpoint()
 	# sys.exit()
 	return im
 #==============================================================================
-def _fileopen(datasets, dsn, var, scale, proj, mask, compath, region):
+def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 	ds_dsn = xr.open_dataset(datasets[dsn])
 
 	# ========== Get the data for the frame ==========
@@ -363,7 +381,7 @@ def _fileopen(datasets, dsn, var, scale, proj, mask, compath, region):
 			}, boundary ="pad", keep_attrs=True).mean().compute()
 
 	bounds = [-10.0, 180.0, 70.0, 40.0]
-	frame.attrs = {'long_name':"FRI", "units":"years"}
+	frame.attrs = dsinfo[dsn]#{'long_name':"FRI", "units":"years"}
 
 	# ========== mask ==========
 	if mask:
