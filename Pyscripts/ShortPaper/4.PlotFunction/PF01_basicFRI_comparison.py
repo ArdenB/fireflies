@@ -287,12 +287,13 @@ def dsinfomaker(SR="SR"):
 	dsinfo["HANSEN"]        = ({"alias":"Hansen GFC", "long_name":"DRI","units":"yrs"})
 
 
-	return dsinfomaker
+	return dsinfo
 
 
 def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, region = "SIBERIA", vmax = 80.0,shrink=0.85):
-	
-
+	"""
+	Funstion to build subplots
+	"""
 	# ========== open the dataset ==========
 	if not os.path.isfile(datasets[dsn]):
 		# The file is not in the folder
@@ -361,9 +362,8 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 
 
 	# =========== Setup the subplot title ===========
-	ax.set_title(f"{string.ascii_lowercase[num]}) {dsinfo[dsn]["alias"]}", loc= 'left')
+	ax.set_title(f"{string.ascii_lowercase[num]}) {dsinfo[dsn]['alias']}", loc= 'left')
 	# plt.show()
-	# breakpoint()
 	# sys.exit()
 	return im
 #==============================================================================
