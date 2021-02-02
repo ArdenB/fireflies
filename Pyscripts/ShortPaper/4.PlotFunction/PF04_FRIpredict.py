@@ -95,7 +95,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["MODIS", "GFED", ]#"esacci",  "GFED", ]# 
+	dsnams1 = ["esacci","MODIS", "GFED", ]#  "GFED", ]# 
 	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	BFmin = 0.0001
 	DrpNF = True # False

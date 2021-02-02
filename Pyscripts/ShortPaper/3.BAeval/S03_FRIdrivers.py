@@ -115,6 +115,7 @@ def main():
 	cf.pymkdir(tmpath)
 	cf.pymkdir(tmpath+"tmp/")
 	cf.pymkdir(tmpath+"models/")
+	cf.pymkdir(tmpath+"models/TestTrain/")
 
 	tcfs = ""
 	mwb  = 1
@@ -133,6 +134,7 @@ def main():
 	sens  =  [30, 60, 100]
 	# rammode="complex" #"full"
 	rammode = "extreme"
+	force = False
 	# rammode=
 
 
@@ -142,19 +144,19 @@ def main():
 			for sen in sens:
 				dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 						va, drop, BFmin, DrpNF, tmpath,sub, transform, sigmask, fmode="trend", 
-						rammode=rammode, sen=sen, force = False)
+						rammode=rammode, sen=sen, force = force)
 				if sigmask == False and sen == 100:
 					dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 							va, drop, BFmin, DrpNF, tmpath, sub, transform, sigmask, fmode="TCfut", 
 							rammode=rammode, sen=sen, force = False, tdelta=4)
 			# plotmaker(va, dsX, colnames, BFmin)
 
-	breakpoint()
-	sys.exit()
-	# ========== prediction using the future dataset from terraclimate ==========
-	FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
-		mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
-		rammode="full")
+	# breakpoint()
+	# sys.exit()
+	# # ========== prediction using the future dataset from terraclimate ==========
+	# FuturePrediction(df, dsn, models, box, mwb,dpath, cpath, tcfs, stdt, fndt, 
+	# 	mask, ds_bf, va, drop, BFmin, DrpNF, latin, lonin, tmpath, fmode="TCfut", 
+	# 	rammode="full")
 
 #==============================================================================
 def plotmaker(va, dsX, colnames, BFmin):
@@ -239,6 +241,9 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		else:
 			print("To Do: Implement a better save so that i can train on multiple computers")
 			models = pickle.load(open(modfn, "rb"))
+		# ========== Save the test train data ==========
+		ttfn  = f"{tmpath}models/TestTrain/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_TestTrain.csv"
+		df.reset_index().to_csv(ttfn)
 
 		df_nlist = []
 

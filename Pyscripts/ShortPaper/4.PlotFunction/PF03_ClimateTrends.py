@@ -59,6 +59,7 @@ import matplotlib.colors as mpc
 import matplotlib as mpl
 
 import palettable 
+import seaborn as sns
 
 # import seaborn as sns
 import cartopy as ct
@@ -72,7 +73,13 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
 import string
 from statsmodels.stats.weightstats import DescrStatsW
+import pickle
 
+# ========== Import ml packages ==========
+from sklearn.model_selection import train_test_split
+# from sklearn.ensemble import RandomForestRegressor
+# from sklearn.inspection import permutation_importance
+from sklearn import metrics as sklMet
 
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
@@ -97,16 +104,60 @@ def main():
 	ppath = "./plots/ShortPaper/PF03_Climate/"
 	cf.pymkdir(ppath)
 
+	# ========== model loader ==========
+	mod = ModelLoadter()
+
 	# ========== Build the annual plots ==========
 	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath)
 
 	# ========== Build the annual plots ==========
 	AnnualPlotmaker(setupfunc("annual"), dpath, cpath, ppath)
-	
+
+
 
 
 
 #==============================================================================
+def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost'):
+	"""
+	Load in the models 
+	"""
+	va    = "AnBF"
+	drop  = ["AnBF", "FRI", "datamask"]
+
+	tmpath = "./results/ProjectSentinal/FRImodeling/"
+	modfn  = f"{tmpath}models/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_trendPrediction.dat" 
+	ttfn  = f"{tmpath}models/TestTrain/S03_FRIdrivers_{dsn}_v{version}_{sen}yr_TestTrain.csv"
+
+	# ========== load the model and the dataset ==========
+	models = pickle.load(open(modfn, "rb"))
+	df     = pd.read_csv(ttfn, index_col=0).set_index(["latitude","longitude"])
+
+	# ========== split the data	========== 
+	y  = df[va]
+	X_t, X_ts, y_train, y_test = train_test_split(
+		df, y, test_size=0.2, random_state=42)
+	# ========== subset the dataset ==========
+	X_tn  = X_t.drop(drop, axis=1)
+	X_tst = X_ts.drop(drop, axis=1)
+	
+	# ========== perform some transforms ==========
+	if not  models['transformer'] is None:	
+		X_train = models['transformer'].fit_transform(X_tn)
+		X_test  = models['transformer'].transform(X_tst)
+	
+	# ========== do the prediction and get the performance ==========
+	y_pred = models['models'][model].predict(X_test)
+	R2_XGB = sklMet.r2_score(y_test, y_pred)
+
+	pr_df = pd.DataFrame({"Observed":y_test.values,"Predicted":y_pred})
+	# "Residual":y_pred-y_test.values
+	dfT = 1/pr_df
+	pr_df["Residual"]= pr_df.Predicted -pr_df.Observed
+	dfT["Residual"]= dfT.Predicted -dfT.Observed
+
+
+	breakpoint()
 
 def Seasonalplotmaker(setup, dpath, cpath, ppath):
 	""" 
