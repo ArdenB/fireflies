@@ -107,6 +107,19 @@ def main():
 	# ========== Read in the Site data ==========
 	df = pd.read_csv("./results/ProjectSentinal/Fire sites and forest loss.csv") 
 	df = renamer(df)
+
+	dfq = pd.read_csv("./results/ProjectSentinal/Fire histories of all sites_QS.csv") 
+	#Check and see if its in 
+	clnm = ["Site - fieldwork (2018)", "Site - fieldwork (2017)"]
+	sitenum = dfq[clnm].sum(axis=1).astype(int).values
+	sitenm = [f"Site{stnu}" for stnu in sitenum]
+	nonsites = []
+	for sn, sna in zip(sitenm, dfq["Site - fieldwork (2019)"].values):
+		if sn in df.site.astype(str).values or sna in df.site.astype(str).values:
+			continue
+		nonsites.append((sn, sna))
+	breakpoint()
+	
 	# ========== Read in the Site data ==========
 	cordname    = "./data/other/GEE_sitelist.csv"
 	site_coords = pd.read_csv(cordname, index_col=0)
@@ -995,6 +1008,9 @@ def syspath():
 	elif sysname == 'arden-H97N-WIFI':
 		spath = "/mnt/FCBE3028BE2FD9C2/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
 		dpath = "/media/arden/Harbinger/Data51/BurntArea/"
+	elif sysname == 'LAPTOP-8C4IGM68':
+		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/i/Data51/BurntArea/"
 	else:
 		ipdb.set_trace()
 	return spath, dpath
