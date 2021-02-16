@@ -1,8 +1,7 @@
 """
 Script goal, 
 
-Test out the google earth engine to see what i can do
-	- find a landsat collection for a single point 
+Predict future FRI based on current climate
 
 """
 #==============================================================================
@@ -72,6 +71,7 @@ import string
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
 import myfunctions.PlotFunctions as pf 
+
 
 # import cartopy.feature as cpf
 # from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
@@ -312,6 +312,12 @@ def syspath():
 	elif sysname == 'LAPTOP-8C4IGM68':
 		dpath     = "./data"
 		backpath = "/mnt/d/fireflies"
+	elif sysname == 'DESKTOP-N9QFN7K':
+		# spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath     = "./data"
+		cpath = "/mnt/f/Data51/Climate/TerraClimate/"
+
+
 	else:
 		ipdb.set_trace()
 	

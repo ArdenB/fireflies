@@ -140,7 +140,7 @@ def main():
 
 	# ========== Calculate the future ==========
 	for sigmask in [True, False]:
-		for dsn in ["GFED", "MODIS", "esacci", ]:
+		for dsn in ["COPERN_BA", "GFED", "MODIS", "esacci"]:
 			for sen in sens:
 				dsX, colnames = futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, 
 						va, drop, BFmin, DrpNF, tmpath,sub, transform, sigmask, fmode="trend", 
@@ -283,7 +283,7 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 				df_nlist.append(partfn)
 				
 			# ========== Use dask to read in all the parts ==========
-			if dsn in ["esacci"]:
+			if dsn in ["esacci", "COPERN_BA"]:
 				print("Storing nc in tmp dir to free up space")
 				store  = []#pd.HDFStore(hdf5nm)
 				for cnt, fn in enumerate(df_nlist.copy()):
@@ -682,6 +682,7 @@ def dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, su
 	# # dfX_msu.columns = [''.join(col).strip() for col in dfX_msu.columns.values]
 	# dfX = dfX.merge(dfX_msu, left_index=True, right_index=True)
 
+	breakpoint()
 	# ======================================================
 	# ========== Do the final round of processing ==========
 	# ======================================================
@@ -1063,10 +1064,10 @@ def syspath():
 		dpath = "./data"
 		chunksize = 300
 		cpath  = "/mnt/g/Data51/Climate/TerraClimate/"
-	elif sysname == 'DESKTOP-KMJEPJ8':
+	elif sysname == 'DESKTOP-N9QFN7K':
 		dpath = "./data"
 		chunksize = 300
-		cpath  = "/mnt/i/Data51/Climate/TerraClimate/"
+		cpath  = "/mnt/f/Data51/Climate/TerraClimate/"
 
 	elif sysname =='LAPTOP-8C4IGM68':
 		dpath = "./data"

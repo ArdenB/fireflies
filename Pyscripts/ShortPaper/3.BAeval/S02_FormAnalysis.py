@@ -37,6 +37,7 @@ import xarray as xr
 import bottleneck as bn
 import scipy as sp
 import glob
+import dask
 from dask.diagnostics import ProgressBar
 
 from collections import OrderedDict
@@ -95,7 +96,7 @@ else:
 
 # +++++ Import my packages +++++
 import myfunctions.corefunctions as cf 
-# import MyModules.PlotFunctions as pf
+import myfunctions.PlotFunctions as pf 
 # import MyModules.NetCDFFunctions as ncf
 
 print("numpy version  : ", np.__version__)
@@ -112,30 +113,36 @@ def main():
 	#Check and see if its in 
 	clnm = ["Site - fieldwork (2018)", "Site - fieldwork (2017)"]
 	sitenum = dfq[clnm].sum(axis=1).astype(int).values
-	sitenm = [f"Site{stnu}" for stnu in sitenum]
+	sitenm = [f"Site{stnu:02d}" for stnu in sitenum]
 	nonsites = []
 	for sn, sna in zip(sitenm, dfq["Site - fieldwork (2019)"].values):
 		if sn in df.site.astype(str).values or sna in df.site.astype(str).values:
 			continue
 		nonsites.append((sn, sna))
-	breakpoint()
+	print(len(nonsites))
 	
 	# ========== Read in the Site data ==========
 	cordname    = "./data/other/GEE_sitelist.csv"
 	site_coords = pd.read_csv(cordname, index_col=0)
+	site_coords["lonb_min"] = np.min([site_coords["lonb_COP_min"], site_coords["lonb_MOD_min"]], axis=0)
+	site_coords["latb_min"] = np.min([site_coords["latb_COP_min"], site_coords["latb_MOD_min"]], axis=0)
+	site_coords["lonb_max"] = np.max([site_coords["lonb_COP_max"], site_coords["lonb_MOD_max"]], axis=0)
+	site_coords["latb_max"] = np.max([site_coords["latb_COP_max"], site_coords["latb_MOD_max"]], axis=0)
+	# breakpoint()
+
 
 	# ========== CHeck the data makes sense ==========
 	dfchecker(df, site_coords)
 
 	# ========== Pull out the field data ==========
 	fd = Field_data(df, site_coords, force=True)
+
 	# FieldHyptest(fd)
 	# ipdb.set_trace()
 
 	# ========== Find the save lists ==========
 	spath, dpath = syspath()
 	data         = datasets(dpath)
-	# breakpoint()
 
 	# ========== Get some site specific infomation ==========
 	siteseries  = OrderedDict()
@@ -145,15 +152,16 @@ def main():
 		if not out is None:
 			siteseries[site]  =  out
 			# sitesummary[site] = out
-
-	dfsum = DisturbanceCounter(siteseries, df, site_coords, skipdec=True)#
+	
+	dfsum = DisturbanceCounter(siteseries, df, site_coords, skipdec=False)#
 	dfsum["RECRU"] = fd.loc[dfsum.index].Recruitment.values
 
 	# # dfsum.boxplot(column="PostFLdist", by="RECRU")
 	# # dfsum.boxplot(column="PostFLfire", by="RECRU")
 	# ========== WOrk out how the histories compare ==========
-	dtscore, dtsum = SiteHistScore(siteseries, site_coords, data, fd)
-	ipdb.set_trace()
+	dtscore, dtsum = SiteHistScore(siteseries, site_coords, data, fd, spath, dpath)
+	# breakpoint()
+	# ipdb.set_trace()
 	try :
 		ax2 = sns.swarmplot(y="PostFLdist", x="RECRU", data=dfsum, order=["AR", "IR", "RF"])
 		plt.figure(2)
@@ -187,12 +195,12 @@ def FieldHyptest(fd):
 # ==============================================================================
 # BA product scorer 
 # ==============================================================================
-def SiteHistScore(siteseries, site_coords, data, fd):
+def SiteHistScore(siteseries, site_coords, data, fd, spath, dpath):
 
 	"""
 	Function to score the infomation in the field, BA and FL datasets 
 	"""
-	def _datasetopener(data, dsn, dfc):
+	def _datasetopener(data, dsn, dfc, spath, dpath):
 		"""Opens the dataset and extracts the correct location"""
 		# ========== CHeck how to open the dataset ==========
 		print (dsn)
@@ -200,6 +208,8 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 			fnames = glob.glob(data[dsn]["fname"])
 			# ===== open the dataset =====
 			ds = xr.open_mfdataset(fnames, chunks=data[dsn]["chunks"], combine='nested', concat_dim="time")
+			if ds.latitude[0] < ds.latitude[-1]:
+				ds = ds.sortby("latitude", ascending=False)
 			# ========== fiz a time issue ==========
 			if dsn == "COPERN_BA":
 				ds["time"] = pd.date_range('2014-06-30', periods=6, freq='A')
@@ -207,59 +217,45 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 			# ========== open the dataset ==========
 			ds = xr.open_dataset(data[dsn]["fname"], chunks=data[dsn]["chunks"])
 
-
+		# breakpoint()
 		hist = ds[data[dsn]["var"]].sel(
 			{"latitude":dfc.lat, "longitude":dfc.lon},method="nearest").groupby('time.year').max()
 		with ProgressBar():
 			hist = hist.compute()
 
+		if dsn in ["Hansen", "Hansen_AFM"]:
+			hist = (hist>0).astype(float)
+
+		with ProgressBar():
+			dsbox = ds[data[dsn]["var"]].sel(dict(latitude=slice(dfc.lat.max(), dfc.lat.min()), longitude=slice(dfc.lon.min(), dfc.lon.max()))).compute()
+		
 		siteh = OrderedDict()
-		if dsn.startswith('Hansen'):
-			with ProgressBar():
-				dsH = xr.open_dataset("/mnt/i/Data51/BurntArea/HANSEN/lossyear/Hansen_GFC-2018-v1.6_lossyear_SIBERIA.nc", 
-					chunks=data[dsn]["chunks"]).sel(dict(latitude=slice(dfc.lat.max(), dfc.lat.min()), longitude=slice(dfc.lon.min(), dfc.lon.max()))).compute()
-			for n in range(0, 5):
-				with ProgressBar():
-					da = ds[data[dsn]["var"]].isel(time=n).sel(dict(latitude=slice(dfc.lat.max(), dfc.lat.min()), 
-						longitude=slice(dfc.lon.min(), dfc.lon.max()))).compute()
-					da.plot()
-					plt.show()
-			breakpoint()
-			warn.warn("As a stopgap i'm masking na, this is not a longterm solution")
-			hist = hist.fillna(0)
-			hist = hist.where((hist == 0), 1) #* (np.tile(hist.year.values, (1, dfc.shape[0], dfc.shape[0])))
+		boxh  = OrderedDict()
 		for nx in range(0, dfc.shape[0]):
-				# breakpoint()
 
-			# else:
+			# ========== region search apprach here ==========
+			dsba = dsbox.sel(dict(
+				latitude=slice(dfc.latb_max[nx], dfc.latb_min[nx]), 
+				longitude=slice(dfc.lonb_min[nx], dfc.lonb_max[nx])))
+			boxh[dfc["name"][nx]] = (dsba>0).any(dim=["longitude", "latitude"]).astype(float).values * dsba.time.dt.year.values
+			
+			# ========== pull out just the site history ==========
 			siteh[dfc["name"][nx]] = hist[:, nx, nx].values * hist.year.values
-
-
-		# else:
-		# 	hist = ds[data[dsn]["var"]].sel(
-		# 		{"latitude":dfc.lat, "longitude":dfc.lon},method="nearest")#.isel(time=0)
-		# 	with ProgressBar():
-		# 		hist = hist.compute()
-
-		# 	siteh = OrderedDict()
-		# 	breakpoint()
-
-		# 	for nx in range(0, dfc.shape[0]):
-		# 		if hist[nx, nx].values == 0:
-		# 			siteh[dfc["name"][nx]] = {"FL":np.NaN}
-		# 		else:
-		# 			siteh[dfc["name"][nx]] = {"FL":hist[nx, nx].values + 2000.0}
-		# 	breakpoint()
 
 		# ========== Return the results ==========
 		try:
 			dfSH = pd.DataFrame(siteh).transpose()
+			dfSH = dfSH.replace(0, np.NaN)
+			dfBH = pd.DataFrame(boxh).transpose()
+			dfBH = dfBH.replace(0, np.NaN)
+			if not all((dfSH > 0).sum(axis=1) <= (dfBH > 0).sum(axis=1)):
+				breakpoint()
 		except:
 			ipdb.set_trace()
 		# breakpoint()
-		return dfSH
+		return dfSH, dfBH
 	
-	def _SiteScorere(siteseries, yrst, dsn, dfsh):
+	def _SiteScorere(siteseries, yrst, yrfn, dsn, dfsh, dfbh):
 		Accuracy = OrderedDict()
 		for site in siteseries.keys():
 			# score
@@ -267,62 +263,89 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 			FN = 0
 			CD = 0
 			DD = 0
+			SDo = 0
+			SDu = 0
+			CND = 0
+
 			# Manual clas
 			dfSEN = siteseries[site]
 
 			# +++++ from the disturbance data +++++
 			try:
 				dfda  = dfsh.loc[site].dropna().values
+				dfba  = dfbh.loc[site].dropna().values
 			except Exception as er:
 				print(str(er))
 				breakpoint()
 
 			# ++++++++++ Manual Clasification ++++++++++
 			# Get the burns as years
-			bnyr = pd.DatetimeIndex(dfSEN.date[np.logical_and(dfSEN.Fire ==1, dfSEN.SImp ==1)].values).year.values
+			if dsn == "Hansen":
+				bnyr = pd.DatetimeIndex(dfSEN.date[np.logical_and(dfSEN.SImp ==1, dfSEN.SiteLoss == 1)].values).year.values				
+				abny = pd.DatetimeIndex(dfSEN.date[(dfSEN.SiteLoss ==1)].values).year.values
+			elif dsn == "Hansen_AFM":
+				# breakpoint()
+				bnyr = pd.DatetimeIndex(dfSEN.date[np.logical_and(dfSEN.Fire ==1, np.logical_and(dfSEN.SImp ==1, dfSEN.SiteLoss == 1))].values).year.values
+				abny = pd.DatetimeIndex(dfSEN.date[(dfSEN.Fire ==1)].values).year.values
+
+			else:
+				bnyr = pd.DatetimeIndex(dfSEN.date[np.logical_and(dfSEN.Fire ==1, dfSEN.SImp ==1)].values).year.values
+				#Creat a search for spatial uncertianty
+				abny = pd.DatetimeIndex(dfSEN.date[(dfSEN.Fire ==1)].values).year.values
 			# get the ones in the correct range
 			bnyr = bnyr[bnyr >= yrst]
+			bnyr = bnyr[bnyr <= yrfn]
+			abny = abny[abny >= yrst]
+			abny = abny[abny <= yrfn]
 
-			# ls = bnyr.copy()
-			# rs = dfda.copy()
-			# if bnyr == []:
-			# 	breakpoint()
-			# else:
-			warn.warn("Hansen needs to be modified here")
-			breakpoint()
-			if len(bnyr) == 0 and len(dfda) > 0: 
+			if len(bnyr) == 0 and len(dfda) == 0:
+				CND += 1
+			elif len(abny) == 0 and len(dfda) > 0: #No adjucent breaks either
+				# breakpoint()
 				FP = len(dfda)
 
-			elif len(bnyr) > 0 and len(dfda) == 0:
+			elif len(bnyr) > 0 and len(dfba) == 0: 
+				# No fires in the box
 				FN = len(bnyr)
 			else:
 				cv = np.hstack([bnyr, dfda])
+				# if dsn == "esacci":
+				# 	breakpoint()
 				for year in np.unique(np.hstack([bnyr, dfda])):
-					# if site == 'G5T1-0':
-					# 	breakpoint()
 					if not year in cv:
+						# Test to see if a number has already been delt with
 						continue
 					elif year in dfda and year in bnyr:
 						# same year in both datasets
+						# breakpoint()
 						CD += 1
 
 					elif year in bnyr:
 						# its a burn that happened
-						if (year+1 in dfda and year+1 in cv) or (year-1 in dfda and year-1 in cv):
+						if year in dfba:
+							# Check to see if it might just be a spatial missmach
+							SDu += 1
+						elif (year+1 in dfda and year+1 in cv) or (year-1 in dfda and year-1 in cv):
 							#Check for an off by one error, cv to prevent dulicates
-							DD += 1
+							CD += 1
+							# DD += 1
 							# breakpoint()
 							cv[cv == (year+1)] = np.NaN
 							cv[cv == (year-1)] = np.NaN
+						
 						else:
 							# It was missed in the RS
 							FN += 1
+
 					elif year in dfda:
 						# a fire in the RS data
-						# breakpoint()
-						if (year+1 in bnyr and year+1 in cv) or (year-1 in bnyr and year-1 in cv):
+						if year in abny:
+							# Check to see if it might just be a spatial missmach
+							SDo += 1
+						elif (year+1 in bnyr and year+1 in cv) or (year-1 in bnyr and year-1 in cv):
 							#Check for an off by one error, cv to prevent dulicates
-							DD += 1
+							# DD += 1
+							CD += 1
 							# breakpoint()
 							cv[cv == (year+1)] = np.NaN
 							cv[cv == (year-1)] = np.NaN
@@ -330,83 +353,24 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 							# It was missed in the RS
 							FP += 1
 
-					# elif (year+1 in dfda and year in bnyr): 
-					# 	#check for off by one errors, in the ls, one year late in the RS
-					# 	if year+1 in bnyr: # Multiple burns
-					# 		FP += 1
-					# 	else: 
-					# 		DD += 1
-					# 		cv[cv == (year+1)] = np.NaN
-
-					# elif (year-1 in dfda and year in bnyr):
-					# 	if year-1 in bnyr:# and year-1 in cv:
-					# 		# breakpoint()
-					# 		FP += 1
-					# 	else:
-					# 		# breakpoint()
-					# 		DD += 1
-					# elif year in dfda:
-					# 	# breakpoint()
-					# 	FP += 1
-					# elif year in bnyr:
-					# 	# breakpoint()
-					# 	FN += 1
 					else:
 						ipdb.set_trace()
 					cv[cv == year] = np.NaN
 
-				# if FP > 1: 
-				# print("GEEclas:", bnyr, "BAdata:", dfda, [CD, DD, FP, FN])
-			# else:
-			# 	breakpoint()
-			# 	year = np.NaN
-			# 	# +++++ Loop over each row of the manual classification +++++
-			# 	for index, row in dfSEN.iterrows():
-			# 		# ++++++++++ look for the first time the ssite loses forest cover +++++
-			# 		if row.PostStLs == 1:
-			# 			# +++++ Get the year of the loss +++++
-			# 			year = pd.Timestamp(row.date).year
-			# 			# +++++ Check if it in the reange of the disturbance data +++++
-			# 			if (year >= yrst):
-			# 				if dfda.size == 0:
-			# 					# +++++ RS data missed loss +++++
-			# 					FN += 1
-			# 				elif year == dfda: 
-			# 					# +++++ RS correctly captured loss +++++
-			# 					CD += 1
-			# 				elif ((year+1) == dfda) or ((year-1) == dfda):
-			# 					# +++++ Delayed detection +++++
-			# 					DD += 1
-			# 				else:
-			# 					FN += 1
-			# 					FP += 1
-			# 			elif (year+1 == data[dsn]["start"]):
-			# 				if dfda.size == 0:
-			# 					pass
-			# 				elif (year+1) == dfda:
-			# 					# +++++ Delayed detection +++++
-			# 					DD += 1
-			# 				elif not dfda.size == 0:
-			# 					FP += 1
-			# 			else:
-			# 				if not dfda.size == 0:
-			# 					FP += 1
-			# 			break
-			# 	if any([FP > 1, FN > 1, CD > 1, DD>1]):
-			# 		warn.warn("Something weird here")
-			# 		ipdb.set_trace()
 
+			# if CND > 0:
+			# 	FP = np.NAN
+			# 	FN = np.NAN
+			# 	CD = np.NAN
+			# 	DD = np.NAN
+			# 	SD = np.NAN
 
-			if all([FP == 0, FN == 0, CD == 0, DD==0]):
-				FP = np.NAN
-				FN = np.NAN
-				CD = np.NAN
-				DD = np.NAN
+			# if all([FP == 0, FN == 0, CD == 0, DD==0]):
 			
 			Accuracy[site]= ({
-				"CorrectDetection": CD,"DelayedDetection": DD, "FalseNegative":FN, 
-				"FalsePositive":FP, "TotalDetection":np.sum([CD, DD, FN, FP])})
-			# print (Accuracy[site], "LS", bnyr, "RS", dfda)
+				"CorrectNonDetection":CND, "CorrectDetection": CD, "SpatialDetectionUnder":SDu,  "SpatialDetectionOver":SDo,  "FalseNegative":FN, #"DelayedDetection": DD,
+				"FalsePositive":FP, "TotalEvents":np.sum([CD, SDu, SDo, FN, FP, CND])})
+
 			# breakpoint()
 
 		# ========== Add the results of the dataset to the dictionary ===========
@@ -421,48 +385,129 @@ def SiteHistScore(siteseries, site_coords, data, fd):
 		if not sitex in siteseries.keys():
 			continue
 		else:
-			cords[sitex] = row[["name", "lat", "lon"]]
+			# ========== Set up the box ==========
+			cords[sitex] = row[["name", "lat", "lon", "lonb_max", "lonb_min", "latb_max", "latb_min"]]
 
 	# =========== pull out the dataset infomation ==========
 	dfc = pd.DataFrame(cords).transpose()
 	dfscore = OrderedDict()
 	for dsn in data:
-		# breakpoint()
-		dfsh = _datasetopener(data, dsn, dfc)
-		dfsh = dfsh.replace(0, np.NaN)
+		with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+			dfsh, dfbh = _datasetopener(data, dsn, dfc, spath, dpath)
+		# dfsh = dfsh.replace(0, np.NaN)
 		# ========== loop over the sites ==========
-		acu = _SiteScorere(siteseries, data[dsn]["start"], dsn, dfsh)
+		acu = _SiteScorere(siteseries, data[dsn]["start"], data[dsn]["end"], dsn, dfsh, dfbh)
 		dfscore[dsn] = acu
 
 	# =========== pull out the Forestry Estimates ==========
-	acu = _SiteScorere(siteseries, 1987, "ForestryEst", fd[["FBurn01","FBurn02","FBurn03","FBurn04"]])
+	acu = _SiteScorere(siteseries, 1987, 2018, "ForestryEst", fd[["FBurn01","FBurn02","FBurn03","FBurn04"]], fd[["FBurn01","FBurn02","FBurn03","FBurn04"]])
 	dfscore["ForestryEst"] = acu
 
 	# ========== Process the datasets to get some form of accuracy estimate ==========
 	processed = OrderedDict()
+	annual    = OrderedDict()
+	TEvents   = OrderedDict()
 	for dsn in dfscore:
 		# ========== loop over the datasets ==========
-		dfds = dfscore[dsn].dropna()
+		dfds = dfscore[dsn]#.dropna()
+
+		events = dfds.drop(["TotalEvents", "CorrectNonDetection"], axis=1)
+		TEvents[dsn] = events.sum(axis=1).sum()
 
 		# ========== Pull out the results ===========
-		processed[dsn] = ( dfds[dfds.columns.values].div(
-			dfds.TotalDetection, axis=0) * 100).mean(axis=0).drop("TotalDetection")
+		processed[dsn] = ( events.div(events.sum(axis=1), axis=0) * 100).mean(axis=0)#.drop("TotalEvents")
 
-	# ========== Convert to dataframe ==========
+		# ========== Qork out the annual accuracy ===========
+		if dsn == "ForestryEst":
+			continue
+		nyears = data[dsn]["end"] - data[dsn]["start"] +1
+		events["CorrectNonDetection"] = nyears-  events.sum(axis=1)
+		annual[dsn] = (events / nyears).mean(axis=0) * 100
+		# breakpoint()
+
+	dfan = pd.DataFrame(annual).transpose()
+	dfan = dfan[["CorrectNonDetection"]+dfan.columns.values[:-1].tolist()]
 	dfps = pd.DataFrame(processed).transpose()
-	cmapHex = palettable.colorbrewer.diverging.PuOr_4_r.hex_colors
-	ax = dfps.plot.bar(rot=0, color=cmapHex)
-	ax.legend(["Correct", "Delayed", "False Negative", "False Positive"])
-	plt.ylabel("% of detections")
-	plt.show()
-	ipdb.set_trace()
+	
+	def _plotmaker(dfan, dfps, dfscore, data, TEvents):
+		ppath = "./plots/ShortPaper/PF00_BAassessment/"
+		cf.pymkdir(ppath)
+
+		# ========== Setup the figure ==========
+		font = {'family' : 'normal',
+		        'weight' : 'bold', #,
+		        'size'   : 8}
+		mpl.rc('font', **font)
+		sns.set_style("whitegrid")
+		plt.rc('legend',fontsize=6)
+		plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
+
+		fig, (ax1, ax2) = plt.subplots(
+			2, 1,figsize=(15,10), num=("Accuracy assessment"), dpi=130)
+		
+		# fontsize=20
+		cmapHex = palettable.colorbrewer.qualitative.Paired_6.hex_colors
+
+		dfps.plot.bar(rot=0, color=cmapHex[1:], ax=ax1) #"Correct Non Detection",
+		ax1.legend(
+			["Correct Detection",   "Spatial under est.", "Spatial over est.", "False Negative", "False Positive"])
+		ax1.set_ylabel("% of total measurments", fontweight='bold')
+		labels = []
+		for label in ax1.get_xticklabels():
+			try:
+				s1 = data[label.get_text()]["pubname"]
+			except KeyError:
+				s1 = "Forestry Est."
+			s2 = TEvents[label.get_text()]
+			labels.append(f"{s1} (n={s2})")
+			# f"{data[label.get_text()]["pubname"]} (n={TEvents[label.get_text()]})"
+		# labels = [f"{ data[label.get_text()]["pubname"]} (n={TEvents[data[label.get_text()]]})" for label in ax1.get_xticklabels()]
+		ax1.set_xticklabels(labels)
+
+
+	
+		dfan.plot.bar(rot=0, color=cmapHex, ax=ax2)
+		ax2.legend(["Correct Non Detection", "Correct Detection", "Spatial under est.", "Spatial over est.", "False Negative", "False Positive"])
+		ax2.set_ylabel("Mean annual accuracy (%)", fontweight='bold')
+		labels2 = []
+		for label in ax2.get_xticklabels():
+			try:
+				s1 = data[label.get_text()]["pubname"]
+			except KeyError:
+				s1 = "Forestry Est."
+			s2 = data[label.get_text()]["end"] - data[label.get_text()]["start"] +1
+			labels2.append(f"{s1} ({s2} yrs.)")
+			# f"{data[label.get_text()]["pubname"]} (n={TEvents[label.get_text()]})"
+		# labels = [f"{ data[label.get_text()]["pubname"]} (n={TEvents[data[label.get_text()]]})" for label in ax1.get_xticklabels()]
+		ax2.set_xticklabels(labels2)
+
+		# ========== Convert to dataframe ==========
+		plotfname = f"{ppath}PF00_BAassessment."
+		for fmt in ["pdf", "png"]:
+			print(f"Starting {fmt} plot save at:{pd.Timestamp.now()}")
+			plt.savefig(plotfname+fmt)#, dpi=dpi)
+		
+		# print("Starting plot show at:", pd.Timestamp.now())
+		plt.show()
+
+		if not (plotfname is None):
+			maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
+				__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+			gitinfo = pf.gitmetadata()
+			infomation = [maininfo, plotfname, gitinfo]
+			cf.writemetadata(plotfname, infomation)
+		ipdb.set_trace()
+		breakpoint()
+
+	_plotmaker(dfan, dfps, dfscore, data, TEvents)
+	breakpoint()
 	return dfscore, dfps
 
 # ==============================================================================
 # Time Series builder
 # ==============================================================================
 
-def DisturbanceSeries(site, df, site_coords, spath, skipdec=True):
+def DisturbanceSeries(site, df, site_coords, spath, skipdec=False):
 	"""
 	Function to i1nterogate the disturbances and return some from of time series
 	args : 
@@ -622,7 +667,6 @@ def DisturbanceSeries(site, df, site_coords, spath, skipdec=True):
 	if dfSite.shape[0] > frame.shape[1]:
 		warn.warn("This loc has more than normal number of disturbances")
 		print(dfSite.shape)
-
 	return dfSite
 	
 
@@ -949,40 +993,42 @@ def Field_data(df, site_coords, force=False):
 
 def datasets(dpath):
 	# ========== set the filnames ==========
+	# breakpoint()
 	data= OrderedDict()
-	data["Hansen_AFM"] = ({
-		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
-		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 10000},
-		"rename":None, 
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
-		})
 	# 
-	data["Hansen"] = ({
-		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
-		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 10000},
-		"rename":None, 
-		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+	data["MODIS"] = ({
+		"fname":dpath + "MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
+		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'longitude': 1000, 'latitude': 10000},
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc",
+		"pubname":"MCD64A1"
 		})
 	data["COPERN_BA"] = ({
 		'fname':dpath + "COPERN_BA/processed/COPERN_BA_gls_*_SensorGapFix.nc",
 		'var':"BA", "gridres":"300m", "region":"Global", "timestep":"AnnualMax",
 		"start":2014, "end":2019,"rasterio":False, "chunks":{'time':1,'longitude': 1000, 'latitude': 10000}, 
-		"rename":{"lon":"longitude", "lat":"latitude"}
-		})
-	data["MODIS"] = ({
-		"fname":dpath + "MODIS/MODIS_MCD64A1.006_500m_aid0001_reprocessedBAv2.nc",
-		'var':"BA", "gridres":"500m", "region":"Siberia", "timestep":"Annual", 
-		"start":2001, "end":2018, "rasterio":False, "chunks":{'longitude': 1000, 'latitude': 10000},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/MODIS/MASK/MCD12Q1.006_500m_aid0001v2.nc"
+		"rename":{"lon":"longitude", "lat":"latitude"}, "pubname":"CGLS-BA"
 		})
 	data["esacci"] = ({
 		"fname":dpath + "esacci/processed/esacci_FireCCI_*_burntarea.nc",
 		'var':"BA", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
 		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 10000},
-		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc"
+		"rename":None, "maskfn":"/media/ubuntu/Seagate Backup Plus Drive/Data51/BurntArea/esacci/processed/esacci_landseamask.nc",
+		"pubname":"FireCCI51"
 		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
+	data["Hansen"] = ({
+		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci.nc",
+		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 10000},
+		"rename":None, "pubname":"HansenGFC"
+		# "rename":{"band":"time","x":"longitude", "y":"latitude"}
+		})
+	data["Hansen_AFM"] = ({
+		"fname":dpath + "HANSEN/lossyear/Hansen_GFC-2018-v1.6_*_totalloss_SIBERIAatesacci_MODISAFmasked.nc",
+		'var':"lossyear", "gridres":"250m", "region":"Siberia", "timestep":"Annual", 
+		"start":2001, "end":2018, "rasterio":False, "chunks":{'time':1, 'longitude': 1000, 'latitude': 10000},
+		"rename":None, "pubname":"HansenGFC-MAF"
 		})
 	return data
 
@@ -1011,6 +1057,9 @@ def syspath():
 	elif sysname == 'LAPTOP-8C4IGM68':
 		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
 		dpath = "/mnt/i/Data51/BurntArea/"
+	elif sysname == 'DESKTOP-N9QFN7K':
+		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/f/Data51/BurntArea/"
 	else:
 		ipdb.set_trace()
 	return spath, dpath
