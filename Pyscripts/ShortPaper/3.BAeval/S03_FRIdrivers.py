@@ -294,6 +294,8 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 						dft = pd.read_csv(fn).set_index(["latitude", "longitude"]).astype("float32")
 						dst = dft.to_xarray()
 						dst.to_netcdf(hdf5nm, format = 'NETCDF4')
+						# breakpoint()
+
 						store.append(hdf5nm)
 						del dst
 					except Exception as err:
@@ -340,7 +342,11 @@ def futurenetcdf(dsn, box, mwb, dpath, cpath, tcfs, stdt,
 		dsX = dsX.chunk({"latitude": int(dsX.latitude.size / 20)})
 		dsX = dsX.assign_coords({"time":fndt})
 		dsX = dsX.expand_dims("time")
-		dsX = tempNCmaker(dsX, fnout, va)
+		try:
+			dsX = tempNCmaker(dsX, fnout, va)
+		except Exception as er:
+			warn.warn(str(er))
+			breakpoint()
 		# =========== Cleanup any unnessary files ==========
 		for fn in df_nlist:
 			if os.path.isfile(fn):
@@ -587,7 +593,7 @@ def dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, su
 	# ##########################################
 	ppath = dpath + f"/BurntArea/{dsn}/FRI/"
 	fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, tcfs, mwb)
-
+	# breakpoint()
 	ds_bf = xr.open_dataset(ppath+fname)
 	if dsn == "esacci":
 		ds_bf = ds_bf.sortby("latitude", ascending=False)
@@ -682,7 +688,6 @@ def dfloader(dsn, box, mwb, dpath, cpath, tcfs, stdt, fndt, va, BFmin, DrpNF, su
 	# # dfX_msu.columns = [''.join(col).strip() for col in dfX_msu.columns.values]
 	# dfX = dfX.merge(dfX_msu, left_index=True, right_index=True)
 
-	breakpoint()
 	# ======================================================
 	# ========== Do the final round of processing ==========
 	# ======================================================

@@ -95,7 +95,8 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["esacci","MODIS", "GFED", ]#  "GFED", ]# 
+	dsnams1 = [ "COPERN_BA", "esacci","MODIS", "GFED",]#  "GFED", ]# 
+	altnames = ({"GFED":"GFED4", "MODIS":"MCD64A1", "esacci":"FireCCI51", "COPERN_BA":"CGLS-BA", "HANSEN_AFmask":20, "HANSEN":20}) 
 	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	BFmin = 0.0001
 	DrpNF = True # False
@@ -113,13 +114,14 @@ def main():
 		for sigmask in [True, False]:
 			for model in ["XGBoost", "OLS"]:
 				futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, 
-					tmpath, sub, sens, scale, formats, sigmask, fmode="trend",
+					tmpath, sub, sens, scale, formats, sigmask, altnames, fmode="trend",
 					 version=0, force = False, incTCfut=True)
 		# breakpoint()
 
 
-def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens, scale, formats, sigmask, fmode="trend",
-	 version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0], incTCfut=False):
+def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens, scale, 
+	formats, sigmask, altnames, fmode="trend",
+	version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0], incTCfut=False):
 	# ========== make the plot name ==========
 	plotfname = f"{plotdir}PF04_FRIprediction_{dsn}_{model}" 
 	if sigmask:
@@ -166,6 +168,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 				da = da.coarsen(
 					{"latitude":scale[dsn], "longitude":scale[dsn]}, 
 					boundary ="pad", keep_attrs=True).mean().compute().rename("FRI")
+				# breakpoint()
 			if tp == "fut":
 				da["time"] = [tm]#pd.Timestamp(f"{pd.Timestamp(da.time.values[0]).year + sen}-12-31")
 				# ========== Convert to FRI ==========
@@ -183,7 +186,6 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	else:
 		daM = xr.merge(dac + dax)
 
-	# breakpoint()
 	daM.FRI.attrs = {'long_name':"FRI", "units":"years"}
 
 
@@ -198,11 +200,12 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	# breakpoint()
 	px = daM.FRI.plot(x="longitude", y="latitude", col="time", col_wrap=2,
 		vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, size = 8, #extent=bounds,
+		subplot_kws={"projection": ccrs.Orthographic(longMid, latiMid)},
 		transform=ccrs.PlateCarree(),
 		add_colorbar=False,
-		subplot_kws={"projection": ccrs.Orthographic(longMid, latiMid)},
 		cbar_kwargs={ "ticks":levels, "spacing":"uniform", "extend":"max","pad": 0.20,  "shrink":0.85}
 		) #
+	# breakpoint()
 	for ax, tm in zip(px.axes.flat, daM.time.values):
 		ax.gridlines()
 		coast = cpf.GSHHSFeature(scale="intermediate")
@@ -211,11 +214,11 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 		ax.add_feature(coast, zorder=101, alpha=0.5)
 		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
 		ax.add_feature(cpf.RIVERS, zorder=104)		
-		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)	
+		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=105)	
 
 		ax.set_title("")
 		istrend = (pd.Timestamp(tm).hour == 0)
-		ax.set_title(f"{dsn} - {model} {'ObsTrend' if istrend else 'TCpred'} ({pd.Timestamp(tm).year - 30} to {pd.Timestamp(tm).year})", loc= 'left')
+		ax.set_title(f"{altnames[dsn]} - {model} {'ObsTrend' if istrend else 'TCpred'} ({pd.Timestamp(tm).year - 30} to {pd.Timestamp(tm).year})", loc= 'left')
 		ax.set_extent(bounds, crs = ccrs.PlateCarree())
 		# if dsn == "esacci":
 		# 	# breakpoint()
@@ -224,9 +227,11 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	
 	# "constrained_layout":True
 	# fig = plt.gcf()
-	# breakpoint()
 
 	px.add_colorbar(extend="max",pad= 0.015, shrink=0.65)
+	plt.draw()
+	# plt.show()
+	# breakpoint()
 
 	if not (formats is None): 
 		# ========== loop over the formats ==========
@@ -261,7 +266,7 @@ def _colours(var, vmax):
 			norm   = mpl.colors.BoundaryNorm([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], cmap.N)
 
 		cmap.set_over(cmapHex[-1] )
-		cmap.set_bad('dimgrey',1.)
+		# cmap.set_bad('dimgrey',1.)
 
 	else:
 		# ========== Set the colors ==========

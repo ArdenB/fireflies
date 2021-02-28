@@ -41,6 +41,7 @@ import shutil
 import time
 import subprocess as subp
 from dask.diagnostics import ProgressBar
+import dask
 
 from collections import OrderedDict
 # from cdo import *
@@ -105,23 +106,35 @@ def main():
 	cf.pymkdir(ppath)
 
 	# ========== model loader ==========
-	mod = ModelLoadter()
+	Varimp = []
+	for dsn in ["GFED", "esacci", "MODIS", "COPERN_BA"]:
+		for mod, sen in enumerate([30, 60, 100]):
+			Varimp.append(ModelLoadter(dsn=dsn, sen=sen, mod=mod))
+	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
+	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
+	plt.show()
+	breakpoint()
 
-	# ========== Build the annual plots ==========
-	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath)
+	# g = sns.FacetGrid(df, col="Method",  hue="Dataset")
+	# g.map(sns.barplot, "Predictor", "Score", order=df.Predictor.unique().tolist())
 
+	# sns.barplot(x="Predictor", y="Score")
 	# ========== Build the annual plots ==========
 	AnnualPlotmaker(setupfunc("annual"), dpath, cpath, ppath)
 
+	# ========== Build the annual plots ==========
+	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath)
 
 
 
 
 #==============================================================================
-def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost'):
+def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 	"""
 	Load in the models 
 	"""
+	altnames = ({"GFED":"GFED4", "MODIS":"MCD64A1", "esacci":"FireCCI51", "COPERN_BA":"CGLS-BA", "HANSEN_AFmask":20, "HANSEN":20}) 
+
 	va    = "AnBF"
 	drop  = ["AnBF", "FRI", "datamask"]
 
@@ -156,8 +169,20 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost'):
 	pr_df["Residual"]= pr_df.Predicted -pr_df.Observed
 	dfT["Residual"]= dfT.Predicted -dfT.Observed
 
+	print (dsn, R2_XGB, models['performance'])
+	# breakpoint()
+	modim = models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().melt(id_vars="index", value_vars=["XGBPermImp",  "XGBFeatImp"])
+	# models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().rename(
+	# 	{"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, axis=1).melt()
+	modim.replace({"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, inplace=True)
+	modim = modim.rename({"index":"Predictor", "variable":"Method", "value":"Score"}, axis=1)
+	modim["Dataset"] = altnames[dsn]
+	modim["Version"] = mod
 
-	breakpoint()
+	return(modim)
+
+
+	# breakpoint()
 
 def Seasonalplotmaker(setup, dpath, cpath, ppath):
 	""" 
@@ -277,61 +302,84 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 	
 	# ========== Create the figure ==========
 	fig, axs = plt.subplots(
-		2, 1, sharex=True, 
+		2, 2, sharex=True, 
 		subplot_kw={'projection': ccrs.Orthographic(
 			dsmask.longitude.median().values, 
 			dsmask.latitude.median().values)}, 
-		figsize=(13,12))
+		figsize=(24,12)
+		)
 
 	# ========== load the datasets ==========
-	for va, ax, let in zip(setup, axs, ["a", "b"]):
-		# ========== Read in the data and mask the boreal zone ==========
-		ds = xr.open_dataset(f"{cpath}TerraClim_{va}_annualtrend_1985to2015.nc")
-		ds = ds.where(dsmask.datamask.values == 1)
-		ds.slope.attrs = setup[va]["attrs"]
+	for va, axa, lets in zip(setup, axs, [["a", "b"], ["c", "d"]]):
+		for cli, ax, let in zip(["Climatology", "Trend"], axa, lets):
+			if cli == "Trend":
+				# ========== Read in the data and mask the boreal zone ==========
+				ds = xr.open_dataset(f"{cpath}TerraClim_{va}_annualtrend_1985to2015.nc")
+				ds.slope.attrs = setup[va]["attrs"]
+				ds = ds.where(dsmask.datamask.values == 1)
+				p  = ds.slope.isel(time=0).plot(
+					cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
+					transform=ccrs.PlateCarree(), ax=ax,
+					    cbar_kwargs={
+					    "pad": 0.02, "shrink":0.97, "extend":"both"
+					    })
+				# ========== work out the stippling ==========
+				slats, slons = _stippling(ds, squeeze=10, nanfrac = 0.15, sigfrac=0.5)
+				ax.scatter(
+					slons, slats, s=4, c='k', marker='X', 
+					facecolors='none', edgecolors="none",  
+					alpha=0.35, transform=ccrs.PlateCarree())
+			else:
+				extend =  'max'
+				if va == "ppt":
+					ds = xr.open_dataset(f"{cpath}smoothed/TerraClimate_{va}_1degMW_SeasonalClimatology_1985to2015.nc")
+					ds = ds.sum(dim='season')
+				else:
+					ds = _annualtempmaker(va, cpath,  funb =bn.nanmax, func="max")
+					# ds = _annualtempmaker(va, cpath,  funb =bn.nanmean, func="mean")
+					# extend="both"
 
-		p  = ds.slope.isel(time=0).plot(
-			cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
-			transform=ccrs.PlateCarree(), ax=ax,
-			    cbar_kwargs={
-			    "pad": 0.02, "shrink":0.97, "extend":"both"
-			    })
-			    # "label": "custom label",
-			# subplot_kws=dict(projection=ccrs.Orthographic(
-			# 	dsmask.longitude.median().values, dsmask.latitude.median().values)
-			# )
-		# p.axes.coastlines(resolution ="50m", zorder=101)
+				ds = ds.where(np.squeeze(dsmask.datamask.values) == 1)
 
-		# ========== work out the stippling ==========
-		slats, slons = _stippling(ds, squeeze=10, nanfrac = 0.15, sigfrac=0.5)
-		ax.scatter(
-			slons, slats, s=4, c='k', marker='X', 
-			facecolors='none', edgecolors="none",  
-			alpha=0.35, transform=ccrs.PlateCarree())
-		ax.gridlines()
-		coast = cpf.GSHHSFeature(scale="intermediate")
-                                        # edgecolor='face',
-                                        # facecolor=cfeature.COLORS['land']
+				ds[va].attrs = setup[va+"C"]["attrs"]
+				p  = ds[va].plot(
+					cmap=setup[va+"C"]["cmap"], vmin=setup[va+"C"]["vmin"], vmax=setup[va+"C"]["vmax"],
+					transform=ccrs.PlateCarree(), ax=ax,
+					    cbar_kwargs={
+					    "pad": 0.02, "shrink":0.97, "extend":extend
+					    })
 
-		# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
-		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
-		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-		ax.add_feature(coast, zorder=101, alpha=0.5)
-		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-		ax.add_feature(cpf.RIVERS, zorder=104)
-		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-		# ========== Set the titles ==========
-		vanm = setup[va]["lname"]
-		ax.set_title("")
-		ax.set_title(f"{let}) {vanm}", loc= 'left')
-		print(f"Annual trend {va}", ds.slope.quantile([0.01,0.05, 0.50,0.95,0.99]))
+				# plt.show()
+
+
+
+			ax.gridlines()
+			coast = cpf.GSHHSFeature(scale="intermediate")
+			# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
+			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+			ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+			ax.add_feature(coast, zorder=101, alpha=0.5)
+			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+			ax.add_feature(cpf.RIVERS, zorder=104)
+			ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+			# ========== Set the titles ==========
+			vanm = setup[va]["lname"]
+			ax.set_title("")
+			ax.set_title(f"{let}) {vanm} {cli}", loc= 'left')
+			if cli == "Trend":
+				print(f"Annual trend {va}", ds.slope.quantile([0.01,0.05, 0.50,0.95,0.99]))
+			else:
+				print(f"Annual Climate {va}", ds[va].quantile([0.01,0.05, 0.50,0.95,0.99]))
+			# breakpoint()
 
 		
 	# ========== Save the plots ==========
 
-	plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.063, wspace=0.2)
-	plotfname = f"{ppath}PF03_AnnualClimateTrend."
-	for fmt in ["pdf", "png"]:
+	plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.063, wspace=0.000)
+	# plt.tight_layout()
+	plotfname = f"{ppath}PF03_AnnualClimateAndTrend."
+	# breakpoint()
+	for fmt in ["png"]:#"pdf", 
 		print(f"Starting {fmt} plot save at:{pd.Timestamp.now()}")
 		plt.savefig(plotfname+fmt)#, dpi=dpi)
 	
@@ -374,6 +422,11 @@ def setupfunc(time):
 			"attrs":{'long_name':"Trend", "units":r"mm yr$^{-1}$"}})
 		setup["tmean"] = ({"vmin":-0.06, "vmax":0.06, "cmap":cmaps["tmean"], "lname":"Temperature",
 			"attrs":{'long_name':"Trend", "units":r"$^{o}$C yr$^{-1}$"}})
+		
+		setup["pptC"]   = ({"vmin":0, "vmax":400, "cmap":cmaps["pptC"], "lname":"Precipitation",
+			"attrs":{'long_name':"Annual total", "units":r"mm"}})
+		setup["tmeanC"] = ({"vmin":0, "vmax":25, "cmap":cmaps["tmeanC"], "lname":"Temperature",
+			"attrs":{'long_name':"Monthly max", "units":r"$^{o}$C"}})
 	return setup
 
 def _cmapsfun():
@@ -381,17 +434,119 @@ def _cmapsfun():
 	Funtion to make the colourmaps 
 
 	"""
-	
-	pptcmap = mpc.ListedColormap(palettable.colorbrewer.diverging.BrBG_11.mpl_colors)
+	pcmap = palettable.colorbrewer.diverging.BrBG_11.mpl_colormap
+	cmapP = []
+	for point  in np.arange(0, 1.01, 0.05):
+		cmapP.append( pcmap(point)[0:-1])
+
+	pptcmap = mpc.ListedColormap(cmapP)	
+	# pptcmapC = mpc.ListedColormap(palettable.colorbrewer.diverging.BrBG_10.mpl_colors)
+
+	pcmapC = palettable.colorbrewer.diverging.BrBG_10.mpl_colormap
+	cmap = []
+	for point  in np.arange(0, 1.01, 0.05):
+		cmap.append( pcmapC(point)[0:-1])
+
+	pptcmapC = mpc.ListedColormap(cmap)
+	# breakpoint()
+
 	pptcmap.set_bad('dimgrey',1.)
+	pptcmapC.set_bad('dimgrey',1.)
 	
 	# tmncmap = mpc.ListedColormap(palettable.colorbrewer.diverging.PuOr_11_r.mpl_colors)
 	# tmncmap = mpc.ListedColormap(palettable.colorbrewer.diverging.RdBu_11_r.mpl_colors)
 	tmncmap = mpc.ListedColormap(palettable.cmocean.diverging.Balance_19.mpl_colors)
 	tmncmap.set_bad('dimgrey',1.)
-	return {"ppt":pptcmap, "tmean":tmncmap}
+
+	tmncmapC = mpc.ListedColormap(palettable.cmocean.diverging.Balance_20.mpl_colors)
+	tmncmapC.set_bad('dimgrey',1.)
+
+	return {"ppt":pptcmap, "tmean":tmncmap, "pptC":pptcmapC, "tmeanC":tmncmapC}
+
+def _annualtempmaker(va, cpath, funb =bn.nanmax, func="max",  box   = [-10.0, 180, 40, 70] ):
+	#Function fo cumputing multi year means, sums and medians
+	# breakpoint()
+	fnout = f"{cpath}smoothed/TerraClim_{va}_meanannual{func}_1985to2015.nc"
+	if os.path.isfile(fnout):
+		ds = xr.open_dataset(fnout)
+	else:
+		with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+			with ProgressBar():
+				ds = xr.open_mfdataset(
+					f"{cpath}TerraClimate_tmean_*.nc", drop_variables=["station_influence", "crs"]).rename(
+					{"lat":"latitude","lon":"longitude"}).sel(dict(
+					time=slice('1985-01-01', '2015-12-31'), 
+					latitude=slice(box[3], box[2]), 
+					longitude=slice(box[0], box[1])
+					))#.groupby('time.year').max().compute()	
+				ds = ds.resample(time="Y").reduce(bn.nanmax).compute()
+		ds = ds.mean(dim='time')
+		attrs = GlobalAttributes(ds, va, fnout, func = "max", stdt = 1985, fndt = 2015)
+		ds = tempNCmaker(ds, fnout, va)
+
+	# breakpoint()
+	return ds
 
 
+
+def GlobalAttributes(ds, var, fnout, func = "max", stdt = 1985, fndt = 2015):
+	"""
+	Creates the global attributes for the netcdf file that is being written
+	these attributes come from :
+	https://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html
+	args
+		ds: xarray ds
+			Dataset containing the infomation im intepereting
+		fnout: str
+			filename out 
+	returns:
+		attributes 	Ordered Dictionary cantaining the attribute infomation
+	"""
+	# ========== Create the ordered dictionary ==========
+	attr = ds.attrs
+
+	# ========== Fill the Dictionary ==========
+
+	# ++++++++++ Highly recomended ++++++++++ 
+	attr["FileName"]            = fnout
+	attr["title"]               = f"{var} annual {func}"
+	attr["summary"]             = f"Terraclimate {var} annual monthly {func} from {stdt} to {fndt}" 
+	attr["Conventions"]         = "CF-1.7"
+	
+	# ++++++++++ Data Provinance ++++++++++ 
+	attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s." % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
+
+
+	attr["creator_name"]        = __author__
+	attr["creator_url"]         = "ardenburrell.com"
+	attr["creator_email"]       = __email__
+	attr["Institution"]         = "Woodwell Climate Research Center"
+	attr["date_created"]        = str(pd.Timestamp.now())
+	
+	# ++++++++++ Netcdf Summary infomation ++++++++++ 
+	# attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
+	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
+	return attr	
+
+
+
+def tempNCmaker(ds, fnout, var):
+
+	""" Function to save out a tempary netcdf """
+	
+
+	delayed_obj = ds.to_netcdf(fnout, 
+		format         = 'NETCDF4', 
+		unlimited_dims = ["time"],
+		compute=False)
+
+	print("Starting write of %s data at" % var, pd.Timestamp.now())
+	with ProgressBar():
+		results = delayed_obj.compute()
+
+	dsout = xr.open_dataset(fnout) 
+	return dsout
 
 
 def syspath():
@@ -409,12 +564,11 @@ def syspath():
 		dpath = "/media/ubuntu/Harbinger/Data51"
 	# elif 'ccrc.unsw.edu.au' in sysname:
 	# 	dpath = "/srv/ccrc/data51/z3466821"
-	elif sysname == 'DESKTOP-T77KK56':
+	elif sysname == 'DESKTOP-N9QFN7K':
 		# The windows desktop at WHRC
 		# dpath = "/mnt/f/Data51/BurntArea"
 		dpath = "./data"
-		backpath = "/mnt/f/fireflies"
-		chunksize = 500
+		cpath = "/mnt/f/Data51/Climate/TerraClimate/"
 	elif sysname == 'DESKTOP-KMJEPJ8':
 		dpath = "./data"
 		# backpath = "/mnt/g/fireflies"
