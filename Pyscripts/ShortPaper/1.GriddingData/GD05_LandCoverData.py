@@ -122,7 +122,7 @@ def main():
 			print(dsnx)
 			# +++++ open the dataarray +++++
 			key_dic[dsnx] = pd.read_csv(legfn)
-			da           = xr.open_rasterio(tiffn, chunk=10).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
+			da           = xr.open_rasterio(tiffn, chunks=10).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
 			da["time"]   = [pd.Timestamp("2018-12-31")]
 			if da.longitude.shape > ds_msk.longitude.shape:
 				print(da.latitude.shape[0], ds_msk.latitude.shape[0])
