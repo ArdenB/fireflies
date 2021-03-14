@@ -209,16 +209,17 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	if proj == "polar":
 		latiMid=np.mean([bounds[2], bounds[3]])
 		longMid=np.mean([bounds[0], bounds[1]])
-		if len(datasets) == 4:
-			yv = 2
-			xv = 2
-			shrink=0.80
-		else:
-			yv = len(datasets)
-			xv = 1
-			shrink=0.95
+		# if len(datasets) == 4:
+		# 	yv = 2
+		# 	xv = 2
+		# 	shrink=0.80
+		# else:
+		yv = len(datasets)
+		xv = 1
+		shrink=0.95
+
 		fig, axs = plt.subplots(
-			yv, xv, figsize=(20,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+			yv, xv, figsize=(12,5*len(datasets)), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
 	else:
 		latiMid=np.mean([bounds[2], bounds[3]])
 		longMid=np.mean([bounds[0], bounds[1]])
