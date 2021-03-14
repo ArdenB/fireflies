@@ -145,8 +145,13 @@ def main():
 		# ========== get the FAO climate zones ==========
 		# ds     = xr.Dataset(out_dic)
 		ds     = xr.open_mfdataset(outlist)
+
 		GlobalAttributes(ds, dsres, fnameout=fnout)
-		ds.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"],)
+		
+		delayed_obj = ds.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
+		print("Starting write of %s data at" % name, pd.Timestamp.now())
+		with ProgressBar():
+			results = delayed_obj.compute()
 		print(f"{dsres} completed at: {pd.Timestamp.now()}")
 
 
