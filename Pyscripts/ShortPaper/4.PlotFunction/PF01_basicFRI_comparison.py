@@ -401,7 +401,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 				msk    = dsmask.mask.isel(time=0).astype("float32")
 				
 				if proj == "polar" and not dsn == "GFED":
-					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
+					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
 				
 				msk = msk.values
 

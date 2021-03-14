@@ -96,11 +96,11 @@ def main():
 	# geotiffn  = [f"{path}glc2000_v1_1/Tiff/glc2000_v1_1.tif", f"{path}gez2010/OUTPUT.tif", f"{path}gez2010/IsBorealV3.tif"]
 
 	Down = ["MODIS", "esacci", "COPERN_BA"]
-	res     = ["TerraClimate", "MODIS", "GFED", "esacci", "COPERN_BA"]#
-
+	res     = ["TerraClimate"]#, "MODIS", "GFED","COPERN_BA",  "esacci", ]#
+	force = True
 	for dsres in res:
 		fnout = f"{path}Regridded_forestzone_{dsres}.nc"
-		if os.path.isfile(fnout):
+		if os.path.isfile(fnout) and not force:
 			print(f"{dsres} has an existing file")
 			continue
 		else:
@@ -146,7 +146,7 @@ def main():
 		# breakpoint()
 		# ========== get the FAO climate zones ==========
 		# ds     = xr.Dataset(out_dic)
-		ds     = xr.open_mfdataset(outlist)
+		ds     = xr.open_mfdataset(outlist).transpose('time', 'latitude', 'longitude')
 
 		GlobalAttributes(ds, dsres, fnameout=fnout)
 
