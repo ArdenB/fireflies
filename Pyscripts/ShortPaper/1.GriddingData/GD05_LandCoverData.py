@@ -141,9 +141,10 @@ def main():
 			# out_dic[dsnx] 
 			outlist.append(f"/tmp/{dsres}_{dsnx}.nc")
 			da = None
-		breakpoint()
+		# breakpoint()
 		# ========== get the FAO climate zones ==========
 		# ds     = xr.Dataset(out_dic)
+		ds     = xr.open_mfdataset(outlist)
 		GlobalAttributes(ds, dsres, fnameout=fnout)
 		ds.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"],)
 		print(f"{dsres} completed at: {pd.Timestamp.now()}")
