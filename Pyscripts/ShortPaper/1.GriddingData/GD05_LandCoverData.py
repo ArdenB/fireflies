@@ -97,7 +97,7 @@ def main():
 
 	Down = ["MODIS", "esacci", "COPERN_BA"]
 	res     = ["MODIS"]#, "GFED", "TerraClimate",  ] #"COPERN_BA",  "esacci", 
-	force = False
+	force = True
 	for dsres in res:
 		fnout = f"{path}Regridded_forestzone_{dsres}.nc"
 		if os.path.isfile(fnout) and not force:
