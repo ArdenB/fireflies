@@ -136,9 +136,9 @@ def main():
 					datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
 					# ipdb.set_trace()
 				
-				for mask in [True, False]:
+				for mask, bounds in zip([True, False], [[0.0, 180.0, 70.0, 45.0], [-10.0, 180.0, 70.0, 40.0]]):
 					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
-					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
+					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds)
 					breakpoint()
 
 				# ipdb.set_trace()
@@ -188,7 +188,7 @@ def testplotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, v
 
 
 
-def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale):
+def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
@@ -207,12 +207,12 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 		
 	# ========== setup the figure ==========
 	if proj == "polar":
-		latiMid=np.mean([70.0, 40.0])
-		longMid=np.mean([-10.0, 180.0])
+		latiMid=np.mean([bounds[2], bounds[3]])
+		longMid=np.mean([bounds[0], bounds[1]])
 		if len(datasets) == 4:
 			yv = 2
 			xv = 2
-			shrink=0.85
+			shrink=0.80
 		else:
 			yv = len(datasets)
 			xv = 1
@@ -230,7 +230,7 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	# ========== Loop over the figure ==========
 	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
 		# make the figure
-		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, vmax = vmax, shrink=shrink)
+		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, vmax = vmax, shrink=shrink)
 		# breakpoint()
 		ax.set_aspect('equal')
 
@@ -290,7 +290,7 @@ def dsinfomaker(SR="SR"):
 	return dsinfo
 
 
-def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, region = "SIBERIA", vmax = 80.0,shrink=0.85):
+def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, bounds, region = "SIBERIA", vmax = 80.0,shrink=0.85):
 	"""
 	Funstion to build subplots
 	"""
@@ -300,11 +300,11 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 		warn.warn(f"File {datasets[dsn]} could not be found")
 		breakpoint()
 	else:
-		frame = _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region)
+		frame = _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds)
 
 	
 	# ========== Set the colors ==========
-	cmap, norm, vmin, vmax, levels = _colours(var, vmax, )
+	cmap, norm, vmin, vmax, levels = _colours(var, vmax, dsn)
 
 
 	# ========== Grab the data ==========
@@ -367,12 +367,12 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 	# sys.exit()
 	return im
 #==============================================================================
-def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
+def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds):
 	ds_dsn = xr.open_dataset(datasets[dsn])
 
 	# ========== Get the data for the frame ==========
 	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
+		dict(latitude=slice(bounds[2], bounds[3]), longitude=slice(bounds[0], bounds[1]))).drop("time")
 	
 	if proj == "polar" and not dsn == "GFED":
 		# ========== Coarsen to make plotting easier =========
@@ -380,7 +380,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 			{"latitude":scale[dsn], "longitude":scale[dsn]
 			}, boundary ="pad", keep_attrs=True).mean().compute()
 
-	bounds = [-10.0, 180.0, 70.0, 40.0]
+	
 	frame.attrs = dsinfo[dsn]#{'long_name':"FRI", "units":"years"}
 
 	# ========== mask ==========
@@ -400,7 +400,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 		if os.path.isfile(fnmask):
 			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
 				# breakpoint()
-				msk    = dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32"))
+				msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32"))).sel(dict(latitude=slice(bounds[2], bounds[3]), longitude=slice(bounds[0], bounds[1])))
 				
 				if proj == "polar" and not dsn == "GFED":
 					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
@@ -426,7 +426,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 
 	return frame
 
-def _colours(var, vmax):
+def _colours(var, vmax, dsn):
 	norm=None
 	levels = None
 	if var == "FRI":
