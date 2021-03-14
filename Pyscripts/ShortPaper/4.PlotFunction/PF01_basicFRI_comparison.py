@@ -92,7 +92,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["GFED", "MODIS"]#, "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	dsts    = [dsnams1, dsnams2]
@@ -104,7 +104,7 @@ def main():
 	# vmax    = 100
 	for var in ["FRI"]:#, "AnBF"]:
 		for dsnames, vmax in zip(dsts, [10000, 10000]):
-			formats = [".png", ".pdf"] # None 
+			formats = [".png"]#, ".pdf"] # None 
 			# mask    = True
 			if TCF == 0:
 				tcfs = ""
@@ -138,8 +138,8 @@ def main():
 				
 				for mask in [True, False]:
 					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
-					# breakpoint()
 					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
+					breakpoint()
 
 				# ipdb.set_trace()
 
@@ -403,7 +403,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 				msk    = dsmask.mask.isel(time=0)*(Bmask.BorealMask.isel(time=0).astype("float32"))
 				
 				if proj == "polar" and not dsn == "GFED":
-					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
+					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
 				
 				msk = msk.values
 
