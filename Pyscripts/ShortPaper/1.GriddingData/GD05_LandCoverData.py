@@ -96,8 +96,8 @@ def main():
 	# geotiffn  = [f"{path}glc2000_v1_1/Tiff/glc2000_v1_1.tif", f"{path}gez2010/OUTPUT.tif", f"{path}gez2010/IsBorealV3.tif"]
 
 	Down = ["MODIS", "esacci", "COPERN_BA"]
-	res     = ["MODIS"]#, "GFED", "TerraClimate",  ] #"COPERN_BA",  "esacci", 
-	force = True
+	res     = ["MODIS", "GFED", "TerraClimate",  ] #"COPERN_BA",  "esacci", 
+	force = False
 	for dsres in res:
 		fnout = f"{path}Regridded_forestzone_{dsres}.nc"
 		if os.path.isfile(fnout) and not force:
@@ -122,24 +122,24 @@ def main():
 			print(dsnx)
 			# +++++ open the dataarray +++++
 			key_dic[dsnx] = pd.read_csv(legfn)
-			# da           = xr.open_rasterio(tiffn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1]))).chunk()
-			# da["time"]   = [pd.Timestamp("2018-12-31")]
-			# if da.longitude.shape > ds_msk.longitude.shape:
-			# 	print(da.latitude.shape[0], ds_msk.latitude.shape[0])
-			# 	print ("Coarsnening data started at: ", pd.Timestamp.now())
-			# 	# breakpoint()
-			# 	# Coarsen/ downscale 
-			# 	latscale = int(da.latitude.shape[0] / ds_msk.latitude.shape[0])
-			# 	lonscale = int(da.longitude.shape[0] / ds_msk.longitude.shape[0])
+			da           = xr.open_rasterio(tiffn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1]))).chunk()
+			da["time"]   = [pd.Timestamp("2018-12-31")]
+			if da.longitude.shape > ds_msk.longitude.shape:
+				print(da.latitude.shape[0], ds_msk.latitude.shape[0])
+				print ("Coarsnening data started at: ", pd.Timestamp.now())
+				# breakpoint()
+				# Coarsen/ downscale 
+				latscale = int(da.latitude.shape[0] / ds_msk.latitude.shape[0])
+				lonscale = int(da.longitude.shape[0] / ds_msk.longitude.shape[0])
 
-			# 	da = da.coarsen(latitude=latscale, longitude=lonscale, boundary ="pad").median()
-			# 	da = da.round()
+				da = da.coarsen(latitude=latscale, longitude=lonscale, boundary ="pad").median()
+				da = da.round()
 
-			# da = da.reindex_like(mask, method="nearest")
-			# delay =  xr.Dataset({dsnx:da}).to_netcdf(f"/tmp/{dsres}_{dsnx}.nc", format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
-			# print(f"Creating temp netcdf for {dsres} {dsnx} at: {pd.Timestamp.now()}")
-			# with ProgressBar():
-			# 	delay.compute()
+			da = da.reindex_like(mask, method="nearest")
+			delay =  xr.Dataset({dsnx:da}).to_netcdf(f"/tmp/{dsres}_{dsnx}.nc", format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
+			print(f"Creating temp netcdf for {dsres} {dsnx} at: {pd.Timestamp.now()}")
+			with ProgressBar():
+				delay.compute()
 			# out_dic[dsnx] 
 			outlist.append(f"/tmp/{dsres}_{dsnx}.nc")
 			da = None
