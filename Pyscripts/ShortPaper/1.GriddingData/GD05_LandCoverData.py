@@ -96,7 +96,7 @@ def main():
 	# geotiffn  = [f"{path}glc2000_v1_1/Tiff/glc2000_v1_1.tif", f"{path}gez2010/OUTPUT.tif", f"{path}gez2010/IsBorealV3.tif"]
 
 	Down = ["MODIS", "esacci", "COPERN_BA"]
-	res     = ["MODIS", ]#"TerraClimate"]#,  "GFED","COPERN_BA",  "esacci", ]#
+	res     = ["MODIS", "GFED"]#"TerraClimate"]#,  "COPERN_BA",  "esacci", ]#
 	force = True
 	for dsres in res:
 		fnout = f"{path}Regridded_forestzone_{dsres}.nc"
