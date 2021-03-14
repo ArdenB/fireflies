@@ -450,7 +450,7 @@ def _colours(var, vmax, dsn):
 			# breakpoint()
 			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
 			if dsn.startswith("H"):
-				Hex = palettable.colorbrewer.diverging.Spectral_7.hex_colors
+				cmapHex = palettable.colorbrewer.diverging.Spectral_7.hex_colors
 				levels = [0, 60, 120, 500, 1000, 3000, 10000, 10001]
 			else:
 				cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
