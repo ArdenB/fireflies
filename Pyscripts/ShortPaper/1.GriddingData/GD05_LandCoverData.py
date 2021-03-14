@@ -96,7 +96,7 @@ def main():
 	# geotiffn  = [f"{path}glc2000_v1_1/Tiff/glc2000_v1_1.tif", f"{path}gez2010/OUTPUT.tif", f"{path}gez2010/IsBorealV3.tif"]
 
 	Down = ["MODIS", "esacci", "COPERN_BA"]
-	res     = ["MODIS", "GFED"]#"TerraClimate"]#,  "COPERN_BA",  "esacci", ]#
+	res     = ["MODIS"]#, "GFED", "TerraClimate",  "COPERN_BA",  "esacci", ]#
 	force = True
 	for dsres in res:
 		fnout = f"{path}Regridded_forestzone_{dsres}.nc"
@@ -120,8 +120,8 @@ def main():
 		key_dic = OrderedDict()
 		for dsnx, legfn, tiffn in zip(dataname, legendfn, geotiffn):
 			print(dsnx)
-			# +++++ open the dataarray +++++
-			key_dic[dsnx] = pd.read_csv(legfn)
+			# # +++++ open the dataarray +++++
+			# key_dic[dsnx] = pd.read_csv(legfn)
 			# da           = xr.open_rasterio(tiffn, chunks=10).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
 			# da["time"]   = [pd.Timestamp("2018-12-31")]
 			# if da.longitude.shape > ds_msk.longitude.shape:
@@ -143,10 +143,10 @@ def main():
 			# out_dic[dsnx] 
 			outlist.append(f"/tmp/{dsres}_{dsnx}.nc")
 			da = None
-		# breakpoint()
 		# ========== get the FAO climate zones ==========
 		# ds     = xr.Dataset(out_dic)
 		ds     = xr.open_mfdataset(outlist).transpose('time', 'latitude', 'longitude')
+		# breakpoint()
 
 		GlobalAttributes(ds, dsres, fnameout=fnout)
 
@@ -241,6 +241,8 @@ def GlobalAttributes(ds, dsn, fnameout=""):
 	attr["creator_email"]       = __email__
 	attr["Institution"]         = "Woodwell"
 	attr["date_created"]        = str(pd.Timestamp.now())
+	ds.longitude.attrs['units'] = 'degrees_east'
+	ds.latitude.attrs['units']  = 'degrees_north'
 	
 	# ++++++++++ Netcdf Summary infomation ++++++++++ 
 	# attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
