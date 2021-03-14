@@ -137,7 +137,7 @@ def main():
 
 			da = da.reindex_like(mask, method="nearest")
 			print(f"Creating temp netcdf for {dsres} {dsnx} at: {pd.Timestamp.now()}")
-			delay =  xr.Dataset({dsnx:da}).to_netcdf(f"/tmp/{dsres}_{dsnx}.nc", format = 'NETCDF4', unlimited_dims = ["time"], delay=True)
+			delay =  xr.Dataset({dsnx:da}).to_netcdf(f"/tmp/{dsres}_{dsnx}.nc", format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
 			with ProgressBar():
 				delay.compute()
 			# out_dic[dsnx] 
