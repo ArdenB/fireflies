@@ -122,7 +122,7 @@ def main():
 			print(dsnx)
 			# +++++ open the dataarray +++++
 			key_dic[dsnx] = pd.read_csv(legfn)
-			da           = xr.open_rasterio(tiffn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
+			da           = xr.open_rasterio(tiffn, chunk=10).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
 			da["time"]   = [pd.Timestamp("2018-12-31")]
 			if da.longitude.shape > ds_msk.longitude.shape:
 				print(da.latitude.shape[0], ds_msk.latitude.shape[0])
@@ -137,7 +137,9 @@ def main():
 
 			da = da.reindex_like(mask, method="nearest")
 			print(f"Creating temp netcdf for {dsres} {dsnx} at: {pd.Timestamp.now()}")
-			xr.Dataset({dsnx:da}).to_netcdf(f"/tmp/{dsres}_{dsnx}.nc", format = 'NETCDF4', unlimited_dims = ["time"])
+			delay =  xr.Dataset({dsnx:da}).to_netcdf(f"/tmp/{dsres}_{dsnx}.nc", format = 'NETCDF4', unlimited_dims = ["time"], delay=True)
+			with ProgressBar():
+				delay.compute()
 			# out_dic[dsnx] 
 			outlist.append(f"/tmp/{dsres}_{dsnx}.nc")
 			da = None
@@ -147,11 +149,12 @@ def main():
 		ds     = xr.open_mfdataset(outlist)
 
 		GlobalAttributes(ds, dsres, fnameout=fnout)
-		
+
 		delayed_obj = ds.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
 		print("Starting write of %s data at" % name, pd.Timestamp.now())
 		with ProgressBar():
 			results = delayed_obj.compute()
+
 		print(f"{dsres} completed at: {pd.Timestamp.now()}")
 
 
