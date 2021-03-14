@@ -96,12 +96,13 @@ def main():
 	# geotiffn  = [f"{path}glc2000_v1_1/Tiff/glc2000_v1_1.tif", f"{path}gez2010/OUTPUT.tif", f"{path}gez2010/IsBorealV3.tif"]
 
 	Down = ["MODIS", "esacci", "COPERN_BA"]
-	res     = [ "MODIS", "GFED", "esacci", "COPERN_BA"]#"TerraClimate",
+	res     = ["TerraClimate", "MODIS", "GFED", "esacci", "COPERN_BA"]#
 
 	for dsres in res:
 		fnout = f"{path}Regridded_forestzone_{dsres}.nc"
 		if os.path.isfile(fnout):
 			print(f"{dsres} has an existing file")
+			continue
 		else:
 			print(dsres)
 		dataname  = ["LandCover", "GlobalEcologicalZones", "DinersteinRegions", "BorealMask"]
@@ -111,10 +112,11 @@ def main():
 			datares = dsres
 		geotiffn  = [f"{path}glc2000_v1_1/Tiff/glc2000_v1_1.tif", f"{path}Dinerstein_Aggregated/Masks/Boreal_climatic_{datares}.tif", f"{path}Dinerstein_Aggregated/Masks/BorealEco_2017_{datares}.tif", f"{path}Dinerstein_Aggregated/Masks/Boreal_buf_{datares}.tif"]
 		mskfn = "./data/masks/broad/Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsres)
-		ds_msk = xr.open_dataset(mskfn).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
+		ds_msk = xr.open_dataset(mskfn).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1]))).chunk()
 		mask   = ds_msk.datamask
 
-		out_dic = OrderedDict()
+		# out_dic = OrderedDict()
+		outlist = []
 		key_dic = OrderedDict()
 		for dsnx, legfn, tiffn in zip(dataname, legendfn, geotiffn):
 			print(dsnx)
@@ -133,9 +135,15 @@ def main():
 				da = da.coarsen(latitude=latscale, longitude=lonscale, boundary ="pad").median()
 				da = da.round()
 
-			out_dic[dsnx] = da.reindex_like(mask, method="nearest")
+			da = da.reindex_like(mask, method="nearest")
+			print(f"Creating temp netcdf for {dsres} {dsnx} at: {pd.Timestamp.now()}")
+			xr.Dataset({dsnx:da}).to_netcdf(f"/tmp/{dsres}_{dsnx}.nc", format = 'NETCDF4', unlimited_dims = ["time"])
+			# out_dic[dsnx] 
+			outlist.append(f"/tmp/{dsres}_{dsnx}.nc")
+			da = None
+		breakpoint()
 		# ========== get the FAO climate zones ==========
-		ds     = xr.Dataset(out_dic)
+		# ds     = xr.Dataset(out_dic)
 		GlobalAttributes(ds, dsres, fnameout=fnout)
 		ds.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"],)
 		print(f"{dsres} completed at: {pd.Timestamp.now()}")
