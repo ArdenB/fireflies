@@ -95,7 +95,7 @@ def main():
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
-	dsts    = [dsnams1, dsnams2]
+	dsts    = [dsnams2, dsnams1]
 	dsinfo  = dsinfomaker()
 	proj    = "polar"
 	# proj = "latlon"
@@ -447,16 +447,24 @@ def _colours(var, vmax, dsn):
 		vmin = 0.0
 		# +++++ create hte colormap +++++
 		if vmax in [80, 10000]:
+			# breakpoint()
 			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
-			cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
-			levels = [0, 15, 30, 60, 120, 500, 1000, 3000, 10000, 10001]
+			if dsn.startswith("H"):
+				Hex = palettable.colorbrewer.diverging.Spectral_7.hex_colors
+				levels = [0, 60, 120, 500, 1000, 3000, 10000, 10001]
+			else:
+				cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
+				levels = [0, 15, 30, 60, 120, 500, 1000, 3000, 10000, 10001]
 		else:
 			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
 
 		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
 		
 		if vmax == 10000:
-			norm   = mpl.colors.BoundaryNorm([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], cmap.N)
+			if dsn.startswith("H"):
+				norm   = mpl.colors.BoundaryNorm([0, 60, 120, 500, 1000, 3000, 10000], cmap.N)
+			else:
+				norm   = mpl.colors.BoundaryNorm([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], cmap.N)
 
 		cmap.set_over(cmapHex[-1] )
 		cmap.set_bad('dimgrey',1.)
