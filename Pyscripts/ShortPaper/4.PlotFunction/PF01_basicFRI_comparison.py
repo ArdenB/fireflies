@@ -95,7 +95,7 @@ def main():
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
-	dsts    = [dsnams2, dsnams1]
+	dsts    = [dsnams1, dsnams2]
 	dsinfo  = dsinfomaker()
 	proj    = "polar"
 	# proj = "latlon"
@@ -391,14 +391,16 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 
 		if not dsn.startswith("H"):
 			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
+			fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
 		else:
 			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+			fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
 
 		# +++++ Check if the mask exists yet +++++
 		if os.path.isfile(fnmask):
-			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
-				
-				msk    = dsmask.mask.isel(time=0).astype("float32")
+			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+				# breakpoint()
+				msk    = dsmask.mask.isel(time=0)*(Bmask.BorealMask.isel(time=0).astype("float32"))
 				
 				if proj == "polar" and not dsn == "GFED":
 					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
@@ -419,6 +421,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 
 		else:
 			print("No mask exists for ", dsn)
+			breakpoint()
 
 	return frame
 
@@ -469,6 +472,7 @@ def syspath():
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
 		dpath = "/mnt/d/Data51"
+		# dpath = "./data"
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"

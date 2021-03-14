@@ -96,8 +96,8 @@ def main():
 	# geotiffn  = [f"{path}glc2000_v1_1/Tiff/glc2000_v1_1.tif", f"{path}gez2010/OUTPUT.tif", f"{path}gez2010/IsBorealV3.tif"]
 
 	Down = ["MODIS", "esacci", "COPERN_BA"]
-	res     = ["MODIS"]#, "GFED", "TerraClimate",  "COPERN_BA",  "esacci", ]#
-	force = True
+	res     = ["MODIS"]#, "GFED", "TerraClimate",  ] #"COPERN_BA",  "esacci", 
+	force = False
 	for dsres in res:
 		fnout = f"{path}Regridded_forestzone_{dsres}.nc"
 		if os.path.isfile(fnout) and not force:
@@ -120,9 +120,9 @@ def main():
 		key_dic = OrderedDict()
 		for dsnx, legfn, tiffn in zip(dataname, legendfn, geotiffn):
 			print(dsnx)
-			# # +++++ open the dataarray +++++
-			# key_dic[dsnx] = pd.read_csv(legfn)
-			# da           = xr.open_rasterio(tiffn, chunks=10).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1])))
+			# +++++ open the dataarray +++++
+			key_dic[dsnx] = pd.read_csv(legfn)
+			# da           = xr.open_rasterio(tiffn).transpose("y", "x", "band").rename({"x":"longitude", "y":"latitude", "band":"time"}).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1]))).chunk()
 			# da["time"]   = [pd.Timestamp("2018-12-31")]
 			# if da.longitude.shape > ds_msk.longitude.shape:
 			# 	print(da.latitude.shape[0], ds_msk.latitude.shape[0])
@@ -152,10 +152,24 @@ def main():
 
 		delayed_obj = ds.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
 		print(f"Starting write of {dsres} data at: {pd.Timestamp.now()}")
-		with ProgressBar():
+		with ProgressBar():	
 			results = delayed_obj.compute()
 
 		print(f"{dsres} completed at: {pd.Timestamp.now()}")
+		
+		if dsres == "MODIS":
+			for dsin in ["esacci", "COPERN_BA"]:
+				print(dsin)
+				mskfn = "./data/masks/broad/Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsin)
+				ds_msk = xr.open_dataset(mskfn).sel(dict(latitude=slice(box[3], box[2]), longitude=slice(box[0], box[1]))).chunk()
+				mask   = ds_msk.datamask
+				ds_out = ds.reindex_like(mask, method="nearest")
+				fnout = f"{path}Regridded_forestzone_{dsin}.nc"
+				delayed_obj = ds_out.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
+				print(f"Starting write of {dsin} data at: {pd.Timestamp.now()}")
+				with ProgressBar():	
+					results = delayed_obj.compute()
+
 
 
 		# breakpoint()
