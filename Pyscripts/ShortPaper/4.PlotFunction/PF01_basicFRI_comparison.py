@@ -92,7 +92,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["GFED", "MODIS"]#, "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	dsts    = [dsnams1, dsnams2]
@@ -400,7 +400,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 		if os.path.isfile(fnmask):
 			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
 				# breakpoint()
-				msk    = dsmask.mask.isel(time=0)*(Bmask.BorealMask.isel(time=0).astype("float32"))
+				msk    = dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32"))
 				
 				if proj == "polar" and not dsn == "GFED":
 					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
@@ -412,6 +412,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region):
 				
 				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
 				# +++++ mask the frame +++++
+				# breakpoint()
 				frame *= msk
 
 				# +++++ close the mask +++++
