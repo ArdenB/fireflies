@@ -92,7 +92,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
+	dsnams1 = ["GFED", "MODIS", "esacci"]#, "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	dsts    = [dsnams1, dsnams2]
@@ -136,7 +136,7 @@ def main():
 					datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
 					# ipdb.set_trace()
 				
-				for mask, bounds in zip([True, False], [[10.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
+				for mask, bounds in zip([True, False], [[15.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
 					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
 					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds)
 					breakpoint()
@@ -212,7 +212,7 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 		if len(datasets) == 4:
 			yv = 2
 			xv = 2
-			shrink=0.85
+			shrink=0.80
 		else:
 			yv = len(datasets)
 			xv = 1
@@ -324,6 +324,13 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
 		ax.gridlines()
+		# +++++ get rid of the excess lables +++++
+		# gl.xlabels_top = False
+		# gl.ylabels_right = False
+		# if not dsn == [dss for dss in datasets][-1]:
+			# Get rid of lables in the middle of the subplot
+			# gl.xlabels_bottom = False
+			# ax.axes.xaxis.set_ticklabels([])
 		# ax.set_extent(bounds, crs=ccrs.Orthographic(longMid, latiMid))
 	else:
 		im = frame.plot.imshow(
