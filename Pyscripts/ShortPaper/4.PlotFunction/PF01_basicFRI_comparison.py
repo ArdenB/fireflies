@@ -194,7 +194,7 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	# ========== make the plot name ==========
 	plotfname = plotdir + "PF01_%s_MW_%02dDegBox_V2_%s_%s" % (var, mwb, proj, "_".join(datasets.keys()))
 	if mask:
-		plotfname += "_ForestMask"
+		plotfname += "_ForestMask_V2"
 
 	# ========== Setup the font ==========
 	# ========== set the mpl rc params ==========
