@@ -451,7 +451,7 @@ def _colours(var, vmax, dsn):
 			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
 			if dsn.startswith("H"):
 				cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
-				del cmapHex[2:4]
+				del cmapHex[2:4] #remove some middle colours
 				levels = [0, 60, 120, 500, 1000, 3000, 10000, 10001]
 			else:
 				cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
