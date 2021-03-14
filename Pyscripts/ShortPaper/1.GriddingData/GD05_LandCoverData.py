@@ -151,7 +151,7 @@ def main():
 		GlobalAttributes(ds, dsres, fnameout=fnout)
 
 		delayed_obj = ds.to_netcdf(fnout, format = 'NETCDF4', unlimited_dims = ["time"], compute=False)
-		print("Starting write of %s data at" % name, pd.Timestamp.now())
+		print(f"Starting write of {dsres} data at: {pd.Timestamp.now()}")
 		with ProgressBar():
 			results = delayed_obj.compute()
 
