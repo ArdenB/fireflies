@@ -136,7 +136,7 @@ def main():
 					datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
 					# ipdb.set_trace()
 				
-				for mask, bounds in zip([True, False], [[15.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
+				for mask, bounds in zip([True, False], [[10.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
 					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
 					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds)
 					breakpoint()
@@ -450,7 +450,8 @@ def _colours(var, vmax, dsn):
 			# breakpoint()
 			# cmapHex = palettable.matplotlib.Viridis_9_r.hex_colors
 			if dsn.startswith("H"):
-				cmapHex = palettable.colorbrewer.diverging.Spectral_7.hex_colors
+				cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
+				del cmapHex[2:4]
 				levels = [0, 60, 120, 500, 1000, 3000, 10000, 10001]
 			else:
 				cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
