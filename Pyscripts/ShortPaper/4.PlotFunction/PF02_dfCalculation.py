@@ -156,6 +156,70 @@ def main():
 
 #==============================================================================
 
+def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, region = "SIBERIA", griddir = "./data/gridarea/"):
+	"""
+	Function to build the stats  about risk
+	"""
+	dsn = "Risk"
+	dsg = "esacci"
+
+	# Setup the file names
+	ppath = compath + "/BurntArea/%s/FRI/" %  dsnm
+	fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+	
+	gafn   = f"{griddir}{dsn}_gridarea.nc"
+	
+	fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+	fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
+	
+	# /// the dataset \\\
+	# Risk
+	ds_dsn = xr.open_dataset(ppath+fname)
+	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
+
+	# Grid
+	ds_ga  = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
+	ds_ga = ds_ga.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
+
+
+	# Mask
+	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+		# breakpoint()
+		if maskver == "Boreal":
+			msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+		else:
+			msk    = (dsmask.mask.isel(time=0)).astype("float32")
+		
+		
+		msk = msk.values
+		# +++++ Change the boolean mask to NaNs +++++
+		msk[msk == 0] = np.NAN
+		
+		print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+		# +++++ mask the frame +++++
+		# breakpoint()
+		frame *= msk
+
+		# +++++ close the mask +++++
+		msk = None
+		print(f"masking complete for {dsn}, begining stats calculation at {pd.Timestamp.now()}")
+
+	# ========== Create the Metadata ==========
+	# outpath = plotdir+"stats/"
+	# Scriptinfo = "File saved from %s (%s):%s by %s, %s" % (__title__, __file__, 
+	# 	__version__, __author__, str(pd.Timestamp.now()))
+	# gitinfo = pf.gitmetadata()
+	# cf.pymkdir(outpath) 
+	# cf.writemetadata(outpath+f"PF02_{var}stats{maskver}", [Scriptinfo, gitinfo])
+	# keystats.to_csv(outpath+f"PF02_{var}stats{maskver}.csv")
+
+	breakpoint()
+
+
+
+
 def statcal(dsn, var, datasets, compath, backpath, maskver, region = "SIBERIA", griddir = "./data/gridarea/"):
 		
 	cf.pymkdir(griddir)
@@ -302,6 +366,17 @@ def _gridcal (datasets, dsn, ds_dsn, gafn, var, degmin= 111250.8709452735):
 	# equtpix = (degmin*np.diff(data.longitude.values)[0]) * (degmin*np.diff(data.longitude.values)[0])
 	# data *= equtpix
 	return data 
+
+def _riskkys():
+	keys = OrderedDict()
+	keys[0] = {"Code":"LR",  "FullName":"Low Risk"}
+	keys[1] = {"Code":"MRd", "FullName":"Moderate Risk (dist)"}
+	keys[2] = {"Code":"MRf", "FullName":"Moderate Risk (fire)"}
+	keys[3] = {"Code":"HRd", "FullName":"High Risk (dist)"}
+	keys[4] = {"Code":"HRf", "FullName":"High Risk (fire)"}
+	keys[5] = {"Code":"CRd", "FullName":"Catastrophic Risk (dist)"}
+	keys[6] = {"Code":"CRf", "FullName":"Catastrophic Risk (fire)"}
+	return keys
 
 def syspath():
 	# ========== Create the system specific paths ==========
