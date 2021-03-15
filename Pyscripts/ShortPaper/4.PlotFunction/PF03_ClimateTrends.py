@@ -77,6 +77,7 @@ from statsmodels.stats.weightstats import DescrStatsW
 import pickle
 
 # ========== Import ml packages ==========
+import sklearn as skl
 from sklearn.model_selection import train_test_split
 # from sklearn.ensemble import RandomForestRegressor
 # from sklearn.inspection import permutation_importance
@@ -97,6 +98,7 @@ print("numpy version   : ", np.__version__)
 print("pandas version  : ", pd.__version__)
 print("xarray version  : ", xr.__version__)
 print("cartopy version : ", ct.__version__)
+print("sklearn version : ", skl.__version__)
 
 #==============================================================================
 def main():
@@ -109,7 +111,7 @@ def main():
 
 	# ========== model loader ==========
 	Varimp = []
-	for dsn in ["GFED", "esacci", "MODIS", "COPERN_BA"]:
+	for dsn in ["esacci", "GFED", "MODIS", "COPERN_BA"]:
 		for mod, sen in enumerate([30, 60, 100]):
 			Varimp.append(ModelLoadter(dsn=dsn, sen=sen, mod=mod))
 	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
