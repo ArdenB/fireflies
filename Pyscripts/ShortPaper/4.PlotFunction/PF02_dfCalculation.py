@@ -99,6 +99,13 @@ def main():
 	# vmax    = 120
 	# vmax    = 80
 	# vmax    = 100
+	compath, backpath = syspath()
+	plotdir = "./plots/ShortPaper/"
+	cf.pymkdir(plotdir)
+	griddir = "./data/gridarea/"
+	maskver = "Boreal"
+
+	_riskStat(compath, backpath, maskver, plotdir)
 
 	for var in ["FRI", "AnBF"]:
 		formats = [".png"]#, ".pdf"] # None
@@ -110,12 +117,7 @@ def main():
 
 
 		# ========== Setup the plot dir ==========
-		plotdir = "./plots/ShortPaper/"
-		cf.pymkdir(plotdir)
-		griddir = "./data/gridarea/"
-		maskver = "Boreal"
 		# compath = "/media/ubuntu/Seagate Backup Plus Drive"
-		compath, backpath = syspath()
 
 		for mwb in mwbox:
 			# ========== Setup the dataset ==========
@@ -160,15 +162,17 @@ def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, 
 	"""
 	Function to build the stats  about risk
 	"""
+	print(f"Starting risk stats at:{pd.Timestamp.now()}")
 	dsn = "Risk"
 	dsg = "esacci"
 
 	# Setup the file names
-	ppath = compath + "/BurntArea/%s/FRI/" %  dsnm
-	fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+	ppath = compath + "/BurntArea/%s/FRI/" %  dsn
+	fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, mwb)
 	
-	gafn   = f"{griddir}{dsn}_gridarea.nc"
+	gafn   = f"{griddir}{dsg}_gridarea.nc"
 	
+	stpath = compath + "/masks/broad/"
 	fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
 	fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
 	
