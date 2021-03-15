@@ -113,6 +113,7 @@ def main():
 		plotdir = "./plots/ShortPaper/"
 		cf.pymkdir(plotdir)
 		griddir = "./data/gridarea/"
+		maskver = "Boreal"
 		# compath = "/media/ubuntu/Seagate Backup Plus Drive"
 		compath, backpath = syspath()
 
@@ -136,7 +137,7 @@ def main():
 			stat = OrderedDict()
 			for dsn in datasets:
 				print(dsn)
-				stat[dsn] = statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA")
+				stat[dsn] = statcal(dsn, var, datasets, compath, backpath, maskver, region = "SIBERIA")
 			keystats = pd.DataFrame(stat).T
 
 			# ========== save the info out ==========
@@ -147,15 +148,15 @@ def main():
 
 			outpath = plotdir+"stats/"
 			cf.pymkdir(outpath) 
-			cf.writemetadata(outpath+f"PF02_{var}stats", [Scriptinfo, gitinfo])
-			keystats.to_csv(outpath+f"PF02_{var}stats.csv")
+			cf.writemetadata(outpath+f"PF02_{var}stats{maskver}", [Scriptinfo, gitinfo])
+			keystats.to_csv(outpath+f"PF02_{var}stats{maskver}.csv")
 			# df.groupby("ACC_CD").aream2.sum() * 1e-12
 			print(keystats)
 			ipdb.set_trace()
 
 #==============================================================================
 
-def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir = "./data/gridarea/"):
+def statcal(dsn, var, datasets, compath, backpath, maskver, region = "SIBERIA", griddir = "./data/gridarea/"):
 		
 	cf.pymkdir(griddir)
 	# ========== open the dataset ==========
@@ -205,8 +206,6 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 			else:
 				msk    = (dsmask.mask.isel(time=0)).astype("float32")
 			
-			if proj == "polar" and not dsn == "GFED":
-				msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
 			
 			msk = msk.values
 			# +++++ Change the boolean mask to NaNs +++++
@@ -219,7 +218,7 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 
 			# +++++ close the mask +++++
 			msk = None
-			print(f"masking complete, begining stats calculation at {pd.Timestamp.now()}")
+			print(f"masking complete for {dsn}, begining stats calculation at {pd.Timestamp.now()}")
 
 
 
@@ -311,7 +310,6 @@ def syspath():
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# dpath = "/mnt/h"
 		dpath = "/mnt/d/Data51"
-		breakpoint()
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"

@@ -104,6 +104,8 @@ def main():
 	dpath, cpath = syspath()
 	ppath = "./plots/ShortPaper/PF03_Climate/"
 	cf.pymkdir(ppath)
+	pbound = [10.0, 170.0, 70.0, 49.0]
+	maskver = "Boreal"
 
 	# ========== model loader ==========
 	Varimp = []
@@ -113,6 +115,7 @@ def main():
 	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
 	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
 	plt.show()
+
 	breakpoint()
 
 	# g = sns.FacetGrid(df, col="Method",  hue="Dataset")
@@ -120,10 +123,10 @@ def main():
 
 	# sns.barplot(x="Predictor", y="Score")
 	# ========== Build the annual plots ==========
-	AnnualPlotmaker(setupfunc("annual"), dpath, cpath, ppath)
+	AnnualPlotmaker(setupfunc("annual"), dpath, cpath, ppath, pbounds, maskver)
 
 	# ========== Build the annual plots ==========
-	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath)
+	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver)
 
 
 
@@ -184,7 +187,7 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 
 	# breakpoint()
 
-def Seasonalplotmaker(setup, dpath, cpath, ppath):
+def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 	""" 
 	Function fo making the Seasonal plots
 	args:
@@ -195,19 +198,32 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath):
 			path to the climate data
 	"""
 	# ========== load the mask ==========
-	dsmask = xr.open_dataset(f"{dpath}/masks/broad/Hansen_GFC-2018-v1.6_SIBERIA_ProcessedToTerraClimate.nc")
+	# ========== load the mask ==========
+	fnmask = f"{dpath}/masks/broad/Hansen_GFC-2018-v1.6_SIBERIA_ProcessedToTerraClimate.nc"
+	fnBmask = f"./data/LandCover/Regridded_forestzone_TerraClimate.nc"
+
+	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+		# breakpoint()
+		if maskver == "Boreal":
+			msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+		else:
+			msk    = (dsmask.mask.isel(time=0)).astype("float32")
+		msk = msk.values
+
+		# +++++ Change the boolean mask to NaNs +++++
+		msk[msk == 0] = np.NAN
 	
 	# ========== set the mpl rc params ==========
 	font = {'weight' : 'bold'}
 	mpl.rc('font', **font)
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+	latiMid=np.mean([pbounds[2], pbounds[3]])
+	longMid=np.mean([pbounds[0], pbounds[1]])
 
 	# ========== Create the figure ==========
 	fig, axs = plt.subplots(
 		4, 2, sharex=True, 
-		subplot_kw={'projection': ccrs.Orthographic(
-			dsmask.longitude.median().values, 
-			dsmask.latitude.median().values)}, 
+		subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
 		figsize=(14,12)
 		)
 
@@ -217,7 +233,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath):
 		for va, ax in zip(setup, raxes):
 			# ========== Read in the data and mask the boreal zone ==========
 			ds = xr.open_dataset(f"{cpath}TerraClim_{va}_{sea}trend_1985to2015.nc")
-			ds = ds.where(dsmask.datamask.values == 1)
+			ds = ds.where(msk == 1)
 			ds.slope.attrs = setup[va]["attrs"]
 
 
@@ -239,7 +255,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath):
 			# 	slats = rundet.lats[mapdet.sigmask["yv"]]
 			# 	slons = rundet.lons[mapdet.sigmask["xv"]]
 
-
+			ax.set_extent(pbounds, crs=ccrs.PlateCarree())
 			ax.gridlines()
 
 			# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
@@ -283,7 +299,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath):
 
 
 
-def AnnualPlotmaker(setup, dpath, cpath, ppath):
+def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 	""" Function fo making the annual plot
 	args:
 		setup: Ordered dict 
@@ -293,8 +309,27 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 			path to the climate data
 	"""
 	# ========== load the mask ==========
-	dsmask = xr.open_dataset(f"{dpath}/masks/broad/Hansen_GFC-2018-v1.6_SIBERIA_ProcessedToTerraClimate.nc")
-	
+	fnmask = f"{dpath}/masks/broad/Hansen_GFC-2018-v1.6_SIBERIA_ProcessedToTerraClimate.nc"
+	fnBmask = f"./data/LandCover/Regridded_forestzone_TerraClimate.nc"
+
+	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+		# breakpoint()
+		if maskver == "Boreal":
+			msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+		else:
+			msk    = (dsmask.mask.isel(time=0)).astype("float32")
+		
+		msk = msk.values
+
+		# +++++ Change the boolean mask to NaNs +++++
+		msk[msk == 0] = np.NAN
+		
+		# print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+		# +++++ mask the frame +++++
+		# breakpoint()
+		# frame *= msk
+	latiMid=np.mean([pbounds[2], pbounds[3]])
+	longMid=np.mean([pbounds[0], pbounds[1]])
 	# ========== set the mpl rc params ==========
 	font = {'weight' : 'bold'}
 	mpl.rc('font', **font)
@@ -302,10 +337,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 	
 	# ========== Create the figure ==========
 	fig, axs = plt.subplots(
-		2, 2, sharex=True, 
-		subplot_kw={'projection': ccrs.Orthographic(
-			dsmask.longitude.median().values, 
-			dsmask.latitude.median().values)}, 
+		2, 2, sharex=True, subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
 		figsize=(24,12)
 		)
 
@@ -316,7 +348,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 				# ========== Read in the data and mask the boreal zone ==========
 				ds = xr.open_dataset(f"{cpath}TerraClim_{va}_annualtrend_1985to2015.nc")
 				ds.slope.attrs = setup[va]["attrs"]
-				ds = ds.where(dsmask.datamask.values == 1)
+				ds = ds.where(msk == 1)
 				p  = ds.slope.isel(time=0).plot(
 					cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 					transform=ccrs.PlateCarree(), ax=ax,
@@ -338,8 +370,9 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 					ds = _annualtempmaker(va, cpath,  funb =bn.nanmax, func="max")
 					# ds = _annualtempmaker(va, cpath,  funb =bn.nanmean, func="mean")
 					# extend="both"
-
-				ds = ds.where(np.squeeze(dsmask.datamask.values) == 1)
+				# breakpoint()
+				# ds = ds.where(np.squeeze(dsmask.datamask.values) == 1)
+				ds = ds.where(msk == 1)
 
 				ds[va].attrs = setup[va+"C"]["attrs"]
 				p  = ds[va].plot(
@@ -353,7 +386,9 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath):
 
 
 
+			ax.set_extent(pbounds, crs=ccrs.PlateCarree())
 			ax.gridlines()
+
 			coast = cpf.GSHHSFeature(scale="intermediate")
 			# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
 			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
@@ -557,6 +592,7 @@ def syspath():
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
 		dpath = "/mnt/d/Data51"
+		cpath = "/mnt/d/Data51/Climate/TerraClimate/"
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"
