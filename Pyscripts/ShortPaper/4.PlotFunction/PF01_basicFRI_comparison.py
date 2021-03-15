@@ -347,7 +347,7 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 
 		# ========== Create the Title ==========
 		title = ""
-		extend = "max"
+		extend = "neither"
 	
 	else:
 		if not os.path.isfile(datasets[dsn]):
@@ -364,7 +364,7 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 
 		# ========== Create the Title ==========
 		title = ""
-		extend = "neither"
+		extend = "max"
 
 
 	# ========== Grab the data ==========
@@ -383,7 +383,9 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 		if dsn == "Risk":
 			cbar = im.colorbar
 			keys =  pd.DataFrame(_riskkys()).T
-			cbar.set_ticklabels( keys.Code.values)  # horizontal colorbar
+			# cbar.set_ticklabels( keys.Code.values)  # horizontal colorbar
+			cbar.set_ticklabels( keys.FullName.values)
+			# 
 		# breakpoint()
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
 		ax.gridlines()
