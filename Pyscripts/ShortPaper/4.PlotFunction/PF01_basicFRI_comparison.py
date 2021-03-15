@@ -40,6 +40,7 @@ import scipy as sp
 import glob
 import shutil
 import time
+from dask.diagnostics import ProgressBar
 
 from collections import OrderedDict
 # from scipy import stats
@@ -88,15 +89,13 @@ print("cartopy version : ", ct.__version__)
 #==============================================================================
 
 def main():
-	warn.warn("\n TO DO: add to the variaable attrs so the plots have units. Also implement a better downsampling")
 	# ========== Setup the params ==========
 	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
-	dsnams2 = ["HANSEN_AFmask", "HANSEN", "Risk"]
-	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
+	dsnams2 = ["Risk", "HANSEN_AFmask", "HANSEN"]
+	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20})
 	dsts    = [dsnams2, dsnams1]
-	dsinfo  = dsinfomaker()
 	proj    = "polar"
 	maskver = "Boreal"	
 	for var in ["FRI"]:#, "AnBF"]:
@@ -112,10 +111,11 @@ def main():
 			# ========== Setup the plot dir ==========
 			plotdir = "./plots/ShortPaper/PF01_FRI/"
 			cf.pymkdir(plotdir)
-			# compath = "/media/ubuntu/Seagate Backup Plus Drive"
 			compath, backpath = syspath()
+			# compath = "/media/ubuntu/Seagate Backup Plus Drive"
 
 			for mwb in mwbox:
+				dsinfo  = dsinfomaker(compath, backpath, mwb, tcfs)
 				# ========== Setup the dataset ==========
 				datasets = OrderedDict()
 				for dsnm in dsnames:
@@ -130,6 +130,7 @@ def main():
 						fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
 					# +++++ open the datasets +++++
 					# ipdb.set_trace()
+					cf.pymkdir(ppath)
 					datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
 					# ipdb.set_trace()
 				
@@ -187,10 +188,8 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	# ========== Loop over the figure ==========
 	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
 		# make the figure
-		if not dsn == "Risk":
-			im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, vmax = vmax, shrink=shrink)
-		else:
-			breakpoint()
+		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, vmax = vmax, shrink=shrink)
+
 		# breakpoint()
 		ax.set_aspect('equal')
 
@@ -233,7 +232,74 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
-def dsinfomaker(SR="SR"):
+def _RiskBuilder(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, 
+	proj,scale, bounds, latiMid, longMid, maskver, region = "SIBERIA", 
+	vmax = 80.0,shrink=0.8, xbounds = [-10.0, 180.0, 70.0, 40.0]): 
+
+	# ========== Riskbuilder ==========
+
+	ds_dsn = xr.open_dataset(dsinfo["esacci"]["fname"])
+	# ========== Get the data for the frame ==========
+	frame = ds_dsn["FRI"].sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+	
+	FRI15 = (frame <=15).astype("int16")
+	FRI30 = (frame <=30).astype("int16")
+	frame = None
+
+
+	# ========== Fetch the  SRI ==========
+	ds_SRI = xr.open_dataset(dsinfo["HANSEN_AFmask"]["fname"])
+	SR_da  = ds_SRI["FRI"].sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+	SRI60  = (SR_da <= 60).astype("int16")
+	SRI120 = (SR_da <=120).astype("int16")
+	SR_da  = None
+
+	# ========= Workout my fire risk catogeries ==========
+	HR = (SRI120 * FRI30) # High Risk Fire
+	CR = np.logical_or(FRI15, SRI60).astype("int16").where(HR == 1, 0)
+	MR = np.logical_or(FRI30, SRI120).astype("int16")
+	
+	# +++++ Cleanup +++++
+	SRI60  = None
+	SRI120 = None
+	ds_SRI = None
+	# ========= Workout my Dist risk catogeries ==========
+
+	ds_DRI = xr.open_dataset(dsinfo["HANSEN"]["fname"])
+	DR_da  = ds_DRI["FRI"].sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+	DRI60  = (DR_da <= 60).astype("int16")
+	DRI120 = (DR_da <=120).astype("int16")
+	DR_da  = None
+
+	HRD = np.logical_or(HR, (DRI120 * FRI30)) # High Risk all
+	CRD = np.logical_or(FRI15, DRI60).astype("int16").where(HRD == 1, 0)
+	# CRD = np.logical_or(FRI15, SRI60).astype("int16").where(HR == 1, 0)
+	MRD = np.logical_or(MR,(np.logical_or(FRI30, DRI120))).astype("int16")
+	FRI15  = None
+	DRI60  = None
+	DRI120 = None
+
+	def _quickplot (da, scale, dsn):
+		
+		with ProgressBar():
+			dac = da.coarsen(
+				{"latitude":scale[dsn]*2, "longitude":scale[dsn]*2
+				}, boundary ="pad", keep_attrs=True).max().compute()
+		dac.plot(vmin=1)
+		plt.show()
+	Risk = CRD+MRD+HRD+MR+HR+CR
+	# _quickplot((Risk==1).astype("int16"), scale, dsn)
+	ds_risk = xr.Dataset({"ForestLossRisk":Risk})
+	GlobalAttributes(ds_risk, fnameout=datasets[dsn])
+	ds_risk.to_netcdf(datasets[dsn], format = 'NETCDF4', unlimited_dims = ["time"])
+	print("Risk Dataset Built")
+
+
+	
+def dsinfomaker(compath, backpath, mwb, tcfs, SR="SR"):
 	"""
 	Contains infomation about the Different datasets
 	"""
@@ -247,6 +313,19 @@ def dsinfomaker(SR="SR"):
 	dsinfo["HANSEN"]        = ({"alias":"Hansen GFC", "long_name":"DRI","units":"yrs"})
 	dsinfo["Risk"]          = ({"alias":"Forest Loss Risk"})
 
+	for dsnm in dsinfo:
+		if dsnm.startswith("H"):
+			# +++++ make a path +++++
+			ppath = compath + "/BurntArea/HANSEN/FRI/"
+			fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, tcfs, mwb)
+			# fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+		else:
+			# fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
+			ppath = compath + "/BurntArea/%s/FRI/" %  dsnm
+			fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+		# +++++ open the datasets +++++
+		dsinfo[dsnm]["fname"] = ppath+fname
+
 
 	return dsinfo
 
@@ -256,16 +335,34 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 	Funstion to build subplots
 	"""
 	# ========== open the dataset ==========
-	if not os.path.isfile(datasets[dsn]):
-		# The file is not in the folder
-		warn.warn(f"File {datasets[dsn]} could not be found")
-		breakpoint()
+	if dsn == "Risk":
+		vmax = 6.5
+		if not os.path.isfile(datasets[dsn]):
+			_RiskBuilder(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, shrink=shrink)
+
+		frame = _fileopen(dsinfo, datasets, dsn, "ForestLossRisk", scale, proj, mask, compath, region, bounds, maskver, func = "mean")
+
+		# ========== Set the colors ==========
+		cmap, norm, vmin, vmax, levels = _colours( "ForestLossRisk", vmax, dsn)
+
+		# ========== Create the Title ==========
+		title = ""
+	
 	else:
-		frame = _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver)
+		if not os.path.isfile(datasets[dsn]):
+
+			# The file is not in the folder
+			warn.warn(f"File {datasets[dsn]} could not be found")
+			breakpoint()
+		else:
+			frame = _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver)
 
 	
-	# ========== Set the colors ==========
-	cmap, norm, vmin, vmax, levels = _colours(var, vmax, dsn)
+		# ========== Set the colors ==========
+		cmap, norm, vmin, vmax, levels = _colours(var, vmax, dsn)
+
+		# ========== Create the Title ==========
+		title = ""
 
 
 	# ========== Grab the data ==========
@@ -281,6 +378,7 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 			cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":shrink, "ticks":levels, "spacing":"uniform"}
 			) #
 			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
+		breakpoint()
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
 		ax.gridlines()
 		# +++++ get rid of the excess lables +++++
@@ -380,7 +478,7 @@ def testplotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, v
 			breakpoint()
 
 #==============================================================================
-def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver):
+def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver, func = "mean"):
 	ds_dsn = xr.open_dataset(datasets[dsn])
 	# xbounds [-10.0, 180.0, 70.0, 40.0]
 	xbounds = [-10.0, 180.0, 70.0, 40.0]
@@ -390,10 +488,17 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 	
 	if proj == "polar" and not dsn == "GFED":
 		# ========== Coarsen to make plotting easier =========
-		frame = frame.coarsen(
-			{"latitude":scale[dsn], "longitude":scale[dsn]
-			}, boundary ="pad", keep_attrs=True).mean().compute()
-
+		if func == "mean":
+			frame = frame.coarsen(
+				{"latitude":scale[dsn], "longitude":scale[dsn]
+				}, boundary ="pad", keep_attrs=True).mean().compute()
+		elif func == "max":
+			frame = frame.coarsen(
+				{"latitude":scale[dsn], "longitude":scale[dsn]
+				}, boundary ="pad", keep_attrs=True).max().compute()
+		else:
+			print("Unknown Function")
+			breakpoint()
 	
 	frame.attrs = dsinfo[dsn]#{'long_name':"FRI", "units":"years"}
 
@@ -403,12 +508,12 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
 		stpath = compath + "/masks/broad/"
 
-		if not dsn.startswith("H"):
-			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
-			fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
-		else:
+		if dsn.startswith("H") or (dsn == "Risk"):
 			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
 			fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
+		else:
+			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
+			fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
 
 		# +++++ Check if the mask exists yet +++++
 		if os.path.isfile(fnmask):
@@ -475,6 +580,14 @@ def _colours(var, vmax, dsn):
 		cmap.set_over(cmapHex[-1] )
 		cmap.set_bad('dimgrey',1.)
 
+	elif var ==  "ForestLossRisk":
+		vmin = -0.5
+		cmapHex = palettable.cartocolors.qualitative.Prism_9.hex_colors[2:]
+		levels = [0, 1, 2, 3, 4, 5, 6]
+		cmap    = mpl.colors.ListedColormap(cmapHex)
+		cmap.set_bad('dimgrey',1.)
+
+
 	else:
 		# ========== Set the colors ==========
 		vmin = 0.0
@@ -491,6 +604,17 @@ def _colours(var, vmax, dsn):
 		cmap.set_bad('dimgrey',1.)
 	return cmap, norm, vmin, vmax, levels
 
+def _riskkys():
+	keys = OrderedDict()
+	keys[0] = {"Code":"LR",  "FullName":"Low Risk"}
+	keys[1] = {"Code":"MRd", "FullName":"Moderate Risk (dist)"}
+	keys[2] = {"Code":"MRf", "FullName":"Moderate Risk (fire)"}
+	keys[3] = {"Code":"HRd", "FullName":"High Risk (dist)"}
+	keys[4] = {"Code":"HRf", "FullName":"High Risk (fire)"}
+	keys[5] = {"Code":"CRd", "FullName":"Catastrophic Risk (dist)"}
+	keys[6] = {"Code":"CRf", "FullName":"Catastrophic Risk (fire)"}
+	return keys
+	
 
 def syspath():
 	# ========== Create the system specific paths ==========
@@ -530,6 +654,55 @@ def syspath():
 		ipdb.set_trace()
 	return dpath, backpath
 
+def GlobalAttributes(ds, fnameout=""):
+	"""
+	Creates the global attributes for the netcdf file that is being written
+	these attributes come from :
+	https://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html
+	args
+		ds: xarray ds
+			Dataset containing the infomation im intepereting
+		fnout: str
+			filename out 
+	returns:
+		attributes 	Ordered Dictionary cantaining the attribute infomation
+	"""
+	# ========== Create the ordered dictionary ==========
+	if ds is None:
+		attr = OrderedDict()
+	else:
+		attr = ds.attrs
+
+	# fetch the references for my publications
+	# pubs = puplications()
+	
+	# ========== Fill the Dictionary ==========
+
+	# ++++++++++ Highly recomended ++++++++++ 
+	attr["FileName"]            = fnameout
+	attr["title"]               = "RiskFramework"
+	attr["summary"]             = "BorealForestLossRisk" 
+	attr["Conventions"]         = "CF-1.7"
+	
+	# ++++++++++ Data Provinance ++++++++++ 
+	attr["history"]             = "%s: Netcdf file created using %s (%s):%s by %s. " % (
+		str(pd.Timestamp.now()), __title__, __file__, __version__, __author__)
+	
+	if not ds is None:
+		attr["history"]            += ds.history
+
+	attr["creator_name"]        = __author__
+	attr["creator_url"]         = "ardenburrell.com"
+	attr["creator_email"]       = __email__
+	attr["Institution"]         = "Woodwell"
+	attr["date_created"]        = str(pd.Timestamp.now())
+	ds.longitude.attrs['units'] = 'degrees_east'
+	ds.latitude.attrs['units']  = 'degrees_north'
+
+	# ++++++++++ Netcdf Summary infomation ++++++++++ 
+	# attr["time_coverage_start"] = str(dt.datetime(ds['time.year'].min(), 1, 1))
+	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
+	return attr	
 #==============================================================================
 
 if __name__ == '__main__':
