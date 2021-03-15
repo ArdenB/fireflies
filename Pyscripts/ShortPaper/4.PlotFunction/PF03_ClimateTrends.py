@@ -113,6 +113,7 @@ def main():
 		for mod, sen in enumerate([30, 60, 100]):
 			Varimp.append(ModelLoadter(dsn=dsn, sen=sen, mod=mod))
 	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
+	breakpoint()
 	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
 	plt.show()
 
@@ -173,7 +174,7 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 	dfT["Residual"]= dfT.Predicted -dfT.Observed
 
 	print (dsn, R2_XGB, models['performance'])
-	# breakpoint()
+	breakpoint()
 	modim = models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().melt(id_vars="index", value_vars=["XGBPermImp",  "XGBFeatImp"])
 	# models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().rename(
 	# 	{"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, axis=1).melt()
