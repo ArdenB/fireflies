@@ -186,35 +186,41 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
 	bounds = [-10.0, 180.0, 70.0, 40.0]
 
+
 	# ========== mask ==========
 	stpath = compath + "/masks/broad/"
-
 	if not dsn.startswith("H"):
 		fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
+		fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
 	else:
 		fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+		fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
 
 	# +++++ Check if the mask exists yet +++++
 	if os.path.isfile(fnmask):
-		with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
-			try:
-				msk    = dsmask.mask.isel(time=0).astype("float32").values
+		with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+			# breakpoint()
+			if maskver == "Boreal":
+				msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+			else:
+				msk    = (dsmask.mask.isel(time=0)).astype("float32")
+			
+			if proj == "polar" and not dsn == "GFED":
+				msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
+			
+			msk = msk.values
+			# +++++ Change the boolean mask to NaNs +++++
+			msk[msk == 0] = np.NAN
+			
+			print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+			# +++++ mask the frame +++++
+			# breakpoint()
+			frame *= msk
 
-				# +++++ Change the boolean mask to NaNs +++++
-				msk[msk == 0] = np.NAN
-				
-				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
-				# print (((~frame.isnull()) * ds_ga["cell_area"]).sum().values)
-				# +++++ mask the frame +++++
-				frame *= msk
-				# print(((~frame.isnull()) * ds_ga["cell_area"]).sum().values)
-				# frame.where(~np.isnan(msk))
-				# +++++ close the mask +++++
-				# breakpoint()
-				msk = None
-			except Exception as err:
-				print(str(err))
-				breakpoint()
+			# +++++ close the mask +++++
+			msk = None
+			print(f"masking complete, begining stats calculation at {pd.Timestamp.now()}")
+
 
 
 	# ========== Calculate the stats ==========

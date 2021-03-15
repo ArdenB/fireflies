@@ -98,10 +98,7 @@ def main():
 	dsts    = [dsnams2, dsnams1]
 	dsinfo  = dsinfomaker()
 	proj    = "polar"
-	# proj = "latlon"
-	# vmax    = 120
-	# vmax    = 80
-	# vmax    = 100
+	maskver = "Boreal"	
 	for var in ["FRI"]:#, "AnBF"]:
 		for dsnames, vmax in zip(dsts, [10000, 10000]):
 			formats = [".png"]#, ".pdf"] # None 
@@ -138,57 +135,14 @@ def main():
 				
 				for mask, bounds in zip([True, False], [[10.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
 					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
-					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds)
+					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds, maskver)
 					breakpoint()
 
 				# ipdb.set_trace()
 
 #==============================================================================
-def testplotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, region = "SIBERIA"):
-	# ========== Setup the font ==========
-	font = {'weight' : 'bold', #,
-			# 'size'   : mapdet.latsize
-			}
 
-	mpl.rc('font', **font)
-	plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
-		
-	# ========== setup the figure ==========
-	if proj == "polar":
-		latiMid=np.mean([70.0, 40.0])
-		longMid=np.mean([-10.0, 180.0])
-		for dsn in datasets:
-			print(f"{dsn} start at: {pd.Timestamp.now()}")
-			fig, ax = plt.subplots(
-				1, 1, figsize=(20,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
-			
-			frame = _fileopen(datasets, dsn, var, scale, proj, mask, compath, region)
-			# ========== Set the colors ==========
-			cmap, norm, vmin, vmax, levels = _colours(var, vmax, )
-			
-			# ========== Creat the plot ==========
-			im = frame.compute().plot(
-				ax=ax, vmin=vmin, vmax=vmax, 
-				cmap=cmap, norm=norm, #add_colorbar=False,
-				transform=ccrs.PlateCarree(),
-				cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":0.97, "ticks":levels, "spacing":"uniform"}
-				) #
-				# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
-			ax.gridlines()
-			coast = cpf.GSHHSFeature(scale="intermediate") #"high"
-			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
-			ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-			ax.add_feature(coast, zorder=101, alpha=0.5)
-			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-			ax.add_feature(cpf.RIVERS, zorder=104)
-			print(f"Starting testplot show for {dsn} at:{pd.Timestamp.now()}")
-			plt.show()
-			breakpoint()
-
-
-
-
-def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds):
+def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds, maskver):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
@@ -233,7 +187,7 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	# ========== Loop over the figure ==========
 	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
 		# make the figure
-		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, vmax = vmax, shrink=shrink)
+		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, vmax = vmax, shrink=shrink)
 		# breakpoint()
 		ax.set_aspect('equal')
 
@@ -293,7 +247,7 @@ def dsinfomaker(SR="SR"):
 	return dsinfo
 
 
-def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, bounds, latiMid, longMid, region = "SIBERIA", vmax = 80.0,shrink=0.85):
+def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, proj,scale, bounds, latiMid, longMid, maskver, region = "SIBERIA", vmax = 80.0,shrink=0.85):
 	"""
 	Funstion to build subplots
 	"""
@@ -303,7 +257,7 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 		warn.warn(f"File {datasets[dsn]} could not be found")
 		breakpoint()
 	else:
-		frame = _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds)
+		frame = _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver)
 
 	
 	# ========== Set the colors ==========
@@ -378,8 +332,51 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 	# plt.show()
 	# sys.exit()
 	return im
+
+
+def testplotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, region = "SIBERIA"):
+	# ========== Setup the font ==========
+	font = {'weight' : 'bold', #,
+			# 'size'   : mapdet.latsize
+			}
+
+	mpl.rc('font', **font)
+	plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
+		
+	# ========== setup the figure ==========
+	if proj == "polar":
+		latiMid=np.mean([70.0, 40.0])
+		longMid=np.mean([-10.0, 180.0])
+		for dsn in datasets:
+			print(f"{dsn} start at: {pd.Timestamp.now()}")
+			fig, ax = plt.subplots(
+				1, 1, figsize=(20,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+			
+			frame = _fileopen(datasets, dsn, var, scale, proj, mask, compath, region)
+			# ========== Set the colors ==========
+			cmap, norm, vmin, vmax, levels = _colours(var, vmax, )
+			
+			# ========== Creat the plot ==========
+			im = frame.compute().plot(
+				ax=ax, vmin=vmin, vmax=vmax, 
+				cmap=cmap, norm=norm, #add_colorbar=False,
+				transform=ccrs.PlateCarree(),
+				cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":0.97, "ticks":levels, "spacing":"uniform"}
+				) #
+				# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
+			ax.gridlines()
+			coast = cpf.GSHHSFeature(scale="intermediate") #"high"
+			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+			ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+			ax.add_feature(coast, zorder=101, alpha=0.5)
+			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+			ax.add_feature(cpf.RIVERS, zorder=104)
+			print(f"Starting testplot show for {dsn} at:{pd.Timestamp.now()}")
+			plt.show()
+			breakpoint()
+
 #==============================================================================
-def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds):
+def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver):
 	ds_dsn = xr.open_dataset(datasets[dsn])
 	# xbounds [-10.0, 180.0, 70.0, 40.0]
 	xbounds = [-10.0, 180.0, 70.0, 40.0]
@@ -413,7 +410,10 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 		if os.path.isfile(fnmask):
 			with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
 				# breakpoint()
-				msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+				if maskver == "Boreal":
+					msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+				else:
+					msk    = (dsmask.mask.isel(time=0)).astype("float32")
 				
 				if proj == "polar" and not dsn == "GFED":
 					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
