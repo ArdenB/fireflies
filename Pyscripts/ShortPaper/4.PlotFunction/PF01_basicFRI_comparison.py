@@ -93,7 +93,7 @@ def main():
 	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
-	dsnams2 = ["Risk", "HANSEN_AFmask", "HANSEN"]
+	dsnams2 = ["HANSEN_AFmask", "HANSEN", "Risk"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20})
 	dsts    = [dsnams2, dsnams1]
 	proj    = "polar"
@@ -347,6 +347,7 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 
 		# ========== Create the Title ==========
 		title = ""
+		extend = "max"
 	
 	else:
 		if not os.path.isfile(datasets[dsn]):
@@ -363,6 +364,7 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 
 		# ========== Create the Title ==========
 		title = ""
+		extend = "neither"
 
 
 	# ========== Grab the data ==========
@@ -375,10 +377,14 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 			cmap=cmap, norm=norm, 
 			transform=ccrs.PlateCarree(),
 			# add_colorbar=False,
-			cbar_kwargs={"pad": 0.02, "extend":"max", "shrink":shrink, "ticks":levels, "spacing":"uniform"}
+			cbar_kwargs={"pad": 0.02, "extend":extend, "shrink":shrink, "ticks":levels, "spacing":"uniform"}
 			) #
 			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
-		breakpoint()
+		if dsn == "Risk":
+			cbar = im.colorbar
+			keys =  pd.DataFrame(_riskkys()).T
+			cbar.set_ticklabels( keys.Code.values)  # horizontal colorbar
+		# breakpoint()
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
 		ax.gridlines()
 		# +++++ get rid of the excess lables +++++
