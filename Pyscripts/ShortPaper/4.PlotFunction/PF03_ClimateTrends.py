@@ -617,7 +617,8 @@ def syspath():
 		# dpath= "/media/arden/Harbinger/Data51/BurntArea"
 	elif sysname == 'LAPTOP-8C4IGM68':
 		dpath     = "./data"
-		backpath = "/mnt/d/fireflies"
+		# backpath = "/mnt/d/fireflies"
+		cpath = "/mnt/d/Data51/Climate/TerraClimate/"
 	else:
 		ipdb.set_trace()
 	
