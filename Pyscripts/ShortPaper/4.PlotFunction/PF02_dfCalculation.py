@@ -93,7 +93,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnames = ["COPERN_BA", "GFED", "MODIS", "esacci", "HANSEN_AFmask", "HANSEN"]#
+	dsnames = ["GFED","esacci","COPERN_BA",  "MODIS",  "HANSEN_AFmask", "HANSEN"]#
 	# dsnams2 = ["HANSEN_AFmask", "HANSEN"]
 	# dsts = [dsnams1, dsnams2]
 	# vmax    = 120
@@ -204,10 +204,13 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 				msk[msk == 0] = np.NAN
 				
 				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+				# print (((~frame.isnull()) * ds_ga["cell_area"]).sum().values)
 				# +++++ mask the frame +++++
 				frame *= msk
+				# print(((~frame.isnull()) * ds_ga["cell_area"]).sum().values)
 				# frame.where(~np.isnan(msk))
 				# +++++ close the mask +++++
+				# breakpoint()
 				msk = None
 			except Exception as err:
 				print(str(err))
@@ -226,11 +229,12 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 	NN = ((~frame.isnull()).weighted(weights).sum()).values
 	NA = ((frame.isnull()).weighted(weights).sum()).values
 	stats["NonNan"] = NN / (NN+NA)
+	stats["NonNansqkm"] = ((~frame.isnull().values) * ds_ga["cell_area"]).sum().values
 
 	# ========== Mask ouside the range ==========
 	if var =="FRI":
 		stats["OutRgnFrac"] = ((frame>10000.).weighted(weights).sum() / NN).values
-		stats["OutRgnsqkm"] = ((frame>10000.) * ds_ga["cell_area"]).sum().values
+		stats["OutRgnsqkm"] = ((frame>10000.).values * ds_ga["cell_area"]).sum().values
 
 		# ========== Mask ouside the range ==========
 		frame = frame.where(~(frame>10000.), 10001)
@@ -251,9 +255,11 @@ def statcal(dsn, var, datasets, compath, backpath, region = "SIBERIA", griddir =
 		stats["FRIsub15"] =  ((frame  < 15).weighted(weights).sum()/NN).values
 		stats["FRIsub30"] =  (((frame < 30).weighted(weights).sum()/NN) - stats["FRIsub15"]).values
 		stats["FRIsub60"] =  (((frame < 60).weighted(weights).sum()/NN) - (stats["FRIsub15"]+stats["FRIsub30"])).values
-		stats["FRIsub15sqkm"] =  ((frame  < 15)* ds_ga["cell_area"]).sum().values
-		stats["FRIsub30sqkm"] =  (((frame < 30)* ds_ga["cell_area"]).sum() - stats["FRIsub15sqkm"]).values
-		stats["FRIsub60sqkm"] =  (((frame < 60)* ds_ga["cell_area"]).sum() - (stats["FRIsub15sqkm"]+stats["FRIsub30sqkm"])).values
+		stats["FRIsub120"] =  (((frame < 120).weighted(weights).sum()/NN) - (stats["FRIsub60"]+stats["FRIsub15"]+stats["FRIsub30"])).values
+		stats["FRIsub15sqkm"] =  ((frame  < 15).values* ds_ga["cell_area"]).sum().values
+		stats["FRIsub30sqkm"] =  (((frame < 30).values* ds_ga["cell_area"]).sum() - stats["FRIsub15sqkm"]).values
+		stats["FRIsub60sqkm"] =  (((frame < 60).values* ds_ga["cell_area"]).sum() - (stats["FRIsub15sqkm"]+stats["FRIsub30sqkm"])).values
+		stats["FRIsub120sqkm"] =  (((frame < 120).values* ds_ga["cell_area"]).sum() - (stats["FRIsub60sqkm"]+stats["FRIsub15sqkm"]+stats["FRIsub30sqkm"])).values
 	# ========== Do the weighted quantiles ==========
 	cquants = [0.001, 0.01,  0.05, 0.25, 0.50, 0.75, 0.95, 0.99, 0.999]
 	quant   = d1.quantile(cquants)
@@ -314,7 +320,7 @@ def syspath():
 		dpath = "./data"
 		chunksize = 500
 		breakpoint()
-	elif sysname == 'DESKTOP-T77KK56':
+	elif sysname == 'DESKTOP-N9QFN7K':
 		dpath = "./data"
 		backpath = "/mnt/f/fireflies"
 	elif sysname in ['arden-Precision-5820-Tower-X-Series', "arden-worstation"]:

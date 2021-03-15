@@ -95,8 +95,8 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = [ "COPERN_BA", "esacci","MODIS", "GFED",]#  "GFED", ]# 
-	altnames = ({"GFED":"GFED4", "MODIS":"MCD64A1", "esacci":"FireCCI51", "COPERN_BA":"CGLS-BA", "HANSEN_AFmask":20, "HANSEN":20}) 
+	dsnams1 = ["esacci", "COPERN_BA", "MODIS", "GFED",]#  "GFED", ]# 
+	altnames = ({"GFED":"GFED4", "MODIS":"MCD64A1", "esacci":"FireCCI51", "COPERN_BA":"CGLS-BA", "HANSEN_AFmask":"HansenGFC-AFM", "HANSEN":"HansenGFC"}) 
 	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	BFmin = 0.0001
 	DrpNF = True # False
@@ -110,18 +110,19 @@ def main():
 	cf.pymkdir(plotdir)
 	formats = [".png"]#, ".pdf"]
 
-	for dsn in dsnams1:
-		for sigmask in [True, False]:
-			for model in ["XGBoost", "OLS"]:
+	for sigmask in [True, False]:
+		for model in ["XGBoost", "OLS"]:
+			for dsn in dsnams1:
 				futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, 
 					tmpath, sub, sens, scale, formats, sigmask, altnames, fmode="trend",
 					 version=0, force = False, incTCfut=True)
+			
 		# breakpoint()
 
 
 def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens, scale, 
 	formats, sigmask, altnames, fmode="trend",
-	version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0], incTCfut=False):
+	version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0], incTCfut=False, areacal=False):
 	# ========== make the plot name ==========
 	plotfname = f"{plotdir}PF04_FRIprediction_{dsn}_{model}" 
 	if sigmask:
@@ -164,6 +165,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 				# Skip current predictions for TCpred datasets as they use the same model as tthe trend ones
 				continue
 			da = ds[f"{va}_{model}_{tp}"].rename("FRI")#.coarsen()
+			# breakpoint()
 			if scale[dsn] > 1:
 				da = da.coarsen(
 					{"latitude":scale[dsn], "longitude":scale[dsn]}, 
