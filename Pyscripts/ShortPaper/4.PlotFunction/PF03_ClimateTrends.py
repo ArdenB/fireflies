@@ -106,7 +106,7 @@ def main():
 	dpath, cpath = syspath()
 	ppath = "./plots/ShortPaper/PF03_Climate/"
 	cf.pymkdir(ppath)
-	pbound = [10.0, 170.0, 70.0, 49.0]
+	pbounds = [10.0, 170.0, 70.0, 49.0]
 	maskver = "Boreal"
 
 	# ========== model loader ==========
@@ -114,12 +114,12 @@ def main():
 	for dsn in ["esacci", "GFED", "MODIS", "COPERN_BA"]:
 		for mod, sen in enumerate([30, 60, 100]):
 			Varimp.append(ModelLoadter(dsn=dsn, sen=sen, mod=mod))
+	# breakpoint()
 	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
-	breakpoint()
-	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
-	plt.show()
+	# sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
+	# plt.show()
 
-	breakpoint()
+	# breakpoint()
 
 	# g = sns.FacetGrid(df, col="Method",  hue="Dataset")
 	# g.map(sns.barplot, "Predictor", "Score", order=df.Predictor.unique().tolist())
@@ -176,16 +176,21 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 	dfT["Residual"]= dfT.Predicted -dfT.Observed
 
 	print (dsn, R2_XGB, models['performance'])
-	breakpoint()
-	modim = models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().melt(id_vars="index", value_vars=["XGBPermImp",  "XGBFeatImp"])
-	# models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().rename(
-	# 	{"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, axis=1).melt()
-	modim.replace({"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, inplace=True)
-	modim = modim.rename({"index":"Predictor", "variable":"Method", "value":"Score"}, axis=1)
-	modim["Dataset"] = altnames[dsn]
-	modim["Version"] = mod
+	try:
+		modim = models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().melt(id_vars="index", value_vars=["XGBPermImp",  "XGBFeatImp"])
+		# models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().rename(
+		# 	{"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, axis=1).melt()
+		modim.replace({"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, inplace=True)
+		modim = modim.rename({"index":"Predictor", "variable":"Method", "value":"Score"}, axis=1)
+		modim["Dataset"] = altnames[dsn]
+		modim["Version"] = mod
 
-	return(modim)
+		return(modim)
+		
+	except Exception as er:
+		breakpoint()
+		print(str(er))
+		return None
 
 
 	# breakpoint()
@@ -595,7 +600,7 @@ def syspath():
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
 		dpath = "/mnt/d/Data51"
-		cpath = "/mnt/d/Data51/Climate/TerraClimate/"
+		cpath = "/mnt/g/Data51/Climate/TerraClimate/"
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"
