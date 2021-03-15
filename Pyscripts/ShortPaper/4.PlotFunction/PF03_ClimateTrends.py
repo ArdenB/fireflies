@@ -123,13 +123,14 @@ def main():
 
 	# g = sns.FacetGrid(df, col="Method",  hue="Dataset")
 	# g.map(sns.barplot, "Predictor", "Score", order=df.Predictor.unique().tolist())
+	
+	# ========== Build the annual plots ==========
+	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver)
 
 	# sns.barplot(x="Predictor", y="Score")
 	# ========== Build the annual plots ==========
 	AnnualPlotmaker(setupfunc("annual"), dpath, cpath, ppath, pbounds, maskver)
 
-	# ========== Build the annual plots ==========
-	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver)
 
 
 
@@ -176,21 +177,21 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 	dfT["Residual"]= dfT.Predicted -dfT.Observed
 
 	print (dsn, R2_XGB, models['performance'])
-	try:
-		modim = models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().melt(id_vars="index", value_vars=["XGBPermImp",  "XGBFeatImp"])
-		# models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().rename(
-		# 	{"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, axis=1).melt()
-		modim.replace({"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, inplace=True)
-		modim = modim.rename({"index":"Predictor", "variable":"Method", "value":"Score"}, axis=1)
-		modim["Dataset"] = altnames[dsn]
-		modim["Version"] = mod
-
-		return(modim)
 		
-	except Exception as er:
-		breakpoint()
-		print(str(er))
-		return None
+	modim = models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().melt(id_vars="index", value_vars=["XGBPermImp",  "XGBFeatImp"])
+	# models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().rename(
+	# 	{"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, axis=1).melt()
+	modim.replace({"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, inplace=True)
+	modim = modim.rename({"index":"Predictor", "variable":"Method", "value":"Score"}, axis=1)
+	modim["Dataset"] = altnames[dsn]
+	modim["Version"] = mod
+
+	return(modim)
+	# try:
+	# except Exception as er:
+	# 	breakpoint()
+	# 	print(str(er))
+	# 	return None
 
 
 	# breakpoint()
@@ -249,7 +250,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 			p  = ds.slope.isel(time=0).plot(
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
-				    cbar_kwargs={"pad": 0.02, "shrink":0.97, "extend":"both"})
+				    cbar_kwargs={"pad": 0.02, "shrink":0.80, "extend":"both"})
 			# 
 			# ========== work out the stippling ==========
 			slats, slons = _stippling(ds, squeeze=30, nanfrac = 0.15, sigfrac=0.5)
@@ -286,7 +287,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 			
 			print(sea, va, ds.slope.quantile([0.01,0.05, 0.50,0.95,0.99]))
 
-	plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.135,wspace=0.0)
+	plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.0, wspace=0.0)
 	# plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.063, wspace=0.2)
 	# ========== Save the plots ==========
 	plotfname = f"{ppath}PF03_SeasonalClimateTrend."
@@ -361,7 +362,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 					cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 					transform=ccrs.PlateCarree(), ax=ax,
 					    cbar_kwargs={
-					    "pad": 0.02, "shrink":0.97, "extend":"both"
+					    "pad": 0.015, "shrink":0.80, "extend":"both"
 					    })
 				# ========== work out the stippling ==========
 				slats, slons = _stippling(ds, squeeze=10, nanfrac = 0.15, sigfrac=0.5)
@@ -387,7 +388,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 					cmap=setup[va+"C"]["cmap"], vmin=setup[va+"C"]["vmin"], vmax=setup[va+"C"]["vmax"],
 					transform=ccrs.PlateCarree(), ax=ax,
 					    cbar_kwargs={
-					    "pad": 0.02, "shrink":0.97, "extend":extend
+					    "pad": 0.015, "shrink":0.80, "extend":extend
 					    })
 
 				# plt.show()
@@ -418,7 +419,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 		
 	# ========== Save the plots ==========
 
-	plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.063, wspace=0.000)
+	plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.001, wspace=0.000)
 	# plt.tight_layout()
 	plotfname = f"{ppath}PF03_AnnualClimateAndTrend."
 	# breakpoint()

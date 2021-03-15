@@ -93,7 +93,7 @@ def main():
 	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
-	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
+	dsnams2 = ["HANSEN_AFmask", "HANSEN", "Risk"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	dsts    = [dsnams2, dsnams1]
 	dsinfo  = dsinfomaker()
@@ -187,7 +187,10 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	# ========== Loop over the figure ==========
 	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
 		# make the figure
-		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, vmax = vmax, shrink=shrink)
+		if not dsn == "Risk":
+			im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, vmax = vmax, shrink=shrink)
+		else:
+			breakpoint()
 		# breakpoint()
 		ax.set_aspect('equal')
 
@@ -242,6 +245,7 @@ def dsinfomaker(SR="SR"):
 	dsinfo["COPERN_BA"]     = ({"alias":"CGLS", "long_name":"FRI","units":"yrs"})
 	dsinfo["HANSEN_AFmask"] = ({"alias":"Hansen GFC & MCD14ML", "long_name":f'FRI$_{{{SR}}}$',"units":"yrs"})
 	dsinfo["HANSEN"]        = ({"alias":"Hansen GFC", "long_name":"DRI","units":"yrs"})
+	dsinfo["Risk"]          = ({"alias":"Forest Loss Risk"})
 
 
 	return dsinfo
