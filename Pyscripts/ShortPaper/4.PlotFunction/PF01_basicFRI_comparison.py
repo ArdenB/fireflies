@@ -614,13 +614,13 @@ def _colours(var, vmax, dsn):
 
 def _riskkys():
 	keys = OrderedDict()
-	keys[0] = {"Code":"LR",  "FullName":"Low Risk"}
-	keys[1] = {"Code":"MRd", "FullName":"Mod. Risk (dist)"}
-	keys[2] = {"Code":"MRf", "FullName":"Mod. Risk (fire)"}
-	keys[3] = {"Code":"HRd", "FullName":"High Risk (dist)"}
-	keys[4] = {"Code":"HRf", "FullName":"High Risk (fire)"}
-	keys[5] = {"Code":"CRd", "FullName":"Extreme Risk (dist)"}
-	keys[6] = {"Code":"CRf", "FullName":"Extreme Risk (fire)"}
+	keys[0] = {"Code":"LR",   "FullName":"Low Risk"}
+	keys[1] = {"Code":"MRd",  "FullName":"Mod. Risk (dist)"}
+	keys[2] = {"Code":"MRf",  "FullName":"Mod. Risk (fire)"}
+	keys[3] = {"Code":"HRd",  "FullName":"High Risk (dist)"}
+	keys[4] = {"Code":"HRf",  "FullName":"High Risk (fire)"}
+	keys[5] = {"Code":"VHRd", "FullName":"Extreme Risk (dist)"}
+	keys[6] = {"Code":"VHRf", "FullName":"Extreme Risk (fire)"}
 	return keys
 	
 

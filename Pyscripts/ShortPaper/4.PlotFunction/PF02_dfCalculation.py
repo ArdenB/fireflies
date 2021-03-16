@@ -180,7 +180,7 @@ def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, 
 	# Risk
 	ds_dsn = xr.open_dataset(ppath+fname)
 	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time")
+		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time").astype("float32")
 
 	# Grid
 	ds_ga  = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
@@ -210,16 +210,39 @@ def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, 
 		msk = None
 		print(f"masking complete for {dsn}, begining stats calculation at {pd.Timestamp.now()}")
 
-	# ========== Create the Metadata ==========
-	# outpath = plotdir+"stats/"
-	# Scriptinfo = "File saved from %s (%s):%s by %s, %s" % (__title__, __file__, 
-	# 	__version__, __author__, str(pd.Timestamp.now()))
-	# gitinfo = pf.gitmetadata()
-	# cf.pymkdir(outpath) 
-	# cf.writemetadata(outpath+f"PF02_{var}stats{maskver}", [Scriptinfo, gitinfo])
-	# keystats.to_csv(outpath+f"PF02_{var}stats{maskver}.csv")
+	# ========== Calculate the stats ==========
+	statPer = OrderedDict()
+	statkm2 = OrderedDict()
 
-	breakpoint()
+
+	# ========== create the weights ==========
+	weights        = np.cos(np.deg2rad(frame.latitude))
+	weights.name   = "weights"
+	
+	# ========== calculate the number of nans and the number of  ==========
+	# (frame.isnull()).weighted(weights).sum() / (~frame.isnull()).weighted(weights).sum()
+	NN = ((~frame.isnull()).weighted(weights).sum()).values
+	NA = ((frame.isnull()).weighted(weights).sum()).values
+	statPer["NonNan"] = NN / (NN+NA)
+	statkm2["NonNan"] = ((~frame.isnull().values) * ds_ga["cell_area"]).sum().values
+	# ========== get the risk values ==========
+	keys = _riskkys()
+	for rsk in np.arange(0., 7.):
+		print(f"{rsk}.{keys[rsk]}")
+		statPer[f"{rsk}.{keys[rsk]['Code']}"] = np.round(((frame==rsk).weighted(weights).sum() / NN).values, decimals=4)
+		statkm2[f"{rsk}.{keys[rsk]['Code']}"] = np.round(((frame==rsk).values * ds_ga["cell_area"]).sum().values)
+	
+	# ========== Create the Metadata ==========
+	keystats = pd.DataFrame({"Areakm2":statkm2,"Percentage":statPer})
+	outpath = plotdir+"stats/"
+	Scriptinfo = "File saved from %s (%s):%s by %s, %s" % (__title__, __file__, 
+		__version__, __author__, str(pd.Timestamp.now()))
+	gitinfo = pf.gitmetadata()
+	cf.pymkdir(outpath) 
+	cf.writemetadata(outpath+f"PF02_{var}stats{maskver}", [Scriptinfo, gitinfo])
+	keystats.to_csv(outpath+f"PF02_{var}stats{maskver}.csv")
+	print(keystats)
+	# breakpoint()
 
 
 
@@ -373,13 +396,13 @@ def _gridcal (datasets, dsn, ds_dsn, gafn, var, degmin= 111250.8709452735):
 
 def _riskkys():
 	keys = OrderedDict()
-	keys[0] = {"Code":"LR",  "FullName":"Low Risk"}
-	keys[1] = {"Code":"MRd", "FullName":"Moderate Risk (dist)"}
-	keys[2] = {"Code":"MRf", "FullName":"Moderate Risk (fire)"}
-	keys[3] = {"Code":"HRd", "FullName":"High Risk (dist)"}
-	keys[4] = {"Code":"HRf", "FullName":"High Risk (fire)"}
-	keys[5] = {"Code":"CRd", "FullName":"Catastrophic Risk (dist)"}
-	keys[6] = {"Code":"CRf", "FullName":"Catastrophic Risk (fire)"}
+	keys[0] = {"Code":"LR",   "FullName":"Low Risk"}
+	keys[1] = {"Code":"MRd",  "FullName":"Mod. Risk (dist)"}
+	keys[2] = {"Code":"MRf",  "FullName":"Mod. Risk (fire)"}
+	keys[3] = {"Code":"HRd",  "FullName":"High Risk (dist)"}
+	keys[4] = {"Code":"HRf",  "FullName":"High Risk (fire)"}
+	keys[5] = {"Code":"ERd", "FullName":"Extreme Risk (dist)"}
+	keys[6] = {"Code":"ERf", "FullName":"Extreme Risk (fire)"}
 	return keys
 
 def syspath():

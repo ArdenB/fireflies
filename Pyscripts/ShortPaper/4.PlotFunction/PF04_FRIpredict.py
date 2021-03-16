@@ -165,7 +165,10 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 				# Skip current predictions for TCpred datasets as they use the same model as tthe trend ones
 				continue
 			da = ds[f"{va}_{model}_{tp}"].rename("FRI")#.coarsen()
-			# breakpoint()
+			fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
+			breakpoint()
+
+
 			if scale[dsn] > 1:
 				da = da.coarsen(
 					{"latitude":scale[dsn], "longitude":scale[dsn]}, 
@@ -225,7 +228,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 		# if dsn == "esacci":
 		# 	# breakpoint()
 	
-	plt.subplots_adjust(top=.99, bottom=0.01, left=0.009, right=0.991, hspace=0.0, wspace=0.02)
+	plt.subplots_adjust(top=.99, bottom=0.01, left=0.009, right=0.991, hspace=0.001, wspace=0.01)
 	
 	# "constrained_layout":True
 	# fig = plt.gcf()
@@ -293,7 +296,8 @@ def syspath():
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
-		dpath = "/mnt/d/Data51"
+		dpath = "./data"
+		cpath = "/mnt/d/Data51/Climate/TerraClimate/"
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"
