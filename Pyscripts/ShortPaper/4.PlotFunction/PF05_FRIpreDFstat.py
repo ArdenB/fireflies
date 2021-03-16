@@ -108,6 +108,7 @@ def main():
 	sens  =  [30, 60, 100]
 	version = 0
 	va = "AnBF"
+	maskver = "Boreal"
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/PF05_PredStats/"
 	cf.pymkdir(plotdir)
@@ -118,7 +119,7 @@ def main():
 	for model in ["XGBoost", "OLS"]:
 		for dsn in dsnams1:
 			fnx = netcdfloader(dsn, model, dpath, cpath, plotdir, va, 
-				tmpath, sub, sens, formats, sigmask, altnames, dsinfo, fmode="trend",
+				tmpath, sub, sens, formats, sigmask, altnames, dsinfo, maskver, fmode="trend",
 				 version=0, force = False, incTCfut=True)
 			fns += fnx
 		breakpoint()
@@ -126,7 +127,7 @@ def main():
 
 def netcdfloader(
 	dsn, model, dpath, cpath, plotdir, va, tmpath, 
-	sub, sens, formats, sigmask, altnames, dsinfo, 
+	sub, sens, formats, sigmask, altnames, dsinfo, maskver,
 	fmode="trend", version=0, force = False, incTCfut=True,
 	DrpNF=True, var ="FRI", bounds = [-10.0, 180.0, 70.0, 40.0], griddir = "./data/gridarea/"):
 
@@ -167,7 +168,7 @@ def netcdfloader(
 
 
 	print("Loading the mask", pd.Timestamp.now())
-	mask = masker(dsn, dpath,  region="SIBERIA")
+	mask = masker(dsn, dpath, maskver,   region="SIBERIA")
 	# breakpoint()
 	
 	# ========== bring in the datasets ==========
@@ -205,8 +206,8 @@ def netcdfloader(
 
 		outpath = plotdir+"stats/"
 		cf.pymkdir(outpath) 
-		cf.writemetadata(outpath+f"PF05_{var}stats_{dsn}_{model}", [Scriptinfo, gitinfo])
-		keystats.to_csv(outpath+f"PF05_{var}stats_{dsn}_{model}.csv")
+		cf.writemetadata(outpath+f"PF05_{var}stats{maskver}_{dsn}_{model}", [Scriptinfo, gitinfo])
+		keystats.to_csv(outpath+f"PF05_{var}stats{maskver}_{dsn}_{model}.csv")
 	except Exception as e:
 		print(str(e))
 		breakpoint()
@@ -287,29 +288,38 @@ def stamaker(frame, ds_ga, tm, dsn, altnames, model,  tskip, tp, var ="FRI"):
 	return pd.Series(stats)
 
 
-def masker(dsn, dpath, region="SIBERIA"):
+def masker(dsn, dpath, maskver,  region="SIBERIA"):
 	stpath = dpath + "/masks/broad/"
 
-	if not dsn.startswith("H"):
-		fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
-	else:
+	if dsn.startswith("H") or (dsn == "Risk"):
 		fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+		fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
+	else:
+		fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
+		fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
 
 	# +++++ Check if the mask exists yet +++++
 	if os.path.isfile(fnmask):
-		with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask:
-			
-			msk    = dsmask.mask.isel(time=0).astype("float32")
-			
-			# if proj == "polar" and not dsn == "GFED":
-			# 	msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").mean()
+		with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+			print("Masking %s loaded at:" % dsn, pd.Timestamp.now())
+			# breakpoint()
+			if maskver == "Boreal":
+				msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+			else:
+				msk    = (dsmask.mask.isel(time=0)).astype("float32")
 			
 			msk = msk.values
 
 			# +++++ Change the boolean mask to NaNs +++++
 			msk[msk == 0] = np.NAN
 			
-			print("Masking %s loaded at:" % dsn, pd.Timestamp.now())
+			print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+			# +++++ mask the frame +++++
+			# breakpoint()
+
+			# +++++ close the mask +++++
+			print(f"masking complete, begining ploting at {pd.Timestamp.now()}")
+
 			# +++++ mask the frame +++++
 			return msk
 	else:
@@ -361,7 +371,7 @@ def datasets(dpath, dsnames, mwb=1):
 def syspath():
 	# ========== Create the system specific paths ==========
 	sysname   = os.uname()[1]
-	backpath = None
+	cpath = None
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
