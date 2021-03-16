@@ -95,7 +95,7 @@ def main():
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
-	dsnams1 = ["esacci", "COPERN_BA", "MODIS", "GFED",]#  "GFED", ]# 
+	dsnams1 = ["esacci", "COPERN_BA", "MODIS", "GFED"]#  "GFED", ]# 
 	altnames = ({"GFED":"GFED4", "MODIS":"MCD64A1", "esacci":"FireCCI51", "COPERN_BA":"CGLS-BA", "HANSEN_AFmask":"HansenGFC-AFM", "HANSEN":"HansenGFC"}) 
 	scale = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20})
 	BFmin = 0.0001
@@ -105,24 +105,26 @@ def main():
 	sens  =  [30, 60, 100]
 	version = 0
 	va = "AnBF"
+	maskver = "Boreal"
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/PF04_Predictions/"
 	cf.pymkdir(plotdir)
 	formats = [".png"]#, ".pdf"]
+	bounds = [10.0, 170.0, 70.0, 49.0] # plot bounds
 
 	for sigmask in [True, False]:
 		for model in ["XGBoost", "OLS"]:
 			for dsn in dsnams1:
 				futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, 
-					tmpath, sub, sens, scale, formats, sigmask, altnames, fmode="trend",
-					 version=0, force = False, incTCfut=True)
+					tmpath, sub, sens, scale, formats, sigmask, altnames, maskver,  fmode="trend",
+					 version=0, force = False, incTCfut=True, bounds=bounds)
 			
 		# breakpoint()
 
-
 def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens, scale, 
-	formats, sigmask, altnames, fmode="trend",
-	version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0], incTCfut=False, areacal=False):
+	formats, sigmask, altnames, maskver,  fmode="trend",
+	version=0, force = False, DrpNF=True, bounds = [-10.0, 180.0, 70.0, 40.0], 
+	xbounds = [-10.0, 180.0, 70.0, 40.0], incTCfut=False, areacal=False):
 	# ========== make the plot name ==========
 	plotfname = f"{plotdir}PF04_FRIprediction_{dsn}_{model}" 
 	if sigmask:
@@ -156,24 +158,35 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 
 	dax = []
 	dac = []
+	# ========== Calculate the mask ==========
+	if maskver == "Boreal":
+		print(f"Starting the load for {dsn} boreal mask at: {pd.Timestamp.now()}")
+		fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
+
+		Bmask = xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]).sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1]))).transpose('time', 'latitude', 'longitude')
+		# Bmask["time"] = da.time
+		msk = ((Bmask.BorealMask>0).astype("float32"))
+		if scale[dsn] > 1:
+			msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
 	# ========== Check if a file exists ==========
 	for fnout, tm, tskip  in zip(fnames, yrw, trnd):
 		print(f"Starting the load for {dsn} {tm} prediction at: {pd.Timestamp.now()}")
-		ds = xr.open_dataset(fnout)
+		ds = xr.open_dataset(fnout).sortby("latitude", ascending=False).sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
 		for tp in ["cur", "fut"]:
 			if tskip and tp == "cur":
 				# Skip current predictions for TCpred datasets as they use the same model as tthe trend ones
 				continue
 			da = ds[f"{va}_{model}_{tp}"].rename("FRI")#.coarsen()
-			fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
-			breakpoint()
-
-
+			
 			if scale[dsn] > 1:
 				da = da.coarsen(
 					{"latitude":scale[dsn], "longitude":scale[dsn]}, 
 					boundary ="pad", keep_attrs=True).mean().compute().rename("FRI")
-				# breakpoint()
+
+			# Add the mask 
+			if maskver == "Boreal":
+				da  = da.where((msk == 1).values)
+
 			if tp == "fut":
 				da["time"] = [tm]#pd.Timestamp(f"{pd.Timestamp(da.time.values[0]).year + sen}-12-31")
 				# ========== Convert to FRI ==========
@@ -194,9 +207,9 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	daM.FRI.attrs = {'long_name':"FRI", "units":"years"}
 
 
-	print(f"Starting {dsn} load at: {pd.Timestamp.now()}")
-	latiMid=np.mean([70.0, 40.0])
-	longMid=np.mean([-10.0, 180.0])
+	print(f"Starting {dsn} plot at: {pd.Timestamp.now()}")
+	latiMid=np.mean([bounds[2], bounds[3]])
+	longMid=np.mean([bounds[0], bounds[1]])
 
 		# fig, ax = plt.subplots(
 		# 	1, 1, figsize=(20,12), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
@@ -204,14 +217,15 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	cmap, norm, vmin, vmax, levels = _colours("FRI", 10000)
 	# breakpoint()
 	px = daM.FRI.plot(x="longitude", y="latitude", col="time", col_wrap=2,
-		vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, size = 8, #extent=bounds,
+		vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, size = 5,  aspect=2,
 		subplot_kws={"projection": ccrs.Orthographic(longMid, latiMid)},
 		transform=ccrs.PlateCarree(),
 		add_colorbar=False,
 		cbar_kwargs={ "ticks":levels, "spacing":"uniform", "extend":"max","pad": 0.20,  "shrink":0.85}
 		) #
 	# breakpoint()
-	for ax, tm in zip(px.axes.flat, daM.time.values):
+	for ax, tm, alp in zip(px.axes.flat, daM.time.values, string.ascii_lowercase):
+		ax.set_aspect('equal')
 		ax.gridlines()
 		coast = cpf.GSHHSFeature(scale="intermediate")
 		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
@@ -223,7 +237,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 
 		ax.set_title("")
 		istrend = (pd.Timestamp(tm).hour == 0)
-		ax.set_title(f"{altnames[dsn]} - {model} {'ObsTrend' if istrend else 'TCpred'} ({pd.Timestamp(tm).year - 30} to {pd.Timestamp(tm).year})", loc= 'left')
+		ax.set_title(f"{alp}) {altnames[dsn]} - {model} {'ObsTrend' if istrend else 'TCpred'} ({pd.Timestamp(tm).year - 30} to {pd.Timestamp(tm).year})", loc= 'left')
 		ax.set_extent(bounds, crs = ccrs.PlateCarree())
 		# if dsn == "esacci":
 		# 	# breakpoint()
@@ -233,7 +247,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	# "constrained_layout":True
 	# fig = plt.gcf()
 
-	px.add_colorbar(extend="max",pad= 0.015, shrink=0.65)
+	px.add_colorbar(extend="max",pad= 0.010, shrink=0.65)
 	plt.draw()
 	# plt.show()
 	# breakpoint()
@@ -246,6 +260,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	print("Starting plot show at:", pd.Timestamp.now())
 
 	plt.show()
+	# plt.close()
 	# breakpoint()
 
 
@@ -292,12 +307,12 @@ def _colours(var, vmax):
 def syspath():
 	# ========== Create the system specific paths ==========
 	sysname   = os.uname()[1]
-	backpath = None
+	cpath = None
 	if sysname == 'DESKTOP-UA7CT9Q':
 		# spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
 		# dpath = "/mnt/h"
 		dpath = "./data"
-		cpath = "/mnt/d/Data51/Climate/TerraClimate/"
+		# cpath = "/mnt/d/Data51/Climate/TerraClimate/"
 	elif sysname == "ubuntu":
 		# Work PC
 		# dpath = "/media/ubuntu/Seagate Backup Plus Drive"
