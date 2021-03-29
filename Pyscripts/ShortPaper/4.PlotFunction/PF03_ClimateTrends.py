@@ -109,15 +109,6 @@ def main():
 	pbounds = [10.0, 170.0, 70.0, 49.0]
 	maskver = "Boreal"
 
-	# ========== model loader ==========
-	Varimp = []
-	for dsn in ["esacci", "GFED", "MODIS", "COPERN_BA"]:
-		for mod, sen in enumerate([30, 60, 100]):
-			Varimp.append(ModelLoadter(dsn=dsn, sen=sen, mod=mod))
-	# breakpoint()
-	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
-	# sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
-	# plt.show()
 
 	# sns.barplot(x="Predictor", y="Score")
 	# ========== Build the annual plots ==========
@@ -131,6 +122,15 @@ def main():
 	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver)
 
 
+	# ========== model loader ==========
+	Varimp = []
+	for dsn in ["esacci", "GFED", "MODIS", "COPERN_BA"]:
+		for mod, sen in enumerate([30, 60, 100]):
+			Varimp.append(ModelLoadter(dsn=dsn, sen=sen, mod=mod))
+	# breakpoint()
+	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
+	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
+	plt.show()
 
 
 
@@ -307,7 +307,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 	breakpoint()
 
 
-def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
+def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False):
 	""" Function fo making the annual plot
 	args:
 		setup: Ordered dict 
@@ -319,6 +319,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 	# ========== load the mask ==========
 	fnmask = f"{dpath}/masks/broad/Hansen_GFC-2018-v1.6_SIBERIA_ProcessedToTerraClimate.nc"
 	fnBmask = f"./data/LandCover/Regridded_forestzone_TerraClimate.nc"
+
 
 	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
 		# breakpoint()
@@ -342,77 +343,91 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 	font = {'weight' : 'bold'}
 	mpl.rc('font', **font)
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
-	
+	if rmaps:
+		nrows = 3
+		alpC  = ["a", "b", "c", "d", "e", "f"]
+	else:
+		nrows = 2
+		alpC  = ["a", "b", "c", "d"]
 	# ========== Create the figure ==========
 	fig, axs = plt.subplots(
-		2, 2, sharex=True, subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
-		figsize=(24,12)
+		nrows, 2, sharex=True, subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
+		figsize=(12*nrows, 12)
 		)
 
 	# ========== load the datasets ==========
-	for va, axa, lets in zip(setup, axs, [["a", "b"], ["c", "d"]]):
-		for cli, ax, let in zip(["Climatology", "Trend"], axa, lets):
-			if cli == "Trend":
-				# ========== Read in the data and mask the boreal zone ==========
-				ds = xr.open_dataset(f"{cpath}TerraClim_{va}_annualtrend_1985to2015.nc")
-				ds.slope.attrs = setup[va]["attrs"]
-				ds = ds.where(msk == 1)
-				p  = ds.slope.isel(time=0).plot(
-					cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
-					transform=ccrs.PlateCarree(), ax=ax,
-					    cbar_kwargs={
-					    "pad": 0.015, "shrink":0.80, "extend":"both"
-					    })
-				# ========== work out the stippling ==========
-				slats, slons = _stippling(ds, squeeze=10, nanfrac = 0.15, sigfrac=0.5)
-				ax.scatter(
-					slons, slats, s=4, c='k', marker='X', 
-					facecolors='none', edgecolors="none",  
-					alpha=0.35, transform=ccrs.PlateCarree())
+	for va, ax, let in zip(setup, axs.flatten(), alpC):
+		# breakpoint()
+		if va in ["ppt", "tmean"]:
+			cli = "Trend"
+		elif va in ["pptC", "tmeanC"]:
+		# for cli, ax, let in zip(["Climatology", "Trend"], axa, lets):
+			cli = "Climatology"
+		
+		# ========== Make the trend ==========
+		if cli == "Trend":
+			# ========== Read in the data and mask the boreal zone ==========
+			ds = xr.open_dataset(f"{cpath}TerraClim_{va}_annualtrend_1985to2015.nc")
+			ds.slope.attrs = setup[va]["attrs"]
+			ds = ds.where(msk == 1)
+			p  = ds.slope.isel(time=0).plot(
+				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
+				transform=ccrs.PlateCarree(), ax=ax,
+				    cbar_kwargs={
+				    "pad": 0.015, "shrink":0.80, "extend":"both"
+				    })
+			# ========== work out the stippling ==========
+			slats, slons = _stippling(ds, squeeze=10, nanfrac = 0.15, sigfrac=0.5)
+			ax.scatter(
+				slons, slats, s=4, c='k', marker='X', 
+				facecolors='none', edgecolors="none",  
+				alpha=0.35, transform=ccrs.PlateCarree())
+		elif cli == "Climatology":
+			extend =  'max'
+			if va == "ppt":
+				ds = xr.open_dataset(f"{cpath}smoothed/TerraClimate_{va}_1degMW_SeasonalClimatology_1985to2015.nc")
+				ds = ds.sum(dim='season')
 			else:
-				extend =  'max'
-				if va == "ppt":
-					ds = xr.open_dataset(f"{cpath}smoothed/TerraClimate_{va}_1degMW_SeasonalClimatology_1985to2015.nc")
-					ds = ds.sum(dim='season')
-				else:
-					ds = _annualtempmaker(va, cpath,  funb =bn.nanmax, func="max")
-					# ds = _annualtempmaker(va, cpath,  funb =bn.nanmean, func="mean")
-					# extend="both"
-				# breakpoint()
-				# ds = ds.where(np.squeeze(dsmask.datamask.values) == 1)
-				ds = ds.where(msk == 1)
+				ds = _annualtempmaker(va, cpath,  funb =bn.nanmax, func="max")
+				# ds = _annualtempmaker(va, cpath,  funb =bn.nanmean, func="mean")
+				# extend="both"
+			# breakpoint()
+			# ds = ds.where(np.squeeze(dsmask.datamask.values) == 1)
+			ds = ds.where(msk == 1)
 
-				ds[va].attrs = setup[va+"C"]["attrs"]
-				p  = ds[va].plot(
-					cmap=setup[va+"C"]["cmap"], vmin=setup[va+"C"]["vmin"], vmax=setup[va+"C"]["vmax"],
-					transform=ccrs.PlateCarree(), ax=ax,
-					    cbar_kwargs={
-					    "pad": 0.015, "shrink":0.80, "extend":extend
-					    })
-
-				# plt.show()
+			ds[va].attrs = setup[va+"C"]["attrs"]
+			p  = ds[va].plot(
+				cmap=setup[va+"C"]["cmap"], vmin=setup[va+"C"]["vmin"], vmax=setup[va+"C"]["vmax"],
+				transform=ccrs.PlateCarree(), ax=ax,
+				    cbar_kwargs={
+				    "pad": 0.015, "shrink":0.80, "extend":extend
+				    })
+		else:
+			# ========== load the dataset and pull out the relevant parts ==========
+			breakpoint()
+			# plt.show()
 
 
 
-			ax.set_extent(pbounds, crs=ccrs.PlateCarree())
-			ax.gridlines()
+		ax.set_extent(pbounds, crs=ccrs.PlateCarree())
+		ax.gridlines()
 
-			coast = cpf.GSHHSFeature(scale="intermediate")
-			# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
-			ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
-			ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-			ax.add_feature(coast, zorder=101, alpha=0.5)
-			ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-			ax.add_feature(cpf.RIVERS, zorder=104)
-			ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-			# ========== Set the titles ==========
-			vanm = setup[va]["lname"]
-			ax.set_title("")
-			ax.set_title(f"{let}) {vanm} {cli}", loc= 'left')
-			if cli == "Trend":
-				print(f"Annual trend {va}", ds.slope.quantile([0.01,0.05, 0.50,0.95,0.99]))
-			else:
-				print(f"Annual Climate {va}", ds[va].quantile([0.01,0.05, 0.50,0.95,0.99]))
+		coast = cpf.GSHHSFeature(scale="intermediate")
+		# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
+		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+		ax.add_feature(coast, zorder=101, alpha=0.5)
+		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+		ax.add_feature(cpf.RIVERS, zorder=104)
+		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+		# ========== Set the titles ==========
+		vanm = setup[va]["lname"]
+		ax.set_title("")
+		ax.set_title(f"{let}) {vanm} {cli}", loc= 'left')
+		if cli == "Trend":
+			print(f"Annual trend {va}", ds.slope.quantile([0.01,0.05, 0.50,0.95,0.99]))
+		else:
+			print(f"Annual Climate {va}", ds[va].quantile([0.01,0.05, 0.50,0.95,0.99]))
 			# breakpoint()
 
 		
@@ -451,7 +466,7 @@ def _stippling(ds, squeeze=10, nanfrac = 0.25, sigfrac=0.5):
 	df = xr.Dataset({"sig":da}).to_dataframe().drop("time", axis=1).dropna().reset_index()
 	return df.latitude.values, df.longitude.values
 
-def setupfunc(time):
+def setupfunc(time, rmaps = False):
 	cmaps = _cmapsfun()
 	# ========== Build an ordered dict with key info ==========
 	setup = OrderedDict()
@@ -470,6 +485,13 @@ def setupfunc(time):
 			"attrs":{'long_name':"Annual total", "units":r"mm"}})
 		setup["tmeanC"] = ({"vmin":0, "vmax":25, "cmap":cmaps["tmeanC"], "lname":"Temperature",
 			"attrs":{'long_name':"Monthly max", "units":r"$^{o}$C"}})
+		if rmaps:
+
+			setup["LandCover"] = ({"vmin":0, "vmax":7, "cmap":cmaps["pptC"],"lname":"Land Cover",
+				})
+			setup["Regions"] = ({"vmin":0, "vmax":7, "cmap":cmaps["pptC"],"lname":"Land Cover",
+				})
+
 	return setup
 
 def _cmapsfun():
