@@ -119,7 +119,10 @@ def main():
 	# sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
 	# plt.show()
 
-	# breakpoint()
+	# sns.barplot(x="Predictor", y="Score")
+	# ========== Build the annual plots ==========
+	AnnualPlotmaker(setupfunc("annual"), dpath, cpath, ppath, pbounds, maskver)
+	breakpoint()
 
 	# g = sns.FacetGrid(df, col="Method",  hue="Dataset")
 	# g.map(sns.barplot, "Predictor", "Score", order=df.Predictor.unique().tolist())
@@ -127,9 +130,6 @@ def main():
 	# ========== Build the annual plots ==========
 	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver)
 
-	# sns.barplot(x="Predictor", y="Score")
-	# ========== Build the annual plots ==========
-	AnnualPlotmaker(setupfunc("annual"), dpath, cpath, ppath, pbounds, maskver)
 
 
 
@@ -305,7 +305,6 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 		infomation = [maininfo, plotfname, gitinfo]
 		cf.writemetadata(plotfname, infomation)
 	breakpoint()
-
 
 
 def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
