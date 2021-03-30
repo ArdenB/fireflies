@@ -110,7 +110,9 @@ def main():
 	pbounds = [10.0, 170.0, 70.0, 49.0]
 	maskver = "Boreal"
 	
+	# ========== Make a figure of the model output ==========
 	ModelPrediction()
+
 	# ========== Build the annual plots ==========
 	AnnualPlotmaker(setupfunc("annual", rmaps = True), dpath, cpath, ppath, pbounds, maskver, rmaps = True)
 	# breakpoint()
@@ -127,7 +129,12 @@ def ModelPrediction():
 	# ========== model loader ==========
 	Varimp = []
 	for dsn in ["esacci", "GFED", "MODIS", "COPERN_BA"]:
-		Varimp.append(ModelLoadter(dsn=dsn)) #sen=sen, mod=mod
+		try:
+			Varimp.append(ModelLoadter(dsn=dsn)) #sen=sen, mod=mod
+		except Exception as er:
+			warn.warn(str(er))
+			breakpoint()
+
 		# for mod, sen in enumerate([30, 60, 100]):
 	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
 	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
