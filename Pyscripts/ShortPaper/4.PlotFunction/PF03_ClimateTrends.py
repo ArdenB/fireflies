@@ -127,8 +127,8 @@ def ModelPrediction():
 	# ========== model loader ==========
 	Varimp = []
 	for dsn in ["esacci", "GFED", "MODIS", "COPERN_BA"]:
-		for mod, sen in enumerate([30, 60, 100]):
-			Varimp.append(ModelLoadter(dsn=dsn, sen=sen, mod=mod))
+		Varimp.append(ModelLoadter(dsn=dsn)) #sen=sen, mod=mod
+		# for mod, sen in enumerate([30, 60, 100]):
 	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
 	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
 	# sns.barplot(x="Predictor", y="Score")
@@ -193,13 +193,13 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 	# ========== Get the observed values ==========
 	split = np.array([0, 15, 30, 60, 120, 500, 1000, 3000, 100001])
 	df_class = pd.DataFrame({"Observed":(1/y_test.values), "Estimated":(1/y_pred) })
-	df_class.dropna(inplace=True)
 	expsize  = len(split) -1 # df_class.experiment.unique().size
 	df_class["Observed"]  =  pd.cut(df_class["Observed"], split, labels=np.arange(expsize))
 	df_class["Estimated"] =  pd.cut(df_class["Estimated"], split, labels=np.arange(expsize))
+	df_class.dropna(inplace=True)
 
 	cMat  = sklMet.confusion_matrix(df_class["Observed"], df_class["Estimated"], labels=df_class["Observed"].cat.categories).astype(int) 
-	cCor  = np.tile(df_c.groupby("Observed").count()["Estimated"].values.astype(float), (cMat.shape[0], 1)).T
+	cCor  = np.tile(df_class.groupby("Observed").count()["Estimated"].values.astype(float), (cMat.shape[0], 1)).T
 	conM =  ( cMat/cCor).T
 	conM[np.logical_and((cCor == 0), (cMat==0)).T] = 0.
 	df_cm = pd.DataFrame(conM, index = [int(i) for i in np.arange(expsize)], columns = [int(i) for i in np.arange(expsize)])
@@ -209,7 +209,7 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 
 	plt.show()
 
-	breakpoint()
+	# breakpoint()
 	return(modim)
 	# try:
 	# except Exception as er:
