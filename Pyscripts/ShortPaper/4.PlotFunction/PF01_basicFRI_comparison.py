@@ -95,7 +95,7 @@ def main():
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
 	dsnams2 = ["HANSEN_AFmask", "HANSEN", "Risk"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20})
-	dsts    = [dsnams2, dsnams1]
+	dsts    = [dsnams1, dsnams2]
 	proj    = "polar"
 	maskver = "Boreal"	
 	for var in ["FRI"]:#, "AnBF"]:
@@ -153,7 +153,10 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 
 	# ========== Setup the font ==========
 	# ========== set the mpl rc params ==========
-	font = {'weight' : 'bold'}
+	font = ({
+		'weight' : 'bold',
+		'size'   : 11, 
+		})
 	mpl.rc('font', **font)
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 

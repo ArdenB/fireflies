@@ -68,7 +68,7 @@ import palettable
 # import skvideo.io     as skv
 # import skimage as ski
 # from moviepy.video.io.bindings import mplfig_to_npimage
-
+import pickle
 
 import seaborn as sns
 import matplotlib as mpl 
@@ -497,6 +497,10 @@ def SiteHistScore(siteseries, site_coords, data, fd, spath, dpath):
 			gitinfo = pf.gitmetadata()
 			infomation = [maininfo, plotfname, gitinfo]
 			cf.writemetadata(plotfname, infomation)
+		
+		for df, dfn in zip([dfan, dfps], ["dfan", "dfps"]):	df.to_csv(f"{ppath}S02_FormAna_{dfn}.csv")
+		
+		for ite, itn in zip([dfscore, data, TEvents],["dfscore", "data", "TEvents"]):	pickle.dump(ite, open(f"{ppath}S02_FormAna_{itn}.p", "wb"))
 		ipdb.set_trace()
 		breakpoint()
 
