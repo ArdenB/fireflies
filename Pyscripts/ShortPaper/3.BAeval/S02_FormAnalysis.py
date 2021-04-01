@@ -1058,9 +1058,9 @@ def syspath():
 	elif sysname == 'LAPTOP-8C4IGM68':
 		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
 		dpath = "/mnt/i/Data51/BurntArea/"
-	elif sysname == 'DESKTOP-N9QFN7K':
-		spath = "/mnt/c/Users/user/Google Drive/UoL/FIREFLIES/VideoExports/"
-		dpath = "/mnt/f/Data51/BurntArea/"
+	elif sysname == 'DESKTOP-UA7CT9Q':
+		spath = "/mnt/c/Users/arden/Google Drive/UoL/FIREFLIES/VideoExports/"
+		dpath = "/mnt/d/Data51/BurntArea/"
 	else:
 		ipdb.set_trace()
 	return spath, dpath

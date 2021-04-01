@@ -69,6 +69,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cpf
 import matplotlib.ticker as mticker
 import matplotlib.colors as mpc
+import matplotlib.patheffects as pe
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
@@ -110,8 +111,6 @@ def main():
 	pbounds = [10.0, 170.0, 70.0, 49.0]
 	maskver = "Boreal"
 	
-	# ========== Make a figure of the model output ==========
-	ModelPrediction()
 
 	# ========== Build the annual plots ==========
 	AnnualPlotmaker(setupfunc("annual", rmaps = True), dpath, cpath, ppath, pbounds, maskver, rmaps = True)
@@ -121,26 +120,141 @@ def main():
 	Seasonalplotmaker(setupfunc("seasonal", rmaps = True), dpath, cpath, ppath, pbounds, maskver, "Climatology")
 	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver, "trend")
 
+	# ========== Make a figure of the model output ==========
+	ModelPrediction(ppath)
+	# ModelPrediction(ppath, model="OLS")
 
 	# g = sns.FacetGrid(df, col="Method",  hue="Dataset")
 	# g.map(sns.barplot, "Predictor", "Score", order=df.Predictor.unique().tolist())
 	
-def ModelPrediction():
+def ModelPrediction(ppath, model = 'XGBoost'):
+	altnames = ({"GFED":"GFED4", "MODIS":"MCD64A1", "esacci":"FireCCI51", "COPERN_BA":"CGLS-BA", "HANSEN_AFmask":"HansenGFC-MAF", "HANSEN":"HansenGFC"}) 
+	# ========== set the mpl rc params ==========
+	sns.set_style("whitegrid")
+	font = ({
+		'weight' : 'bold',
+		'size'   : 11, 
+		})
+	# plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+	# plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+	# plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+	# plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+	# plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+	# plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+	# plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+	
+
+	mpl.rc('font', **font)
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+
+
 	# ========== model loader ==========
 	Varimp = []
-	for dsn in ["esacci", "GFED", "MODIS", "COPERN_BA"]:
+	perfm  = OrderedDict()
+	for dsn in ["MODIS","GFED", "esacci", "COPERN_BA"]:
 		try:
-			Varimp.append(ModelLoadter(dsn=dsn)) #sen=sen, mod=mod
+				# vp, df = ModelLoadter(dsn=dsn)
+			for mod, sen in enumerate([30, 60, 100]):
+				# vp, df = ModelLoadter(dsn=dsn, )
+				vp, df =ModelLoadter(dsn=dsn, sen=sen, mod=mod, model=model)
+				Varimp.append(vp) #sen=sen, mod=mod
+				
+				if mod == 0: 
+					perfm[altnames[dsn]] = df
 		except Exception as er:
 			warn.warn(str(er))
 			breakpoint()
 
-		# for mod, sen in enumerate([30, 60, 100]):
 	df = pd.concat(Varimp)#.reset_index().rename({"index":"Predictor"}, axis=1)
-	sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
+
+	# =======================================
+	# ========== Build the figures ==========
+	# =======================================
+
+	# ========== Setup the axes ==========
+	fig, axs = plt.subplots(ncols=2, nrows=3, figsize=(12,14), gridspec_kw={'height_ratios':[1.8, 1.8, 1]})#, constrained_layout=True)
+
+	# ========== build the skill plots ==========
+	for dsn, alp, ax, ytl, xtl in zip(perfm, ["a", "b", "c", "d"], axs.flat[:4],[True, False, True, False],[False, False, True, True]):
+		# +++++ setup the colormap +++++
+		# cmap = mpc.ListedColormap(['#FFFFFF'] + palettable.colorbrewer.sequential.YlOrRd_9.hex_colors)
+		# cmap = mpc.ListedColormap(['#FFFFFF'] + palettable.cmocean.sequential.Matter_9.mpl_colors)
+		cmap = mpc.ListedColormap(palettable.cmocean.sequential.Matter_10.mpl_colors)
+		mask = perfm[dsn] == 0
+		
+		# +++++ make the figure +++++
+		sns.heatmap(perfm[dsn], mask=mask, annot=False, vmin=0, vmax=1,  cbar=(not ytl),
+			square=True, cmap=cmap, ax = ax, yticklabels=ytl, xticklabels=xtl, linewidths=.25, linecolor="whitesmoke")
+		ax.set_title(f"{alp}) {dsn}", loc= 'left')
+		# ax.grid()
+
+		# ========== Alternate title approach ===========
+		# txt = f"{alp}) {dsn}"
+		# ax.text(-0.15, 1.05, txt, transform=ax.transAxes, )
+					# size=8, weight='bold')#, zorder=106)
+		# breakpoint()
+		# X tick labels 
+		ax.set_xticks(np.arange(perfm[dsn].shape[0] +1))
+		ax.set_xticklabels([0, 15, 30, 60, 120, 500, 1000, 3000, 10000])
+		if xtl:
+			ax.set(xlabel="Predicted FRI")
+		# Y tick labels 
+		ax.set_yticks(np.arange(perfm[dsn].shape[0] +1))
+		ax.set_yticklabels([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], rotation = 45)
+		if ytl:
+			ax.set_ylabel("Observed FRI", labelpad=2)
+		
+		ax.plot(np.arange(perfm[dsn].shape[0] +1), np.arange(perfm[dsn].shape[0] +1), "black", alpha=0.5)
+		# ax.spines['left'].set_color('black')
+		# ax.spines['bottom'].set_color('black')
+		ax.invert_yaxis()
+
+		# breakpoint()
+	# breakpoint()
+	for alp, ax, meth, ytl in zip(["e", "f"],axs[-1,], ["Permutation Importance", "Feature Importance"], [True, False]):
+		# sns.barplot(y="Predictor", x="Score", hue="Dataset", data= df[df.Method == meth], ax=ax, orient="h")#, yticklabels=ytl)#, kind="bar", col="Method")
+		# ax.set_xlim(0, 0.5)
+		chex = palettable.cartocolors.qualitative.Vivid_4.hex_colors
+		sns.barplot(x="Predictor", y="Score", hue="Model", ci=None,  data= df[df.Method == meth], ax=ax, palette=chex)#, legend=(not ytl))#, yticklabels=ytl)#, kind="bar", col="Method")
+		ax.set(ylabel=None)
+		ax.set(xlabel=None)
+		ax.set_xticklabels(ax.get_xticklabels(), rotation = 30, ha="right")
+		ax.set_ylim(0, 0.5)
+		
+		if not ytl:
+			ax.set(yticklabels=[])
+		else:
+			ax.legend().set_visible(False)
+		ax.set_title(f"{alp}) {meth}", loc= 'left')
+		# txt = f"{alp}) {meth}"
+		# ax.text(-0.15, 1.05, txt, transform=ax.transAxes, )
+		# 	ax.set(yticklabels=[])
+		
+
 	# sns.barplot(x="Predictor", y="Score")
+	fig.tight_layout()
+
+	plotfname = f"{ppath}PF03_ModelPrediction_{model}."
+	# breakpoint()
+	for fmt in ["pdf", "png"]:# 
+		print(f"Starting {fmt} plot save at:{pd.Timestamp.now()}")
+		plt.savefig(plotfname+fmt)#, dpi=dpi)
+	
+	print("Starting plot show at:", pd.Timestamp.now())
 	plt.show()
-	breakpoint()
+
+	if not (plotfname is None):
+		maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
+			__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+		gitinfo = pf.gitmetadata()
+		infomation = [maininfo, plotfname, gitinfo]
+		cf.writemetadata(plotfname, infomation)
+
+
+	plt.show()
+	# breakpoint()
+
+	# sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
 
 
 
@@ -187,43 +301,44 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 	dfT["Residual"]= dfT.Predicted -dfT.Observed
 
 	print (dsn, R2_XGB, models['performance'])
-		
+	
+	if not (model == "XGBoost"):
+		warn.warn("Importance does not work for OLS yet")
+
 	modim = models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().melt(id_vars="index", value_vars=["XGBPermImp",  "XGBFeatImp"])
 	# models["Importance"][["XGBPermImp",  "XGBFeatImp"]].reset_index().rename(
 	# 	{"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, axis=1).melt()
 	modim.replace({"XGBPermImp":"Permutation Importance",  "XGBFeatImp":"Feature Importance"}, inplace=True)
 	modim = modim.rename({"index":"Predictor", "variable":"Method", "value":"Score"}, axis=1)
-	modim["Dataset"] = altnames[dsn]
+	modim["Model"] = altnames[dsn]
 	modim["Version"] = mod
 
 
 	# ========== Get the observed values ==========
-	split = np.array([0, 15, 30, 60, 120, 500, 1000, 3000, 100001])
+	split    = np.array([0, 15, 30, 60, 120, 500, 1000, 3000, 10000])
 	df_class = pd.DataFrame({"Observed":(1/y_test.values), "Estimated":(1/y_pred) })
 	expsize  = len(split) -1 # df_class.experiment.unique().size
-	df_class["Observed"]  =  pd.cut(df_class["Observed"], split, labels=np.arange(expsize))
-	df_class["Estimated"] =  pd.cut(df_class["Estimated"], split, labels=np.arange(expsize))
+	
+	if (df_class.Estimated.max()>10000) or (df_class.Estimated.max()<0):
+		 # getting some bad values
+		df_class.where(df_class <0, 0)
+		df_class.where(df_class >10000, 10000)
+		# breakpoint()
+
+	df_class["ObservedC"]  =  pd.cut(df_class["Observed"], split, labels=np.arange(expsize))
+	df_class["EstimatedC"] =  pd.cut(df_class["Estimated"], split, labels=np.arange(expsize))
 	df_class.dropna(inplace=True)
 
-	cMat  = sklMet.confusion_matrix(df_class["Observed"], df_class["Estimated"], labels=df_class["Observed"].cat.categories).astype(int) 
-	cCor  = np.tile(df_class.groupby("Observed").count()["Estimated"].values.astype(float), (cMat.shape[0], 1)).T
-	conM =  ( cMat/cCor).T
-	conM[np.logical_and((cCor == 0), (cMat==0)).T] = 0.
-	df_cm = pd.DataFrame(conM, index = [int(i) for i in np.arange(expsize)], columns = [int(i) for i in np.arange(expsize)])
-
-	ax = sns.heatmap(df_cm, annot=False, vmin=0, vmax=1, cbar=True,  square=True)#ax = ax, 
-	ax.plot(np.arange(expsize+1), np.arange(expsize+1), "w", alpha=0.5)
-
-	plt.show()
-
+	cMat  = sklMet.confusion_matrix(df_class["ObservedC"], df_class["EstimatedC"], labels=df_class["ObservedC"].cat.categories).astype(int) 
+	cCor  = np.tile(df_class.groupby("ObservedC").count()["EstimatedC"].values.astype(float), (cMat.shape[0], 1)).T
 	# breakpoint()
-	return(modim)
-	# try:
-	# except Exception as er:
-	# 	breakpoint()
-	# 	print(str(er))
-	# 	return None
+	conM =  ( cMat/cCor)#.T
+	conM[np.logical_and((cCor == 0), (cMat==0))] = 0.#.T
 
+	# ========== Create a dataframe and set the column and rownames ==========
+	df_cm = pd.DataFrame(conM, index = [int(i) for i in np.arange(expsize)], columns = [int(i) for i in np.arange(expsize)])
+	# breakpoint()
+	return modim, df_cm#.iloc[::-1] # reversed order
 
 
 def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver, cli):
@@ -253,7 +368,11 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver, cli):
 		msk[msk == 0] = np.NAN
 	
 	# ========== set the mpl rc params ==========
-	font = {'weight' : 'bold'}
+	font = ({
+		'weight' : 'bold',
+		'size'   : 11, 
+		})
+	
 	mpl.rc('font', **font)
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 	latiMid=np.mean([pbounds[2], pbounds[3]])
@@ -381,7 +500,11 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 	latiMid=np.mean([pbounds[2], pbounds[3]])
 	longMid=np.mean([pbounds[0], pbounds[1]])
 	# ========== set the mpl rc params ==========
-	font = {'weight' : 'bold'}
+	font = ({
+		'weight' : 'bold',
+		'size'   : 11, 
+		})
+
 	mpl.rc('font', **font)
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 	if rmaps:
@@ -488,7 +611,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 				ax.text(
 					row.lon+row.lonoffset, row.lat+row.latoffset, row.Name, 
 					horizontalalignment='left',transform=ccrs.PlateCarree(), 
-					zorder=105)
+					zorder=105, color="lightgray", path_effects=[pe.withStroke(linewidth=0.75, foreground="black")])
 
 
 				# marker='X', 
