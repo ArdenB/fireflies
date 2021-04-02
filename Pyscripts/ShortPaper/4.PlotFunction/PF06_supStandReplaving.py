@@ -141,7 +141,7 @@ def main():
 		"vmin":0,
 		"func":"div",
 		"long_name":f'FRI$_{{{"SR"}}}$ fraction',
-		"extend":"neither"
+		"extend":"max"
 		})
 	exper["DRIwithoutfires"] = ({
 		"data":dsnams2,
@@ -194,8 +194,8 @@ def plotmaker(exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, bac
 			figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
 		shrink = None
 	# ========== Loop over the experiments ==========
-	for ax, exp in zip(axs, exper):
-		im = _subplotmaker(exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver)	
+	for num, (ax, exp) in enumerate(zip(axs, exper)):
+		im = _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver)	
 		ax.set_aspect('equal')
 
 
@@ -218,7 +218,7 @@ def plotmaker(exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, bac
 		cf.writemetadata(plotfname, infomation)
 	breakpoint()
 
-def _subplotmaker(exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver, region = "SIBERIA", shrink=0.85): 
+def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver, region = "SIBERIA", shrink=0.85): 
 	""" 
 	function to load all the data, calculate the experiment and add it to the axis 
 	"""
@@ -233,15 +233,140 @@ def _subplotmaker(exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask,
 			frame = _fileopen(dsinfo, datasets, dsn, exper[exp]["var"], scale, proj, mask, compath, region, bounds, maskver)
 			dlist.append(frame)
 	
-	breakpoint()
+	# ========== compute the experiment ==========
+	if exper[exp]['func'] == "div":
+		frame = dlist[0] / dlist[1]
+	elif exper[exp]['func'] == "sub":
+		frame = dlist[0] - dlist[1]
+	
 	# ========== Set the colors ==========
-	# cmap, norm, vmin, vmax, levels = _colours(var, vmax, dsn)
+	cmap, norm, vmin, vmax, levels = _colours(exp, exper[exp]["vmax"], exper)
 
 	# ========== Create the Title ==========
 	title = ""
+	extend=exper[exp]["extend"]
+
+	# ========== Grab the data ==========
+	if proj == "polar":
+		im = frame.compute().plot(
+			ax=ax, vmin=vmin, vmax=vmax, 
+			cmap=cmap, norm=norm, 
+			transform=ccrs.PlateCarree(),
+			# add_colorbar=False,
+			cbar_kwargs={"pad": 0.02, "extend":extend, "shrink":shrink, "ticks":levels, "spacing":"uniform"}
+			) #
+			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
+		if dsn == "Risk":
+			cbar = im.colorbar
+			keys =  pd.DataFrame(_riskkys()).T
+			# cbar.set_ticklabels( keys.Code.values)  # horizontal colorbar
+			cbar.set_ticklabels( keys.FullName.values)
+			# 
+		# breakpoint()
+		ax.set_extent(bounds, crs=ccrs.PlateCarree())
+		ax.gridlines()
+
+	else:
+		im = frame.plot.imshow(
+			ax=ax, extent=bounds, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, 
+			transform=ccrs.PlateCarree(), 
+			add_colorbar=False,
+			) #
+
+		ax.set_extent(bounds, crs=ccrs.PlateCarree())
+		# =========== Set up the gridlines ==========
+		gl = ax.gridlines(
+			crs=ccrs.PlateCarree(), draw_labels=True, linewidth=2, color='gray', alpha=0.5, 
+			linestyle='--', zorder=105)
+
+		# +++++ get rid of the excess lables +++++
+		gl.xlabels_top = False
+		gl.ylabels_right = False
+		if not dsn == [dss for dss in datasets][-1]:
+			# Get rid of lables in the middle of the subplot
+			gl.xlabels_bottom = False
+			# ax.axes.xaxis.set_ticklabels([])
+
+
+		gl.xlocator = mticker.FixedLocator(np.arange(bounds[0], bounds[1]+10.0, 20.0)+10)
+		gl.ylocator = mticker.FixedLocator(np.arange(bounds[2], bounds[3]-10.0, -10.0))
+		
+		gl.xformatter = LONGITUDE_FORMATTER
+		gl.yformatter = LATITUDE_FORMATTER
+		ax.outline_patch.set_visible(False)
+
+
+	# ========== Add features to the map ==========
+	coast_50m = cpf.GSHHSFeature(scale="high")
+	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+	ax.add_feature(coast_50m, zorder=101, alpha=0.5)
+	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	ax.add_feature(cpf.RIVERS, zorder=104)
+	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+
+
+	# =========== Setup the subplot title ===========
+	ax.set_title(f"{string.ascii_lowercase[num]}) {dsinfo[dsn]['alias']}", loc= 'left')
+	return im
 	
 
 #==============================================================================
+def _colours(exp, vmax, exper):
+	norm=None
+	levels = None
+	vmin = exper[exp]["vmin"]
+	if var == "DRIwithoutfires":
+		# +++++ set the min and max values +++++
+		vmin = 0.0
+		# +++++ create hte colormap +++++
+		if vmax in [80, 10000]:
+			# if dsn.startswith("H"):
+			cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
+			del cmapHex[3] #remove some middle colours
+			del cmapHex[1]
+			levels = [0, 60, 120, 500, 1000, 3000, 10000, 10001]
+			# else:
+			# 	cmapHex = palettable.colorbrewer.diverging.Spectral_9.hex_colors
+			# 	levels = [0, 15, 30, 60, 120, 500, 1000, 3000, 10000, 10001]
+		else:
+			cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		
+		if vmax == 10000:
+			# if dsn.startswith("H"):
+			norm   = mpl.colors.BoundaryNorm([0, 60, 120, 500, 1000, 3000, 10000], cmap.N)
+			# else:
+			# 	norm   = mpl.colors.BoundaryNorm([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], cmap.N)
+
+		cmap.set_over(cmapHex[-1] )
+		cmap.set_bad('dimgrey',1.)
+
+	elif var ==  "StandReplacingFireFraction":
+		# vmin = -0.5
+		cmapHex = palettable.cmocean.sequential.Matter_11.hex_colors#[2:] #Matter_11
+		levels = np.arange(vmin, vmax+0.05, 0.10)
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		cmap.set_bad('dimgrey',1.)
+		cmap.set_over(cmapHex[-1])
+
+
+	else:
+		# ========== Set the colors ==========
+		vmin = 0.0
+		vmax = 0.20
+
+		# +++++ create the colormap +++++
+		# cmapHex = palettable.matplotlib.Inferno_10.hex_colors
+		# cmapHex = palettable.matplotlib.Viridis_11_r.hex_colors
+		cmapHex = palettable.colorbrewer.sequential.OrRd_9.hex_colors
+		
+
+		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		cmap.set_over(cmapHex[-1] )
+		cmap.set_bad('dimgrey',1.)
+	return cmap, norm, vmin, vmax, levels
 
 def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver, func = "mean"):
 	ds_dsn = xr.open_dataset(datasets[dsn])
@@ -304,7 +429,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 
 				# +++++ close the mask +++++
 				msk = None
-				print(f"masking complete, begining ploting at {pd.Timestamp.now()}")
+				print(f"masking complete, Returning frame at {pd.Timestamp.now()}")
 
 
 		else:
