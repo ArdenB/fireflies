@@ -94,7 +94,7 @@ def main():
 	TCF     = 10
 	mwb     = 1#, 2]#, 5]
 	dsnams1 = ["HANSEN_AFmask", "esacci"]#, "HANSEN_AFmask", "HANSEN"]
-	dsnams2 = ["HANSEN_AFmask", "HANSEN"]
+	dsnams2 = ["HANSEN", "HANSEN_AFmask"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20})
 	dsts    = [dsnams1, dsnams2]
 	proj    = "polar"
@@ -140,17 +140,19 @@ def main():
 		"vmax":1, 
 		"vmin":0,
 		"func":"div",
-		"long_name":f'FRI$_{{{"SR"}}}$ fraction',
-		"extend":"max"
+		"attrs":{"long_name":f'FRI$_{{{"SR"}}}$ fraction'},
+		"extend":"max", 
+		"dsnr":"esacci"
 		})
 	exper["DRIwithoutfires"] = ({
 		"data":dsnams2,
-		"var" :"FRI",
+		"var" :"AnBF",
 		"vmax":10000,
 		"vmin":0,
 		"func":"sub",
-		"long_name":f'DRI$_{{{"SF"}}}$',
-		"extend":"max"
+		"attrs":{"long_name":f'DRI$_{{{"SF"}}}$', "units":"yrs"},
+		"extend":"max", 
+		"dsnr":"esacci"
 		})
 	# for mask, var in zip([True, True], ["FRI", "AnBF"]):
 	plotmaker(exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver)
@@ -185,16 +187,17 @@ def plotmaker(exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, bac
 		shrink=0.95
 
 		fig, axs = plt.subplots(
-			yv, xv, figsize=(12,5*len(datasets)), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
+			yv, xv, figsize=(12,5*len(exper)), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
 	else:
 		latiMid=np.mean([bounds[2], bounds[3]])
 		longMid=np.mean([bounds[0], bounds[1]])
 		fig, axs = plt.subplots(
-			len(datasets), 1, sharex=True, 
+			len(exper), 1, sharex=True, 
 			figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
 		shrink = None
 	# ========== Loop over the experiments ==========
 	for num, (ax, exp) in enumerate(zip(axs, exper)):
+		print(f"Starting {exp} at: {pd.Timestamp.now()}")
 		im = _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver)	
 		ax.set_aspect('equal')
 
@@ -222,22 +225,22 @@ def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, 
 	""" 
 	function to load all the data, calculate the experiment and add it to the axis 
 	"""
-	dlist = []
-	for dsn in exper[exp]['data']:
-		print(f"Starting {dsn} load at: {pd.Timestamp.now()}")
-		if not os.path.isfile(datasets[dsn]):
-			# +++++ The file is not in the folder +++++
-			warn.warn(f"File {datasets[dsn]} could not be found")
-			breakpoint()
-		else:
-			frame = _fileopen(dsinfo, datasets, dsn, exper[exp]["var"], scale, proj, mask, compath, region, bounds, maskver)
-			dlist.append(frame)
+	frame = _fileopen(exp, exper, dsinfo, datasets, exper[exp]['data'], exper[exp]["var"], scale, proj, mask, compath, region, bounds, maskver)
+	# dlist = []
+	# for dsn in exper[exp]['data']:
+	# 	print(f"Starting {dsn} load at: {pd.Timestamp.now()}")
+	# 	if not os.path.isfile(datasets[dsn]):
+	# 		# +++++ The file is not in the folder +++++
+	# 		warn.warn(f"File {datasets[dsn]} could not be found")
+	# 		breakpoint()
+	# 	else:
+	# 		dlist.append(frame)
 	
-	# ========== compute the experiment ==========
-	if exper[exp]['func'] == "div":
-		frame = dlist[0] / dlist[1]
-	elif exper[exp]['func'] == "sub":
-		frame = dlist[0] - dlist[1]
+	# # ========== compute the experiment ==========
+	# if exper[exp]['func'] == "div":
+	# 	frame = dlist[0] / dlist[1]
+	# elif exper[exp]['func'] == "sub":
+	# 	frame = dlist[0] - dlist[1]
 	
 	# ========== Set the colors ==========
 	cmap, norm, vmin, vmax, levels = _colours(exp, exper[exp]["vmax"], exper)
@@ -255,14 +258,6 @@ def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, 
 			# add_colorbar=False,
 			cbar_kwargs={"pad": 0.02, "extend":extend, "shrink":shrink, "ticks":levels, "spacing":"uniform"}
 			) #
-			# subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)}
-		if dsn == "Risk":
-			cbar = im.colorbar
-			keys =  pd.DataFrame(_riskkys()).T
-			# cbar.set_ticklabels( keys.Code.values)  # horizontal colorbar
-			cbar.set_ticklabels( keys.FullName.values)
-			# 
-		# breakpoint()
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
 		ax.gridlines()
 
@@ -307,7 +302,7 @@ def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, 
 
 
 	# =========== Setup the subplot title ===========
-	ax.set_title(f"{string.ascii_lowercase[num]}) {dsinfo[dsn]['alias']}", loc= 'left')
+	ax.set_title(f"{string.ascii_lowercase[num]}) {exp}", loc= 'left')
 	return im
 	
 
@@ -316,7 +311,7 @@ def _colours(exp, vmax, exper):
 	norm=None
 	levels = None
 	vmin = exper[exp]["vmin"]
-	if var == "DRIwithoutfires":
+	if exp == "DRIwithoutfires":
 		# +++++ set the min and max values +++++
 		vmin = 0.0
 		# +++++ create hte colormap +++++
@@ -343,10 +338,10 @@ def _colours(exp, vmax, exper):
 		cmap.set_over(cmapHex[-1] )
 		cmap.set_bad('dimgrey',1.)
 
-	elif var ==  "StandReplacingFireFraction":
+	elif exp ==  "StandReplacingFireFraction":
 		# vmin = -0.5
 		cmapHex = palettable.cmocean.sequential.Matter_11.hex_colors#[2:] #Matter_11
-		levels = np.arange(vmin, vmax+0.05, 0.10)
+		levels  = np.arange(vmin, vmax+0.05, 0.10)
 		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
 		cmap.set_bad('dimgrey',1.)
 		cmap.set_over(cmapHex[-1])
@@ -368,29 +363,35 @@ def _colours(exp, vmax, exper):
 		cmap.set_bad('dimgrey',1.)
 	return cmap, norm, vmin, vmax, levels
 
-def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bounds, maskver, func = "mean"):
-	ds_dsn = xr.open_dataset(datasets[dsn])
-	# xbounds [-10.0, 180.0, 70.0, 40.0]
+def _fileopen(exp, exper, dsinfo, datasets, dsnl, var, scale, proj, mask, compath, region, bounds, maskver, func = "mean"):
+
 	xbounds = [-10.0, 180.0, 70.0, 40.0]
-	# ========== Get the data for the frame ==========
-	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1]))).drop("time")
+	dsnr = exper[exp]["dsnr"]
+	def _openandcut(dsn, datasets, xboundsm, var):
+		ds_dsn = xr.open_dataset(datasets[dsn])
+		# ========== Get the data for the frame ==========
+		frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
+			dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1]))).drop("time").chunk()
+		return frame
 	
-	if proj == "polar" and not dsn == "GFED":
-		# ========== Coarsen to make plotting easier =========
-		if func == "mean":
-			frame = frame.coarsen(
-				{"latitude":scale[dsn], "longitude":scale[dsn]
-				}, boundary ="pad", keep_attrs=True).mean().compute()
-		elif func == "max":
-			frame = frame.coarsen(
-				{"latitude":scale[dsn], "longitude":scale[dsn]
-				}, boundary ="pad", keep_attrs=True).max().compute()
+	frames = [_openandcut(dsn, datasets, xbounds, var) for dsn in dsnl]
+
+	with ProgressBar():
+		# ========== compute the experiment ==========
+		if exper[exp]['func'] == "div":
+			frame = frames[0] / frames[1]
+		elif exper[exp]['func'] == "sub":
+			frame = 1/(frames[0] - frames[1])
 		else:
-			print("Unknown Function")
 			breakpoint()
+		frame.compute()
 	
-	frame.attrs = dsinfo[dsn]#{'long_name':"FRI", "units":"years"}
+	# with ProgressBar():
+	# 	test = (frames[0] > frames[1]).compute()
+	# breakpoint()
+	# 	if 
+	
+
 
 	# ========== mask ==========
 	if mask:
@@ -398,12 +399,12 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
 		stpath = compath + "/masks/broad/"
 
-		if dsn.startswith("H") or (dsn == "Risk"):
-			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
-			fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
-		else:
-			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsn)
-			fnBmask = f"./data/LandCover/Regridded_forestzone_{dsn}.nc"
+		# if dsn.startswith("H") or (dsn == "Risk"):
+		# 	fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+		# 	fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
+		# else:
+		fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedTo%s.nc" % (region, dsnr)
+		fnBmask = f"./data/LandCover/Regridded_forestzone_{dsnr}.nc"
 
 		# +++++ Check if the mask exists yet +++++
 		if os.path.isfile(fnmask):
@@ -414,15 +415,15 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 				else:
 					msk    = (dsmask.mask.isel(time=0)).astype("float32")
 				
-				if proj == "polar" and not dsn == "GFED":
-					msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
+				# if proj == "polar" and not dsn == "GFED":
+				# 	msk = msk.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, boundary ="pad").median()
 				
 				msk = msk.values
 
 				# +++++ Change the boolean mask to NaNs +++++
 				msk[msk == 0] = np.NAN
 				
-				print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+				print(f"Masking {exp} frame at: {pd.Timestamp.now()}")
 				# +++++ mask the frame +++++
 				# breakpoint()
 				frame *= msk
@@ -433,8 +434,25 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 
 
 		else:
-			print("No mask exists for ", dsn)
+			print("No mask exists for ", dsnr)
 			breakpoint()
+
+	if proj == "polar" and not dsnr == "GFED":
+		# ========== Coarsen to make plotting easier =========
+		if func == "mean":
+			frame = frame.coarsen(
+				{"latitude":scale[dsnr], "longitude":scale[dsnr]
+				}, boundary ="pad", keep_attrs=True).mean().compute()
+		elif func == "max":
+			frame = frame.coarsen(
+				{"latitude":scale[dsnr], "longitude":scale[dsnr]
+				}, boundary ="pad", keep_attrs=True).max().compute()
+		else:
+			print("Unknown Function")
+			breakpoint()
+	
+	frame.attrs = exper[exp]["attrs"]#{'long_name':"FRI", "units":"years"}
+	# breakpoint()
 	# breakpoint()
 	return frame
 
