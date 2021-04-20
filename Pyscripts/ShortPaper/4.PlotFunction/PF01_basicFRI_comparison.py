@@ -116,6 +116,7 @@ def main():
 
 			for mwb in mwbox:
 				dsinfo  = dsinfomaker(compath, backpath, mwb, tcfs)
+				breakpoint()
 				# ========== Setup the dataset ==========
 				datasets = OrderedDict()
 				for dsnm in dsnames:
@@ -251,7 +252,7 @@ def _RiskBuilder(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath,
 	frame = None
 
 
-	# ========== Fetch the  SRI ==========
+	# ========== Fetch the  FRIsr ==========
 	ds_SRI = xr.open_dataset(dsinfo["HANSEN_AFmask"]["fname"])
 	SR_da  = ds_SRI["FRI"].sortby("latitude", ascending=False).sel(
 		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))

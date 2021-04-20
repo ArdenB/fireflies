@@ -110,18 +110,18 @@ def main():
 	cf.pymkdir(ppath)
 	pbounds = [10.0, 170.0, 70.0, 49.0]
 	maskver = "Boreal"
-	
 
 	# ========== Build the annual plots ==========
 	AnnualPlotmaker(setupfunc("annual", rmaps = True), dpath, cpath, ppath, pbounds, maskver, rmaps = True)
 	# breakpoint()
+	
+	# ========== Make a figure of the model output ==========
+	ModelPrediction(ppath)
 
 	# ========== Build the seasonal plots ==========
 	Seasonalplotmaker(setupfunc("seasonal", rmaps = True), dpath, cpath, ppath, pbounds, maskver, "Climatology")
 	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver, "trend")
 
-	# ========== Make a figure of the model output ==========
-	ModelPrediction(ppath)
 	# ModelPrediction(ppath, model="OLS")
 
 	# g = sns.FacetGrid(df, col="Method",  hue="Dataset")
@@ -187,7 +187,7 @@ def ModelPrediction(ppath, model = 'XGBoost'):
 			square=True, cmap=cmap, ax = ax, yticklabels=ytl, xticklabels=xtl, linewidths=.25, linecolor="whitesmoke")
 		ax.set_title(f"{alp}) {dsn}", loc= 'left')
 		# ax.grid()
-
+		# breakpoint()
 		# ========== Alternate title approach ===========
 		# txt = f"{alp}) {dsn}"
 		# ax.text(-0.15, 1.05, txt, transform=ax.transAxes, )
@@ -197,17 +197,17 @@ def ModelPrediction(ppath, model = 'XGBoost'):
 		ax.set_xticks(np.arange(perfm[dsn].shape[0] +1))
 		ax.set_xticklabels([0, 15, 30, 60, 120, 500, 1000, 3000, 10000])
 		if xtl:
-			ax.set(xlabel="Predicted FRI")
+			ax.set(xlabel="Observed FRI")
 		# Y tick labels 
 		ax.set_yticks(np.arange(perfm[dsn].shape[0] +1))
-		ax.set_yticklabels([0, 15, 30, 60, 120, 500, 1000, 3000, 10000], rotation = 45)
+		ax.set_yticklabels(np.flip([0, 15, 30, 60, 120, 500, 1000, 3000, 10000]), rotation = 45)
 		if ytl:
-			ax.set_ylabel("Observed FRI", labelpad=2)
+			ax.set_ylabel("Predicted FRI", labelpad=2)
 		
-		ax.plot(np.arange(perfm[dsn].shape[0] +1), np.arange(perfm[dsn].shape[0] +1), "black", alpha=0.5)
+		ax.plot(np.flip(np.arange(perfm[dsn].shape[0] +1)), np.arange(perfm[dsn].shape[0] +1), "black", alpha=0.5)
 		# ax.spines['left'].set_color('black')
 		# ax.spines['bottom'].set_color('black')
-		ax.invert_yaxis()
+		# ax.invert_yaxis()
 
 		# breakpoint()
 	# breakpoint()
@@ -329,14 +329,25 @@ def ModelLoadter(dsn="esacci", sen=30, version=0, model = 'XGBoost', mod=0):
 	df_class["EstimatedC"] =  pd.cut(df_class["Estimated"], split, labels=np.arange(expsize))
 	df_class.dropna(inplace=True)
 
-	cMat  = sklMet.confusion_matrix(df_class["ObservedC"], df_class["EstimatedC"], labels=df_class["ObservedC"].cat.categories).astype(int) 
-	cCor  = np.tile(df_class.groupby("ObservedC").count()["EstimatedC"].values.astype(float), (cMat.shape[0], 1)).T
-	# breakpoint()
-	conM =  ( cMat/cCor)#.T
-	conM[np.logical_and((cCor == 0), (cMat==0))] = 0.#.T
-
+	# cMat  = sklMet.confusion_matrix(
+	# 	df_class["ObservedC"], df_class["EstimatedC"], labels=df_class["ObservedC"].cat.categories).astype(int) 
+	# cCor  = np.tile(
+	# 	df_class.groupby("ObservedC").count()["EstimatedC"].values.astype(float), (cMat.shape[0], 1)).T
+	# # breakpoint()
+	# conM =  ( cMat/cCor)#.T
+	# conM[np.logical_and((cCor == 0), (cMat==0))] = 0.#.T
 	# ========== Create a dataframe and set the column and rownames ==========
-	df_cm = pd.DataFrame(conM, index = [int(i) for i in np.arange(expsize)], columns = [int(i) for i in np.arange(expsize)])
+	# df_cm = pd.DataFrame(conM, index = [int(i) for i in np.arange(expsize)], columns = [int(i) for i in np.arange(expsize)])
+
+	try:
+		df_cm  = pd.DataFrame(
+			sklMet.confusion_matrix(df_class["ObservedC"], df_class["EstimatedC"],  labels=df_class["ObservedC"].cat.categories,  normalize='true'),  
+			index = [int(i) for i in np.arange(expsize)], columns = [int(i) for i in np.arange(expsize)]).T.sort_index(ascending=False)
+		
+	except Exception as er:
+		warn.warn(str(er))
+		breakpoint()
+
 	# breakpoint()
 	return modim, df_cm#.iloc[::-1] # reversed order
 
@@ -540,7 +551,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
 				    cbar_kwargs={
-				    "pad": 0.015, "shrink":0.80, "extend":"both"
+				    "pad": 0.015, "shrink":setup[va]["shrink"], "extend":setup[va]["extend"]
 				    })
 			# ========== work out the stippling ==========
 			slats, slons = _stippling(ds, squeeze=10, nanfrac = 0.15, sigfrac=0.5)
@@ -571,7 +582,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
 				    cbar_kwargs={
-				    "pad": 0.015, "shrink":0.80, "extend":extend
+				    "pad": 0.015, "shrink":setup[va]["shrink"], "extend":setup[va]["extend"]
 				    })
 			print(f"Annual Climate {vax}", ds[vax].quantile([0.01,0.05, 0.50,0.95,0.99]))
 			ds = None
@@ -590,7 +601,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
 				    cbar_kwargs={
-				    "pad": 0.015, "shrink":0.80, "extend":"neither"
+				    "pad": 0.015, "shrink":setup[va]["shrink"], "extend":"neither"
 				    })
 			cbar = p.colorbar
 			keys =  pd.DataFrame({va:setup[va]["kys"]}).reset_index()
@@ -695,15 +706,16 @@ def setupfunc(time, rmaps = False):
 
 
 	elif time == "annual":
+		shrink = 0.90
 		setup["pptC"]   = ({"vmin":0, "vmax":400, "cmap":cmaps["pptC"], "lname":"Precipitation",
-			"attrs":{'long_name':"Annual total", "units":r"mm"}})
-		setup["tmeanC"] = ({"vmin":0, "vmax":25, "cmap":cmaps["tmeanC"], "lname":"Temperature",
-			"attrs":{'long_name':"Monthly max", "units":r"$^{o}$C"}})
+			"attrs":{'long_name':"Annual total", "units":r"mm"}, "shrink":shrink, "extend":"max"})
+		setup["tmeanC"] = ({"vmin":10, "vmax":25, "cmap":cmaps["tmeanC"], "lname":"Temperature",
+			"attrs":{'long_name':"Monthly max", "units":r"$^{o}$C"}, "shrink":shrink, "extend":"both"})
 
 		setup["ppt"]   = ({"vmin":-4., "vmax":4, "cmap":cmaps["ppt"], "lname":"Precipitation",
-			"attrs":{'long_name':"Trend", "units":r"mm yr$^{-1}$"}})
-		setup["tmean"] = ({"vmin":-0.06, "vmax":0.06, "cmap":cmaps["tmean"], "lname":"Temperature",
-			"attrs":{'long_name':"Trend", "units":r"$^{o}$C yr$^{-1}$"}})
+			"attrs":{'long_name':"Trend", "units":r"mm yr$^{-1}$"}, "shrink":shrink, "extend":"both"})
+		setup["tmean"] = ({"vmin":0, "vmax":0.06, "cmap":cmaps["tmean"], "lname":"Temperature",
+			"attrs":{'long_name':"Trend", "units":r"$^{o}$C yr$^{-1}$"}, "shrink":shrink, "extend":"max"})
 		
 		if rmaps:
 			# ========== make the kes foir the figure ==========
@@ -718,7 +730,8 @@ def setupfunc(time, rmaps = False):
 			kys = ({ 2:"BG", 3:"CMA", 4:"SHC", 5:"FMx", 6:"FCD", 7:"FCE", 8:"FBD"})#, 1:"WSI",
 
 			setup["LandCover"] = ({"vmin":1.5, "vmax":8.5, "cmap":cmaps["LandCover"],"lname":"Land Cover",
-				"valmap":exc, "kys":kys, "attrs":{'long_name':"Land Cover Class"}, "places": _locations()})
+				"valmap":exc, "kys":kys, "attrs":{'long_name':"Land Cover Class"}, "places": _locations(), 
+				"shrink":shrink,})
 			
 			
 

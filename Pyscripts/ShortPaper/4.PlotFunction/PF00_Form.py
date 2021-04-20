@@ -122,9 +122,13 @@ def main():
 
 
 
-def _plotmaker(dfan, dfps, dfscore, data, TEvents):
+def _plotmaker(dfan, dfps, dfscore, data, TEvents, forest=False):
 	ppath = "./plots/ShortPaper/PF00_BAassessment/"
 	cf.pymkdir(ppath)
+
+	if not forest:
+		dfps.drop("ForestryEst", inplace=True)
+	# breakpoint()
 
 	# ========== Setup the figure ==========
 	# 'family' : 'normal',
@@ -144,7 +148,7 @@ def _plotmaker(dfan, dfps, dfscore, data, TEvents):
 	dfps.plot.bar(rot=0, color=cmapHex[1:], ax=ax1) #"Correct Non Detection",
 	ax1.legend(
 		["Correct Detection",   "Spatial under est.", "Spatial over est.", "False Negative", "False Positive"])
-	ax1.set_ylabel("% of total measurments", fontweight='bold')
+	ax1.set_ylabel(f"% of total events", fontweight='bold')
 	labels = []
 	for label in ax1.get_xticklabels():
 		try:
