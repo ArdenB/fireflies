@@ -138,7 +138,7 @@ def main():
 				for mask, bounds in zip([True, False], [[10.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
 					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
 					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds, maskver)
-					breakpoint()
+					breakpoint() 
 
 				# ipdb.set_trace()
 
