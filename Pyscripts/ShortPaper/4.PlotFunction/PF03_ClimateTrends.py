@@ -386,10 +386,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver):
 				ds[va].attrs = setup[va+"C"]["attrs"]
 				p  = ds[va].plot(
 					cmap=setup[va+"C"]["cmap"], vmin=setup[va+"C"]["vmin"], vmax=setup[va+"C"]["vmax"],
-					transform=ccrs.PlateCarree(), ax=ax,
-					    cbar_kwargs={
-					    "pad": 0.015, "shrink":0.80, "extend":extend
-					    })
+					transform=ccrs.PlateCarree(), ax=ax, cbar_kwargs={"pad": 0.015, "shrink":0.80, "extend":extend})
 
 				# plt.show()
 
