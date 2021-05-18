@@ -158,7 +158,8 @@ def main():
 
 #==============================================================================
 
-def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, region = "SIBERIA", griddir = "./data/gridarea/"):
+def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, region = "SIBERIA", 
+	griddir = "./data/gridarea/"):
 	"""
 	Function to build the stats  about risk
 	"""
@@ -242,7 +243,7 @@ def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, 
 	cf.writemetadata(outpath+f"PF02_{var}stats{maskver}", [Scriptinfo, gitinfo])
 	keystats.to_csv(outpath+f"PF02_{var}stats{maskver}.csv")
 	print(keystats)
-	# breakpoint()
+	breakpoint()
 
 
 
