@@ -68,6 +68,7 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
 import string
+from matplotlib.colors import LogNorm, Normalize
 
 
 # ========== Import my dunctions ==========
@@ -93,13 +94,14 @@ def main():
 	TCF     = 10
 	mwbox   = [1]#, 2]#, 5]
 	dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
-	dsnams2 = ["HANSEN_AFmask", "HANSEN", "Risk"]
-	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20})
-	dsts    = [dsnams1, dsnams2]
+	dsnams2 = ["HANSEN_AFmask", "HANSEN", "SRfrac"]
+	dsnams3 = ["Risk"]
+	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20, "SRfrac":20})
+	dsts    = [dsnams3, dsnams2, dsnams1]
 	proj    = "polar"
 	maskver = "Boreal"	
 	for var in ["FRI"]:#, "AnBF"]:
-		for dsnames, vmax in zip(dsts, [10000, 10000]):
+		for dsnames, vmax in zip(dsts, [10000, 10000, 10000]):
 			formats = [".png"]#, ".pdf"] # None 
 			# mask    = True
 			if TCF == 0:
@@ -116,7 +118,6 @@ def main():
 
 			for mwb in mwbox:
 				dsinfo  = dsinfomaker(compath, backpath, mwb, tcfs)
-				breakpoint()
 				# ========== Setup the dataset ==========
 				datasets = OrderedDict()
 				for dsnm in dsnames:
@@ -135,10 +136,12 @@ def main():
 					datasets[dsnm] = ppath+fname #xr.open_dataset(ppath+fname)
 					# ipdb.set_trace()
 				
-				for mask, bounds in zip([True, False], [[10.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
-					# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
-					plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds, maskver)
-					breakpoint() 
+				mask = True
+				bounds = [10.0, 170.0, 70.0, 49.0]
+				plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale, bounds, maskver)
+				# for mask, bounds in zip([True, False], [[10.0, 170.0, 70.0, 49.0], [-10.0, 180.0, 70.0, 40.0]]):
+				# 	# testplotmaker(datasets, var, mwb, plotdir, formats, mask, compath, vmax, backpath, proj, scale)
+				# 	breakpoint() 
 
 				# ipdb.set_trace()
 
@@ -187,10 +190,14 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 			figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
 		shrink = None
 	# bounds = [-10.0, 180.0, 70.0, 40.0]
-	# breakpoint()
 
 	# ========== Loop over the figure ==========
-	for (num, ax), dsn, in zip(enumerate(axs.flat), datasets):
+	if len(datasets) == 1:
+		enax = [axs]
+	else:
+		enax = axs.flat
+	
+	for num, (ax, dsn) in enumerate(zip(enax, datasets)):
 		# make the figure
 		im = _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, vmax = vmax, shrink=shrink)
 
@@ -213,6 +220,8 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	# plt.axis('scaled')
 	if len (datasets) == 4:
 		plt.subplots_adjust(top=0.99,bottom=0.010, left=0.010, right=0.97, hspace=0.00,wspace=0.0)
+	elif len (datasets) == 1:
+		plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.98,hspace=0.063,wspace=0.0)
 	else:
 		plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.993,hspace=0.063,wspace=0.0)
 
@@ -236,12 +245,44 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 		cf.writemetadata(plotfname, infomation)
 
 #==============================================================================
+def _SRfracBuilder(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, 
+	proj,scale, bounds, latiMid, longMid, maskver, region = "SIBERIA", 
+	vmax = 80.0,shrink=0.8, xbounds = [-10.0, 180.0, 70.0, 40.0]): 
+
+	# ========== Riskbuilder ==========
+	ds_dsn = xr.open_dataset(dsinfo["esacci"]["fname"])
+	# breakpoint()
+
+	# ========== Get the data for the frame ==========
+	frame = ds_dsn["AnBF"].sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+	
+	# frame = None
+	ds_dsn2 = xr.open_dataset(dsinfo["HANSEN_AFmask"]["fname"])
+	frame2 = ds_dsn2["AnBF"].sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+	
+	with ProgressBar():
+		frm = (frame2/frame).compute()
+	frm = frm.where(~(frm >1), 1)
+
+	ds_SRF = xr.Dataset({"StandReplacingFireFraction":frm})
+	GlobalAttributes(ds_SRF, fnameout=datasets[dsn])
+	ds_SRF.attrs["title"] = "StandReplacingFireFraction"
+	ds_SRF.attrs["summary"] = "StandReplacingFireFraction esacci and HANSEN_AFmask"
+	ds_SRF.to_netcdf(datasets[dsn], format = 'NETCDF4', unlimited_dims = ["time"])
+	print("FRI SR frac Dataset Built")
+
+
+
+
+
+
 def _RiskBuilder(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, 
 	proj,scale, bounds, latiMid, longMid, maskver, region = "SIBERIA", 
 	vmax = 80.0,shrink=0.8, xbounds = [-10.0, 180.0, 70.0, 40.0]): 
 
 	# ========== Riskbuilder ==========
-
 	ds_dsn = xr.open_dataset(dsinfo["esacci"]["fname"])
 	# ========== Get the data for the frame ==========
 	frame = ds_dsn["FRI"].sortby("latitude", ascending=False).sel(
@@ -291,7 +332,7 @@ def _RiskBuilder(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath,
 		with ProgressBar():
 			dac = da.coarsen(
 				{"latitude":scale[dsn]*2, "longitude":scale[dsn]*2
-				}, boundary ="pad", keep_attrs=True).max().compute()
+				}, boundary ="pad").max().compute()
 		dac.plot(vmin=1)
 		plt.show()
 	Risk = CRD+MRD+HRD+MR+HR+CR
@@ -316,6 +357,7 @@ def dsinfomaker(compath, backpath, mwb, tcfs, SR="SR"):
 	dsinfo["HANSEN_AFmask"] = ({"alias":"Hansen GFC & MCD14ML", "long_name":f'FRI$_{{{SR}}}$',"units":"yrs"})
 	dsinfo["HANSEN"]        = ({"alias":"Hansen GFC", "long_name":"DRI","units":"yrs"})
 	dsinfo["Risk"]          = ({"alias":"Forest Loss Risk"})
+	dsinfo["SRfrac"]        = ({"alias":"Stand Replacing Fire Percentage", "long_name":f'FRI$_{{{"SR"}}}$ %'})
 
 	for dsnm in dsinfo:
 		if dsnm.startswith("H"):
@@ -353,6 +395,24 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 		title = ""
 		extend = "neither"
 	
+	elif dsn == 'SRfrac':
+		vmax = 1
+		if not os.path.isfile(datasets[dsn]):
+			_SRfracBuilder(dsinfo, num, ax, var, dsn, datasets, mask, compath, backpath, proj, scale, bounds, latiMid, longMid, maskver, shrink=shrink)
+		
+		frame = _fileopen(dsinfo, datasets, dsn, "StandReplacingFireFraction", scale, proj, mask, compath, region, bounds, maskver, func = "mean")
+		frame *= 100
+		# breakpoint()
+		# frame = _fileopen(dsinfo, datasets, dsn, "ForestLossRisk", scale, proj, mask, compath, region, bounds, maskver, func = "mean")
+
+		# ========== Set the colors ==========
+		cmap, norm, vmin, vmax, levels = _colours( "StandReplacingFireFraction", vmax, dsn)
+
+		# ========== Create the Title ==========
+		title = ""
+		extend = "neither"
+		# breakpoint()
+
 	else:
 		if not os.path.isfile(datasets[dsn]):
 
@@ -503,11 +563,11 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 		if func == "mean":
 			frame = frame.coarsen(
 				{"latitude":scale[dsn], "longitude":scale[dsn]
-				}, boundary ="pad", keep_attrs=True).mean().compute()
+				}, boundary ="pad").mean().compute()
 		elif func == "max":
 			frame = frame.coarsen(
 				{"latitude":scale[dsn], "longitude":scale[dsn]
-				}, boundary ="pad", keep_attrs=True).max().compute()
+				}, boundary ="pad").max().compute()
 		else:
 			print("Unknown Function")
 			breakpoint()
@@ -520,7 +580,7 @@ def _fileopen(dsinfo, datasets, dsn, var, scale, proj, mask, compath, region, bo
 		# stpath = compath +"/Data51/ForestExtent/%s/" % dsn
 		stpath = compath + "/masks/broad/"
 
-		if dsn.startswith("H") or (dsn == "Risk"):
+		if dsn.startswith("H") or (dsn in ["Risk", "SRfrac"]):
 			fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
 			fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
 		else:
@@ -599,7 +659,16 @@ def _colours(var, vmax, dsn):
 		cmap    = mpl.colors.ListedColormap(cmapHex)
 		cmap.set_bad('dimgrey',1.)
 
-
+	elif var == "StandReplacingFireFraction":
+		vmin = 0.01
+		vmax = 100
+		cmapHex = palettable.cmocean.diverging.Curl_20.hex_colors#[2:] #Matter_11
+		# levels  = np.arange(vmin, vmax+0.05, 0.10)
+		cmap    = mpl.colors.ListedColormap(cmapHex)#[1:-1])
+		cmap.set_bad('dimgrey',1.)
+		cmap.set_over(cmapHex[-1])
+		cmap.set_under(cmapHex[0])
+		norm=LogNorm(vmin = vmin, vmax = vmax)
 	else:
 		# ========== Set the colors ==========
 		vmin = 0.0
@@ -659,7 +728,7 @@ def syspath():
 		dpath = "./data"
 		breakpoint()
 		# dpath= "/media/arden/Harbinger/Data51/BurntArea"
-	elif sysname == 'LAPTOP-8C4IGM68':
+	elif sysname in ['LAPTOP-8C4IGM68', 'DESKTOP-N9QFN7K']:
 		dpath     = "./data"
 		backpath = "/mnt/d/fireflies"
 	else:

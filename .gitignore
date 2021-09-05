@@ -113,3 +113,7 @@ data/*
 *.tif
 *.pdf
 */.Rhistory
+*.nc
+*.jpg
+*.pptx
+

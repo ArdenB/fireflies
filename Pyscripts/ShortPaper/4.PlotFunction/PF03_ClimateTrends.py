@@ -112,8 +112,9 @@ def main():
 	maskver = "Boreal"
 
 	# ========== Build the annual plots ==========
+	AnnualPlotmaker(setupfunc("annual", rmaps = False), dpath, cpath, ppath, pbounds, maskver, rmaps = False)
+	breakpoint()
 	AnnualPlotmaker(setupfunc("annual", rmaps = True), dpath, cpath, ppath, pbounds, maskver, rmaps = True)
-	# breakpoint()
 	
 	# ========== Make a figure of the model output ==========
 	ModelPrediction(ppath)
@@ -477,7 +478,6 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver, cli):
 		cf.writemetadata(plotfname, infomation)
 	breakpoint()
 
-
 def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False):
 	""" Function fo making the annual plot
 	args:
@@ -551,7 +551,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
 				    cbar_kwargs={
-				    "pad": 0.015, "shrink":setup[va]["shrink"], "extend":setup[va]["extend"]
+				    "pad": 0.015, "shrink":0.80, "extend":"both"
 				    })
 			# ========== work out the stippling ==========
 			slats, slons = _stippling(ds, squeeze=10, nanfrac = 0.15, sigfrac=0.5)
@@ -569,24 +569,6 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 				ds = ds.sum(dim='season')
 				vax = "ppt"
 			else:
-<<<<<<< HEAD
-				extend =  'max'
-				if va == "ppt":
-					ds = xr.open_dataset(f"{cpath}smoothed/TerraClimate_{va}_1degMW_SeasonalClimatology_1985to2015.nc")
-					ds = ds.sum(dim='season')
-				else:
-					ds = _annualtempmaker(va, cpath,  funb =bn.nanmax, func="max")
-					# ds = _annualtempmaker(va, cpath,  funb =bn.nanmean, func="mean")
-					# extend="both"
-				# breakpoint()
-				# ds = ds.where(np.squeeze(dsmask.datamask.values) == 1)
-				ds = ds.where(msk == 1)
-
-				ds[va].attrs = setup[va+"C"]["attrs"]
-				p  = ds[va].plot(
-					cmap=setup[va+"C"]["cmap"], vmin=setup[va+"C"]["vmin"], vmax=setup[va+"C"]["vmax"],
-					transform=ccrs.PlateCarree(), ax=ax, cbar_kwargs={"pad": 0.015, "shrink":0.80, "extend":extend})
-=======
 				ds = _annualtempmaker("tmean", cpath,  funb =bn.nanmax, func="max")
 				vax = "tmean"
 				# ds = _annualtempmaker(va, cpath,  funb =bn.nanmean, func="mean")
@@ -594,14 +576,13 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 			# breakpoint()
 			# ds = ds.where(np.squeeze(dsmask.datamask.values) == 1)
 			ds = ds.where(msk == 1)
->>>>>>> ceddf56c0b57087a6902bb0f9a00b797bca93ea9
 
 			ds[vax].attrs = setup[va]["attrs"]
 			p  = ds[vax].plot(
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
 				    cbar_kwargs={
-				    "pad": 0.015, "shrink":setup[va]["shrink"], "extend":setup[va]["extend"]
+				    "pad": 0.015, "shrink":0.80, "extend":extend
 				    })
 			print(f"Annual Climate {vax}", ds[vax].quantile([0.01,0.05, 0.50,0.95,0.99]))
 			ds = None
@@ -620,7 +601,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 				cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
 				transform=ccrs.PlateCarree(), ax=ax,
 				    cbar_kwargs={
-				    "pad": 0.015, "shrink":setup[va]["shrink"], "extend":"neither"
+				    "pad": 0.015, "shrink":0.80, "extend":"neither"
 				    })
 			cbar = p.colorbar
 			keys =  pd.DataFrame({va:setup[va]["kys"]}).reset_index()
@@ -692,6 +673,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 		infomation = [maininfo, plotfname, gitinfo]
 		cf.writemetadata(plotfname, infomation)
 	breakpoint()
+
 
 # ==============================================================================
 def _stippling(ds, squeeze=10, nanfrac = 0.25, sigfrac=0.5):

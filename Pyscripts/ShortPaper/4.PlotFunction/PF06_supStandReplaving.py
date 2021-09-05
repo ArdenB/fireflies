@@ -69,6 +69,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
 import string
 from itertools import chain
+from matplotlib.colors import LogNorm, Normalize
 
 
 # ========== Import my dunctions ==========
@@ -86,6 +87,7 @@ print("numpy version  : ", np.__version__)
 print("pandas version : ", pd.__version__)
 print("xarray version : ", xr.__version__)
 print("cartopy version : ", ct.__version__)
+
 
 #==============================================================================
 
@@ -137,11 +139,11 @@ def main():
 	exper["StandReplacingFireFraction"] = ({
 		"data":dsnams1,
 		"var" :"AnBF", 
-		"vmax":1, 
-		"vmin":0,
+		"vmax":100, 
+		"vmin":0.01,
 		"func":"div",
-		"attrs":{"long_name":f'FRI$_{{{"SR"}}}$ fraction'},
-		"extend":"max", 
+		"attrs":{"long_name":f'FRI$_{{{"SR"}}}$ %'},
+		"extend":"min", 
 		"dsnr":"esacci"
 		})
 	exper["DRIwithoutfires"] = ({
@@ -196,7 +198,14 @@ def plotmaker(exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, bac
 			figsize=(16,9), subplot_kw={'projection': ccrs.PlateCarree()})
 		shrink = None
 	# ========== Loop over the experiments ==========
-	for num, (ax, exp) in enumerate(zip(axs, exper)):
+		# ========== Loop over the figure ==========
+	if len(datasets) == 1:
+		enax = [axs]
+	else:
+		enax = axs.flat
+	
+	for num, (ax, dsn) in enumerate(zip(enax, datasets)):
+		# make the figure
 		print(f"Starting {exp} at: {pd.Timestamp.now()}")
 		im = _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver)	
 		ax.set_aspect('equal')
@@ -219,9 +228,12 @@ def plotmaker(exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, bac
 		gitinfo = pf.gitmetadata()
 		infomation = [maininfo, plotfname, gitinfo]
 		cf.writemetadata(plotfname, infomation)
+	
+
 	breakpoint()
 
-def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, proj, scale, bounds, maskver, region = "SIBERIA", shrink=0.85): 
+def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, 
+	mask, compath, backpath, proj, scale, bounds, maskver, region = "SIBERIA", shrink=0.85): 
 	""" 
 	function to load all the data, calculate the experiment and add it to the axis 
 	"""
@@ -243,7 +255,7 @@ def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, 
 	# 	frame = dlist[0] - dlist[1]
 	
 	# ========== Set the colors ==========
-	cmap, norm, vmin, vmax, levels = _colours(exp, exper[exp]["vmax"], exper)
+	cmap, norm, vmin, vmax, levels, spacing = _colours(exp, exper[exp]["vmax"], exper)
 
 	# ========== Create the Title ==========
 	title = ""
@@ -256,7 +268,7 @@ def _subplotmaker(num, exp, ax, exper, dsinfo, datasets, mwb, plotdir, formats, 
 			cmap=cmap, norm=norm, 
 			transform=ccrs.PlateCarree(),
 			# add_colorbar=False,
-			cbar_kwargs={"pad": 0.02, "extend":extend, "shrink":shrink, "ticks":levels, "spacing":"uniform"}
+			cbar_kwargs={"pad": 0.02, "extend":extend, "shrink":shrink, "ticks":levels, "spacing":spacing}
 			) #
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
 		ax.gridlines()
@@ -311,6 +323,7 @@ def _colours(exp, vmax, exper):
 	norm=None
 	levels = None
 	vmin = exper[exp]["vmin"]
+	spacing = "uniform"
 	if exp == "DRIwithoutfires":
 		# +++++ set the min and max values +++++
 		vmin = 0.0
@@ -340,12 +353,14 @@ def _colours(exp, vmax, exper):
 
 	elif exp ==  "StandReplacingFireFraction":
 		# vmin = -0.5
-		cmapHex = palettable.cmocean.sequential.Matter_11.hex_colors#[2:] #Matter_11
-		levels  = np.arange(vmin, vmax+0.05, 0.10)
-		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
+		cmapHex = palettable.cmocean.diverging.Curl_20.hex_colors#[2:] #Matter_11
+		# levels  = np.arange(vmin, vmax+0.05, 0.10)
+		cmap    = mpl.colors.ListedColormap(cmapHex)#[1:-1])
 		cmap.set_bad('dimgrey',1.)
 		cmap.set_over(cmapHex[-1])
-
+		cmap.set_under(cmapHex[0])
+		norm=LogNorm(vmin = exper[exp]["vmin"], vmax = exper[exp]["vmax"])
+		spacing = "proportional"
 
 	else:
 		# ========== Set the colors ==========
@@ -361,21 +376,22 @@ def _colours(exp, vmax, exper):
 		cmap    = mpl.colors.ListedColormap(cmapHex[:-1])
 		cmap.set_over(cmapHex[-1] )
 		cmap.set_bad('dimgrey',1.)
-	return cmap, norm, vmin, vmax, levels
+	return cmap, norm, vmin, vmax, levels, spacing
 
 def _fileopen(exp, exper, dsinfo, datasets, dsnl, var, scale, proj, mask, compath, region, bounds, maskver, func = "mean"):
 
 	xbounds = [-10.0, 180.0, 70.0, 40.0]
+
+	# xbounds = [100.0, 120.0, 60.0, 49.0]
 	dsnr = exper[exp]["dsnr"]
 	def _openandcut(dsn, datasets, xboundsm, var):
 		ds_dsn = xr.open_dataset(datasets[dsn])
 		# ========== Get the data for the frame ==========
 		frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
-			dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1]))).drop("time").chunk()
+			dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1]))).drop("time")#.chunk()
 		return frame
 	
 	frames = [_openandcut(dsn, datasets, xbounds, var) for dsn in dsnl]
-
 	with ProgressBar():
 		# ========== compute the experiment ==========
 		if exper[exp]['func'] == "div":
@@ -386,6 +402,8 @@ def _fileopen(exp, exper, dsinfo, datasets, dsnl, var, scale, proj, mask, compat
 			breakpoint()
 		frame.compute()
 	
+	if exp == 'StandReplacingFireFraction':
+		frame *= 100.
 	# with ProgressBar():
 	# 	test = (frames[0] > frames[1]).compute()
 	# breakpoint()
@@ -442,11 +460,11 @@ def _fileopen(exp, exper, dsinfo, datasets, dsnl, var, scale, proj, mask, compat
 		if func == "mean":
 			frame = frame.coarsen(
 				{"latitude":scale[dsnr], "longitude":scale[dsnr]
-				}, boundary ="pad", keep_attrs=True).mean().compute()
+				}, boundary ="pad", ).mean().compute()
 		elif func == "max":
 			frame = frame.coarsen(
 				{"latitude":scale[dsnr], "longitude":scale[dsnr]
-				}, boundary ="pad", keep_attrs=True).max().compute()
+				}, boundary ="pad", ).max().compute()
 		else:
 			print("Unknown Function")
 			breakpoint()
@@ -518,13 +536,12 @@ def syspath():
 		dpath = "./data"
 		breakpoint()
 		# dpath= "/media/arden/Harbinger/Data51/BurntArea"
-	elif sysname == 'LAPTOP-8C4IGM68':
+	elif sysname in ['LAPTOP-8C4IGM68', 'DESKTOP-N9QFN7K']:
 		dpath     = "./data"
 		backpath = "/mnt/d/fireflies"
 	else:
 		ipdb.set_trace()
 	return dpath, backpath
-
 #==============================================================================
 if __name__ == '__main__':
 	main()

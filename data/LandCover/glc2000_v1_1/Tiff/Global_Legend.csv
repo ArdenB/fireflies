@@ -1,0 +1,24 @@
+﻿VALUE,CLASSNAMES,GROUP
+1,"Tree Cover, broadleaved, evergreen",8
+2,"Tree Cover, broadleaved, deciduous, closed",8
+3,"Tree Cover, broadleaved, deciduous, open",8
+4,"Tree Cover, needle-leaved, evergreen",7
+5,"Tree Cover, needle-leaved, deciduous",6
+6,"Tree Cover, mixed leaf type",5
+7,"Tree Cover, regularly flooded, fresh water",5
+8,"Tree Cover, regularly flooded, saline water",5
+9,Mosaic: Tree Cover / Other natural vegetation,5
+10,"Tree Cover, burnt",5
+11,"Shrub Cover, closed-open, evergreen",4
+12,"Shrub Cover, closed-open, deciduous",4
+13,"Herbaceous Cover, closed-open",4
+14,Sparse herbaceous or sparse shrub cover,4
+15,Regularly flooded shrub and/or herbaceous cover,4
+16,Cultivated and managed areas,3
+17,Mosaic: Cropland / Tree Cover / Other natural vege,3
+18,Mosaic: Cropland / Shrub and/or grass cover,3
+19,Bare Areas,2
+20,Water Bodies,1
+21,Snow and Ice,1
+22,Artificial surfaces and associated areas,0
+23,No data,0
