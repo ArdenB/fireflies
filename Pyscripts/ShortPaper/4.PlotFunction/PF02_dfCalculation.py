@@ -70,6 +70,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import socket
 import string
 from statsmodels.stats.weightstats import DescrStatsW
+import seaborn as sns
 
 
 # ========== Import my dunctions ==========
@@ -104,7 +105,7 @@ def main():
 	cf.pymkdir(plotdir)
 	griddir = "./data/gridarea/"
 	maskver = "Boreal"
-
+	_FRIsrTree(compath, backpath, maskver, plotdir)
 	_riskStat(compath, backpath, maskver, plotdir)
 
 	for var in ["FRI", "AnBF"]:
@@ -157,9 +158,57 @@ def main():
 			ipdb.set_trace()
 
 #==============================================================================
+def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, region = "SIBERIA", TCF = 10, griddir = "./data/gridarea/"):
+	# ========== open the dataset ==========
+	setup   = setupfunc()
+	bpath  = "./data/LandCover/Bartalev"
+	fnTree = f"{bpath}/Bartalev_TreeSpecies_ProcessedToesacci.nc"
+	# stpath = compath + "/masks/broad/"
+	# fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+	stpath = compath + "/masks/broad/"
+	fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+	fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
+
+	dst    = xr.open_dataset(fnTree)
+	kys    = {}
+	for vrm in setup[var]['valmap']:	
+		dst[var] = dst[var].where(~(dst[var] == vrm), setup[var]['valmap'][vrm])
+
+	ppath  = compath + "/BurntArea/SRfrac/FRI/"
+	fname  = f"{ppath}SRfrac_annual_burns_MW_{mwb}degreeBox.nc"
+	dsf    = xr.open_dataset(fname)
+	# Mask
+	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+		# breakpoint()
+		if maskver == "Boreal":
+			msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+		else:
+			msk    = (dsmask.mask.isel(time=0)).astype("float32")
+		
+		
+		msk = msk.values
+		# +++++ Change the boolean mask to NaNs +++++
+		msk[msk == 0] = np.NAN
+		
+		# print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+		# +++++ mask the frame +++++
+		# breakpoint()
+		# frame *= msk
+		dsf *= msk
+
+		# +++++ close the mask +++++
+		msk = None
+		# print(f"masking complete for {dsn}, begining stats calculation at {pd.Timestamp.now()}")
+
+	ds = xr.merge([dsf, dst])
+	df = ds.to_dataframe().dropna()
+
+
+
+	breakpoint()
 
 def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, region = "SIBERIA", 
-	griddir = "./data/gridarea/"):
+	griddir = "./data/gridarea/",):
 	"""
 	Function to build the stats  about risk
 	"""
@@ -246,6 +295,51 @@ def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, 
 	breakpoint()
 
 
+
+def setupfunc(shrink = 0.90):
+	# cmaps = _cmapsfun()
+	# ========== Build an ordered dict with key info ==========
+	setup = OrderedDict()
+	
+	# ========== make the kes foir the figure ==========
+	# df_lc = pd.read_csv("./data/LandCover/glc2000_v1_1/Tiff/Global_Legend.csv")
+	# df_lc["GROUP"].replace(0, np.NaN,inplace=True)
+	# df_lc["GROUP"].replace(1, np.NaN,inplace=True)
+	# exc = OrderedDict()
+	# for val, gp in zip(np.flip(df_lc.VALUE.values), np.flip(df_lc.GROUP.values)):
+	# 	exc[val]= -gp
+	# # kys = ({0:"FBD", 1:"FCE", 2:"FCD", 3:"FMx", 4:"SHC", 5:"CMA", 6:"BG", 7:"WSI", 8:"Oth"})
+	# # breakpoint()
+	# kys = ({ 2:"BG", 3:"CMA", 4:"SHC", 5:"FMx", 6:"FCD", 7:"FCE", 8:"FBD"})#, 1:"WSI",
+
+	# setup["LandCover"] = ({"vmin":1.5, "vmax":8.5, "cmap":cmaps["LandCover"],"lname":"Land Cover",
+	# 	"valmap":exc, "kys":kys, "attrs":{'long_name':"Land Cover Class"}, "places": _locations(), 
+	# 	"shrink":shrink, "mask":False})
+	# ========== Do the tree species ==========
+	bpath = "./data/LandCover/Bartalev"
+	tsfn = f"{bpath}/Land_cover_map_Bartalev/BartalevLookup.csv"
+	df_ts = pd.read_csv(tsfn) 
+	df_ts["Group"].replace(0, np.NaN,inplace=True)
+
+	exct = OrderedDict()
+	kyst = OrderedDict()
+	for val, gp, sp in zip(df_ts["Value"].values, df_ts["Group"].values, df_ts["Species"].values):
+		exct[val]= gp
+		if gp > 0:
+			if not gp in kyst.keys():
+				kyst[gp] = sp
+	
+	setup["TreeSpecies"] = ({"vmin":.5, "vmax":9.5, "cmap":None,"lname":"Tree Species",
+		"valmap":exct, "kys":kyst, "attrs":{'long_name':"Dominate Tree Species"}, "places": None, 
+		"shrink":shrink, "mask":False})
+			
+
+	# ========== Deinstine regions ==========
+	# setup["DinersteinRegions"] = ({"vmin":0, "vmax":7, "cmap":cmaps["pptC"],"lname":"Land Cover",
+	# 	})
+
+
+	return setup
 
 
 def statcal(dsn, var, datasets, compath, backpath, maskver, region = "SIBERIA", griddir = "./data/gridarea/"):

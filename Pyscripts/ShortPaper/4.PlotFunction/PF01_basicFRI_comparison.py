@@ -371,8 +371,6 @@ def dsinfomaker(compath, backpath, mwb, tcfs, SR="SR"):
 			fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
 		# +++++ open the datasets +++++
 		dsinfo[dsnm]["fname"] = ppath+fname
-
-
 	return dsinfo
 
 

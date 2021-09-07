@@ -111,11 +111,12 @@ def main():
 	maskver = "Boreal"
 	setup   = setupfunc()
 	formats = [".png", ".pdf"]
-	AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats,)
+	vnames  = ["LandCover", "TreeSpecies"]
+	AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, vnames)
 
 
 #==============================================================================
-def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, nrows=1):
+def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, vnames, alpC  = ["a", "b", "c", "d"]):
 	""" Function fo making the annual plot
 	args:
 		setup: Ordered dict 
@@ -124,10 +125,12 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, nrows
 		cpath:	str
 			path to the climate data
 	"""
+	nrows=len(vnames)
 	# ========== load the mask ==========
 	fnmask = f"{dpath}/masks/broad/Hansen_GFC-2018-v1.6_SIBERIA_ProcessedToTerraClimate.nc"
 	fnBmask = f"./data/LandCover/Regridded_forestzone_TerraClimate.nc"
-
+	bpath = "./data/LandCover/Bartalev"
+	fnTree = f"{bpath}/Bartalev_TreeSpecies_ProcessedToTerraClimate.nc"
 
 	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
 		# breakpoint()
@@ -157,71 +160,71 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, nrows
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 	
 	# ========== Create the figure ==========
-	fig, ax = plt.subplots(
-		1, 1, sharex=True, subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
+	fig, axs = plt.subplots(
+		nrows, 1, sharex=True, subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
 		figsize=(14, nrows * 6)
 		)
-	va = "LandCover"
-	# ========== load the dataset and pull out the relevant parts ==========
-	ds = xr.open_dataset(fnBmask)
-	# +++++ remap the values +++++
-	for vrm in setup[va]['valmap']:	
-		ds[va] = ds[va].where(~(ds[va] == vrm), setup[va]['valmap'][vrm])
-	ds[va] = np.fabs(ds[va])
-	ds[va].attrs = setup[va]["attrs"]
-	
-	p  = ds[va].plot(
-		cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
-		transform=ccrs.PlateCarree(), ax=ax,
-		    cbar_kwargs={
-		    "pad": 0.015, "shrink":0.80, "extend":"neither"
-		    })
-	cbar = p.colorbar
-	keys =  pd.DataFrame({va:setup[va]["kys"]}).reset_index()
-	# cbar.set_ticklabels( keys.Code.values)  # horizontal colorbar
+	for va, ax, let in zip(setup, axs.flatten(), alpC):
+		if va == "LandCover":
+			# ========== load the dataset and pull out the relevant parts ==========
+			ds = xr.open_dataset(fnBmask)
+		else:
+			ds = xr.open_dataset(fnTree)
+		# +++++ remap the values +++++
+		for vrm in setup[va]['valmap']:	
+			ds[va] = ds[va].where(~(ds[va] == vrm), setup[va]['valmap'][vrm])
+		ds[va] = np.fabs(ds[va])
+		ds[va].attrs = setup[va]["attrs"]
+		# if setup[va]["mask"]:
+		# 	ds[va] *= msk
+		
+		p  = ds[va].plot(
+			cmap=setup[va]["cmap"], vmin=setup[va]["vmin"], vmax=setup[va]["vmax"],
+			transform=ccrs.PlateCarree(), ax=ax,
+			    cbar_kwargs={
+			    "pad": 0.015, "shrink":0.80, "extend":"neither"
+			    })
+		cbar = p.colorbar
+		keys =  pd.DataFrame({va:setup[va]["kys"]}).reset_index()
+		# cbar.set_ticklabels( keys.Code.values)  # horizontal colorbar
 
-	cbar.set_ticks( keys["index"].values)
-	cbar.set_ticklabels(keys[va].values)
-	# axtitle = f"{let}) {cli}"
+		cbar.set_ticks( keys["index"].values)
+		cbar.set_ticklabels(keys[va].values)
+		axtitle = f"{let})" #  {setup[va]['lname']}
 
-	# ========== bring in the locations ==========
-	df_loc = setup[va]['places']
-	ax.scatter(
-		df_loc.lon.values, df_loc.lat.values, s=20, c='k', 
-		facecolors='none', edgecolors="none",  
-		alpha=1, transform=ccrs.PlateCarree())
-	for index, row in df_loc.iterrows():
+		if va == "LandCover":
+			# ========== bring in the locations ==========
+			df_loc = setup[va]['places']
+			ax.scatter(
+				df_loc.lon.values, df_loc.lat.values, s=20, c='k', 
+				facecolors='none', edgecolors="none",  
+				alpha=1, transform=ccrs.PlateCarree())
+			for index, row in df_loc.iterrows():
 
-		ax.text(
-			row.lon+row.lonoffset, row.lat+row.latoffset, row.Name, 
-			horizontalalignment='left',transform=ccrs.PlateCarree(), 
-			zorder=105, color="lightgray", path_effects=[pe.withStroke(linewidth=0.75, foreground="black")])
-
-
-			# marker='X', 
-
-		# breakpoint()
-		# plt.show()
+				ax.text(
+					row.lon+row.lonoffset, row.lat+row.latoffset, row.Name, 
+					horizontalalignment='left',transform=ccrs.PlateCarree(), 
+					zorder=105, color="lightgray", path_effects=[pe.withStroke(linewidth=0.75, foreground="black")])
 
 
+		ax.set_extent(pbounds, crs=ccrs.PlateCarree())
+		ax.gridlines()
 
-	ax.set_extent(pbounds, crs=ccrs.PlateCarree())
-	ax.gridlines()
-
-	coast = cpf.GSHHSFeature(scale="intermediate")
-	# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
-	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
-	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-	ax.add_feature(coast, zorder=101, alpha=0.5)
-	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-	ax.add_feature(cpf.RIVERS, zorder=104)
-	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-	# ========== Set the titles ==========
-	ax.set_title("")
+		coast = cpf.GSHHSFeature(scale="intermediate")
+		# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
+		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+		ax.add_feature(coast, zorder=101, alpha=0.5)
+		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+		ax.add_feature(cpf.RIVERS, zorder=104)
+		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+		# ========== Set the titles ==========
+		ax.set_title("")
+		ax.set_title(axtitle, loc= 'left')
 
 	plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.993,hspace=0.063,wspace=0.0)
 	# ========== make the plot name ==========
-	plotfname = ppath + f"PF07_ForestCover"
+	plotfname = ppath + f"PF07_ForestCoverV2"
 	# if mask:
 	# 	plotfname += "_ForestMask_V2"
 	if not (formats is None): 
@@ -261,8 +264,24 @@ def setupfunc(shrink = 0.90):
 
 	setup["LandCover"] = ({"vmin":1.5, "vmax":8.5, "cmap":cmaps["LandCover"],"lname":"Land Cover",
 		"valmap":exc, "kys":kys, "attrs":{'long_name':"Land Cover Class"}, "places": _locations(), 
-		"shrink":shrink,})
-		
+		"shrink":shrink, "mask":False})
+	# ========== Do the tree species ==========
+	bpath = "./data/LandCover/Bartalev"
+	tsfn = f"{bpath}/Land_cover_map_Bartalev/BartalevLookup.csv"
+	df_ts = pd.read_csv(tsfn) 
+	df_ts["Group"].replace(0, np.NaN,inplace=True)
+
+	exct = OrderedDict()
+	kyst = OrderedDict()
+	for val, gp, sp in zip(df_ts["Value"].values, df_ts["Group"].values, df_ts["Species"].values):
+		exct[val]= gp
+		if gp > 0:
+			if not gp in kyst.keys():
+				kyst[gp] = sp
+	
+	setup["TreeSpecies"] = ({"vmin":.5, "vmax":9.5, "cmap":cmaps["TreeSpecies"],"lname":"Tree Species",
+		"valmap":exct, "kys":kyst, "attrs":{'long_name':"Dominate Tree Species"}, "places": None, 
+		"shrink":shrink, "mask":False})
 			
 
 	# ========== Deinstine regions ==========
@@ -307,8 +326,11 @@ def _cmapsfun():
 	
 	LCcmap = mpc.ListedColormap(palettable.cartocolors.qualitative.Prism_7_r.mpl_colors)
 	LCcmap.set_bad('dimgrey',1.)
+	
+	TScmap = mpc.ListedColormap(palettable.cartocolors.qualitative.Bold_9.mpl_colors)
+	TScmap.set_bad('dimgrey',1.)
 
-	return {"ppt":pptcmap, "tmean":tmncmap, "pptC":pptcmapC, "tmeanC":tmncmapC, "LandCover":LCcmap}
+	return {"ppt":pptcmap, "tmean":tmncmap, "pptC":pptcmapC, "tmeanC":tmncmapC, "LandCover":LCcmap, "TreeSpecies":TScmap}
 
 
 
