@@ -71,6 +71,7 @@ import socket
 import string
 from statsmodels.stats.weightstats import DescrStatsW
 import seaborn as sns
+import string
 
 
 # ========== Import my dunctions ==========
@@ -90,7 +91,15 @@ print("xarray version : ", xr.__version__)
 
 #==============================================================================
 def main():
+	# ========== set the mpl rc params ==========
+	font = ({
+		'weight' : 'bold',
+		'size'   : 14, 
+		})
 
+	mpl.rc('font', **font)
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+	sns.set_style("whitegrid")
 	# ========== Setup the params ==========
 	TCF = 10
 	mwbox   = [1]#, 2]#, 5]
@@ -105,8 +114,8 @@ def main():
 	cf.pymkdir(plotdir)
 	griddir = "./data/gridarea/"
 	maskver = "Boreal"
-	_FRIsrTree(compath, backpath, maskver, plotdir)
 	_riskStat(compath, backpath, maskver, plotdir)
+	_FRIsrTree(compath, backpath, maskver, plotdir)
 
 	for var in ["FRI", "AnBF"]:
 		formats = [".png"]#, ".pdf"] # None
@@ -158,8 +167,9 @@ def main():
 			ipdb.set_trace()
 
 #==============================================================================
-def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, region = "SIBERIA", TCF = 10, griddir = "./data/gridarea/"):
-	# ========== open the dataset ==========
+def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, region = "SIBERIA", TCF = 10, 
+	griddir = "./data/gridarea/", dsg = "esacci"):
+	
 	setup   = setupfunc()
 	bpath  = "./data/LandCover/Bartalev"
 	fnTree = f"{bpath}/Bartalev_TreeSpecies_ProcessedToesacci.nc"
@@ -169,14 +179,24 @@ def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, re
 	fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
 	fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
 
-	dst    = xr.open_dataset(fnTree)
-	kys    = {}
+
+	dst    = xr.open_dataset(fnTree).sortby("latitude", ascending=False).sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	# kys    = {}
 	for vrm in setup[var]['valmap']:	
 		dst[var] = dst[var].where(~(dst[var] == vrm), setup[var]['valmap'][vrm])
 
 	ppath  = compath + "/BurntArea/SRfrac/FRI/"
 	fname  = f"{ppath}SRfrac_annual_burns_MW_{mwb}degreeBox.nc"
-	dsf    = xr.open_dataset(fname)
+	ds_fr =  xr.open_dataset(f"{compath}/BurntArea/esacci/FRI/esacci_annual_burns_MW_{mwb}degreeBox.nc").sortby("latitude", ascending=False).sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	dsf    = xr.open_dataset(fname).sortby("latitude", ascending=False).sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	# breakpoint()
+	dsf    = dsf.where((ds_fr["AnBF"] > 0.0001).values)
+
+	# ========== bring in the grid area ==========
+	gafn   = f"{griddir}{dsg}_gridarea.nc"
+	ds_ga  = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
+	ds_ga = ds_ga.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
 	# Mask
 	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
 		# breakpoint()
@@ -200,11 +220,56 @@ def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, re
 		msk = None
 		# print(f"masking complete for {dsn}, begining stats calculation at {pd.Timestamp.now()}")
 
-	ds = xr.merge([dsf, dst])
+	ds = xr.merge([dsf, dst, ds_ga])
 	df = ds.to_dataframe().dropna()
+	df["weights"] = np.cos(np.deg2rad(df.reset_index().latitude.values))
+	
+	df.sort_values("TreeSpecies", inplace=True, ascending=False)
+	df["TreeSpecies"].replace(setup['TreeSpecies']["kys"], inplace=True)
 
+	# ========== pull out the the keys ==========
+	# sns.violinplot(x="StandReplacingFireFraction", hue = "StandReplacingFireFraction", data=df)
+	# sns.violinplot(y = "StandReplacingFireFraction", x= "TreeSpecies", data=df)
+	# sns.displot(data=df, x = "StandReplacingFireFraction",  col="TreeSpecies", col_wrap=4, hue="TreeSpecies", kind="kde", kwargs={"bw_adjust":.2})
+	cmap = palettable.cartocolors.qualitative.Bold_9.hex_colors
 
+	g = sns.displot(data=df, x = "StandReplacingFireFraction",  col="TreeSpecies", hue="TreeSpecies", palette=cmap,
+		col_wrap=3, kind="hist", stat = "probability", bins=50, common_norm=False, weights="weights")
+	# kde=True
+	# alphabet_string = string.ascii_lowercase
+	# alphabet_list = list(alphabet_string)
+	g.set_axis_labels(f'Fire$_{{{"SR"}}}$ Fraction' , "Probability")
+	g.set_titles("")
+	g.set_titles("{col_name}", loc= 'left')#alphabet_list[i] +") 
 
+	ppath = "./plots/ShortPaper/PF02_statplots/"
+	cf.pymkdir(ppath)
+	plotfname = ppath + f"PF02_TreeCover"
+	formats = [".png"]
+	if not (formats is None): 
+		# ========== loop over the formats ==========
+		for fmt in formats:
+			print(f"starting {fmt} plot save at:{pd.Timestamp.now()}")
+			plt.savefig(plotfname+fmt)#, dpi=dpi)
+	print("Starting plot show at:", pd.Timestamp.now())
+	
+	plt.show()
+	if not (plotfname is None):
+		maininfo = "Plot from %s (%s):%s by %s, %s" % (__title__, __file__, 
+			__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))
+		gitinfo = pf.gitmetadata()
+		infomation = [maininfo, plotfname, gitinfo]
+		cf.writemetadata(plotfname, infomation)
+	ipdb.set_trace()
+
+	dsa = xr.merge([dsf, ds_ga])
+	weights        = np.cos(np.deg2rad(dsa.latitude))
+	dfx = dsa.to_dataframe().dropna()
+
+	# peercentages 
+	print(dfx[dfx.StandReplacingFireFraction ==1].cell_area.sum() / dfx.cell_area.sum())
+	print(dsa.StandReplacingFireFraction.weighted(weights).mean())
+	# ws.weighted_median(dfx.StandReplacingFireFraction, dfx.cell_area)
 	breakpoint()
 
 def _riskStat(compath, backpath, maskver, plotdir, var="ForestLossRisk", mwb=1, region = "SIBERIA", 

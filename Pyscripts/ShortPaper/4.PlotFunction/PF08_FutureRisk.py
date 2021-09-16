@@ -112,7 +112,7 @@ def main():
 	maskver = "Boreal"
 	proj    = "polar"
 	# setup   = setupfunc()
-	formats = [".png", ".pdf"]
+	formats = [".png"]#, ".pdf"]
 
 
 	# dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
@@ -120,11 +120,11 @@ def main():
 	# dsnams3 = ["Risk"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20, "SRfrac":20, "FutureRisk":20})
 	
-	info = OrderedDict()
-	info ["FutureRisk"] = ({
-		"fnpre":"./results/ProjectSentinal/FRImodeling/S03_FRIdrivers_esacci_v0_100yr_trendPrediction_forests_sigclim.nc",
-		"fnSRF":""
-		})
+	# info = OrderedDict()
+	# info ["FutureRisk"] = ({
+	# 	"fnpre":"./results/ProjectSentinal/FRImodeling/S03_FRIdrivers_esacci_v0_100yr_trendPrediction_forests_sigclim.nc",
+	# 	"fnSRF":""
+	# 	})
 	
 	compath, backpath = syspath()
 	TCF     = 10
@@ -133,23 +133,25 @@ def main():
 	else:
 		tcfs = "_%dperTC" % np.round(TCF)
 
-	dsinfo  = dsinfomaker(compath, backpath, 1, tcfs)
-	datasets = OrderedDict()
-	datasets["FutureRisk"] = dsinfo["FutureRisk"]['fname']
+	for yrs, ves in zip([0, 30, 60, 100, 100], ["trend","trend","trend","trend","TCfut",]):
+		print(yrs, ves)
+		dsinfo  = dsinfomaker(compath, backpath, 1, tcfs, yrs, ves)
+		datasets = OrderedDict()
+		datasets["FutureRisk"] = dsinfo["FutureRisk"]['fname']
+		plotmaker(dsinfo, datasets, 1, ppath, formats, mask, compath, backpath, proj, scale, bounds, maskver, yrs, ves)
+		# breakpoint()
 
-	plotmaker(dsinfo, datasets, 1, ppath, formats, mask, compath, backpath, proj, scale, bounds, maskver)
 	breakpoint()
-
 	# AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats,)
 
 #==============================================================================
 
 def plotmaker(dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath, 
-	proj, scale, bounds, maskver, dsn="FutureRisk", region = "SIBERIA",):
+	proj, scale, bounds, maskver, yrs, ves, dsn="FutureRisk", region = "SIBERIA",):
 	"""Function builds a basic stack of maps """
 
 	# ========== make the plot name ==========
-	plotfname = plotdir + "PF08_FutureForestLossRisk_MW_%02dDegBox_V2_%s_%s" % (mwb, proj, "_".join(datasets.keys()))
+	plotfname = plotdir + "PF08_FutureForestLossRisk_MW_%02dDegBox_V2_%s_%s_%dyrs_%s" % (mwb, proj, "_".join(datasets.keys()), yrs, ves)
 	if mask:
 		plotfname += "_ForestMask_V2"
 
@@ -164,7 +166,17 @@ def plotmaker(dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath,
 
 	# mpl.rc('font', **font)
 	# plt.rcParams.update({'axes.titleweight':"bold", }) #'axes.titlesize':mapdet.latsize
+	
+	if not os.path.isfile(dsinfo["FutureRisk"]['fname']):
+		_FutRiskBuilder(dsinfo,compath, backpath, scale, yrs, ves, xbounds = [-10.0, 180.0, 70.0, 40.0])
+
+	# ========== do the disk stats calculations ==========
+	_riskStat( datasets, dsn, maskver, plotdir, yrs, ves,)
+
+	frame = _fileopen(dsinfo, datasets, "FutureRisk", "FutureForestLossRisk", scale, 
+		proj, mask, compath, region, bounds, maskver, func = "mean")
 		
+
 	# ========== setup the figure ==========
 	if proj == "polar":
 		latiMid=np.mean([bounds[2], bounds[3]])
@@ -181,11 +193,6 @@ def plotmaker(dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath,
 		fig, ax = plt.subplots(
 			yv, xv, figsize=(12,5*len(datasets)), subplot_kw={'projection': ccrs.Orthographic(longMid, latiMid)})
 
-	if not os.path.isfile(dsinfo["FutureRisk"]['fname']):
-		_FutRiskBuilder(dsinfo,compath, backpath, scale, xbounds = [-10.0, 180.0, 70.0, 40.0])
-
-	frame = _fileopen(dsinfo, datasets, "FutureRisk", "FutureForestLossRisk", scale, 
-		proj, mask, compath, region, bounds, maskver, func = "mean")
 
 	# ========== Set the colors ==========
 	cmap, norm, vmin, vmax, levels = _colours( "FutureForestLossRisk", 3.5, dsn)
@@ -246,19 +253,30 @@ def plotmaker(dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath,
 		gitinfo = pf.gitmetadata()
 		infomation = [maininfo, plotfname, gitinfo]
 		cf.writemetadata(plotfname, infomation)
-	breakpoint()
+	# breakpoint()
 
 	
 
 
 
-def _FutRiskBuilder(dsinfo, compath, backpath, scale, xbounds = [-10.0, 180.0, 70.0, 40.0]): 
+def _FutRiskBuilder(dsinfo, compath, backpath, scale, yrs, ves, xbounds = [-10.0, 180.0, 70.0, 40.0]): 
 
 	# xbounds = [140, 150.0, 60.0, 50.0]
 	# ========== Riskbuilder ==========
-	ds_dsn = xr.open_dataset("./results/ProjectSentinal/FRImodeling/S03_FRIdrivers_esacci_v0_100yr_trendPrediction_forests_sigclim.nc")
+	if ves == "trend":
+		sgc = "_sigclim"
+	else:
+		sgc = ""
+	if yrs == 0:
+
+		ds_dsn = xr.open_dataset(f"./results/ProjectSentinal/FRImodeling/S03_FRIdrivers_esacci_v0_30yr_{ves}Prediction_forests{sgc}.nc")
+		vx = "AnBF_XGBoost_cur"
+	else:
+		ds_dsn = xr.open_dataset(f"./results/ProjectSentinal/FRImodeling/S03_FRIdrivers_esacci_v0_{yrs}yr_{ves}Prediction_forests{sgc}.nc")
+		vx = "AnBF_XGBoost_fut"
+
 	# ========== Get the data for the frame ==========
-	frameAB = ds_dsn["AnBF_XGBoost_fut"].sortby("latitude", ascending=False).sel(
+	frameAB = ds_dsn[vx].sortby("latitude", ascending=False).sel(
 		dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
 
 	
@@ -321,18 +339,105 @@ def _FutRiskBuilder(dsinfo, compath, backpath, scale, xbounds = [-10.0, 180.0, 7
 		plt.show()
 	# breakpoint()
 	Risk = MR+HR+CR#CRD+MRD+HRD
-	Risk["time"] = [pd.Timestamp("2100-12-31")]
+	Risk["time"] = [pd.Timestamp(f"{2015+yrs}-12-31")]
 	# breakpoint()
 	# _quickplot((Risk==1).astype("int16"), scale, dsn)
 	ds_risk = xr.Dataset({"FutureForestLossRisk":Risk})
 	GlobalAttributes(ds_risk, fnameout=dsinfo["FutureRisk"]['fname'])
 	ds_risk.to_netcdf(dsinfo["FutureRisk"]['fname'], format = 'NETCDF4', unlimited_dims = ["time"])
 	print("Risk Dataset Built")
-	_quickplot (Risk, scale, "FutureRisk")
+	# _quickplot (Risk, scale, "FutureRisk")
 	# breakpoint()
 
 
 #==============================================================================
+def _riskStat( datasets, dsn, maskver, plotdir, yrs, ves, var="FutureForestLossRisk", mwb=1, region = "SIBERIA", compath="./data", 
+	griddir = "./data/gridarea/",):
+	"""
+	Function to build the stats  about risk
+	"""
+	print(f"Starting risk stats at:{pd.Timestamp.now()}")
+	# dsn = "Risk"
+	dsg = "esacci"
+
+	# Setup the file names
+	# ppath = compath + "/BurntArea/%s/FRI/" %  dsn
+	# fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsn, mwb)
+	
+	
+	stpath = compath + "/masks/broad/"
+	fnmask = stpath + "Hansen_GFC-2018-v1.6_%s_ProcessedToesacci.nc" % (region)
+	fnBmask = f"./data/LandCover/Regridded_forestzone_esacci.nc"
+	
+	# # /// the dataset \\\
+	# var="FutureForestLossRisk"
+	ds_dsn = xr.open_dataset(datasets[dsn])
+	frame = ds_dsn[var].isel(time=0).sortby("latitude", ascending=False).sel(
+		dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0))).drop("time").astype("float32")
+
+	# Grid
+	gafn   = f"{griddir}{dsg}_gridarea.nc"
+	ds_ga  = xr.open_dataset(gafn).astype(np.float32).sortby("latitude", ascending=False)
+	ds_ga = ds_ga.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
+	ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
+
+
+	# Mask
+	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
+		# breakpoint()
+		if maskver == "Boreal":
+			msk    = (dsmask.mask.isel(time=0)*((Bmask.BorealMask.isel(time=0)>0).astype("float32")))#.sel(dict(latitude=slice(xbounds[2], xbounds[3]), longitude=slice(xbounds[0], xbounds[1])))
+		else:
+			msk    = (dsmask.mask.isel(time=0)).astype("float32")
+		
+		
+		msk = msk.values
+		# +++++ Change the boolean mask to NaNs +++++
+		msk[msk == 0] = np.NAN
+		
+		print("Masking %s frame at:" % dsn, pd.Timestamp.now())
+		# +++++ mask the frame +++++
+		# breakpoint()
+		frame *= msk
+
+		# +++++ close the mask +++++
+		msk = None
+		print(f"masking complete for {dsn}, begining stats calculation at {pd.Timestamp.now()}")
+
+	# ========== Calculate the stats ==========
+	statPer = OrderedDict()
+	statkm2 = OrderedDict()
+
+
+	# ========== create the weights ==========
+	weights        = np.cos(np.deg2rad(frame.latitude))
+	weights.name   = "weights"
+	
+	# ========== calculate the number of nans and the number of  ==========
+	# (frame.isnull()).weighted(weights).sum() / (~frame.isnull()).weighted(weights).sum()
+	NN = ((~frame.isnull()).weighted(weights).sum()).values
+	NA = ((frame.isnull()).weighted(weights).sum()).values
+	statPer["NonNan"] = NN / (NN+NA)
+	statkm2["NonNan"] = ((~frame.isnull().values) * ds_ga["cell_area"]).sum().values
+	# ========== get the risk values ==========
+	keys = _riskkys()
+	for rsk in np.arange(0., 4.):
+		print(f"{rsk}.{keys[rsk]}")
+		statPer[f"{rsk}.{keys[rsk]['Code']}"] = np.round(((frame==rsk).weighted(weights).sum() / NN).values, decimals=4)
+		statkm2[f"{rsk}.{keys[rsk]['Code']}"] = np.round(((frame==rsk).values * ds_ga["cell_area"]).sum().values)
+	
+	# ========== Create the Metadata ==========
+	keystats = pd.DataFrame({"Areakm2":statkm2,"Percentage":statPer})
+	outpath = plotdir+"stats/"
+	Scriptinfo = "File saved from %s (%s):%s by %s, %s" % (__title__, __file__, 
+		__version__, __author__, str(pd.Timestamp.now()))
+	gitinfo = pf.gitmetadata()
+	cf.pymkdir(outpath) 
+	cf.writemetadata(outpath+f"PF08_{var}stats{maskver}_{yrs}yrs_{ves}", [Scriptinfo, gitinfo])
+	keystats.to_csv(outpath+f"PF08_{var}stats{maskver}_{yrs}yrs_{ves}.csv")
+	print(keystats)
+	# breakpoint()
+
 
 def _locations():
 	""" Fiunction to make a dataframe of different locations """
@@ -574,7 +679,7 @@ def GlobalAttributes(ds, fnameout=""):
 	# attr["time_coverage_end"]   = str(dt.datetime(ds['time.year'].max() , 12, 31))
 	return attr	
 # ==============================================================================
-def dsinfomaker(compath, backpath, mwb, tcfs, SR="SR"):
+def dsinfomaker(compath, backpath, mwb, tcfs, yrs, ves, SR="SR"):
 	"""
 	Contains infomation about the Different datasets
 	"""
@@ -596,9 +701,13 @@ def dsinfomaker(compath, backpath, mwb, tcfs, SR="SR"):
 			ppath = compath + "/BurntArea/HANSEN/FRI/"
 			fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, tcfs, mwb)
 			# fname = "%s%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
-		elif dsnm in ["FutureRisk", "Risk"]:
+		elif dsnm == "Risk":
 			ppath = compath + "/BurntArea/Risk/FRI/"
 			fname = "%s_annual_burns_MW_%ddegreeBox.nc" % (dsnm, mwb)
+			cf.pymkdir(ppath)
+		elif dsnm == "FutureRisk":
+			ppath = compath + "/BurntArea/Risk/FRI/"
+			fname = f"{dsnm}_annual_burns_MW_{mwb}degreeBox_{yrs}yrs_{ves}.nc" 
 			cf.pymkdir(ppath)
 		else:
 			# fname = "Hansen_GFC-2018-v1.6_regrided_esacci_FRI_%ddegMW_SIBERIA" % (mwb)
