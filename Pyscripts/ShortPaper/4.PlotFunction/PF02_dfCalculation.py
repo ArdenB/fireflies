@@ -114,8 +114,8 @@ def main():
 	cf.pymkdir(plotdir)
 	griddir = "./data/gridarea/"
 	maskver = "Boreal"
-	_riskStat(compath, backpath, maskver, plotdir)
 	_FRIsrTree(compath, backpath, maskver, plotdir)
+	_riskStat(compath, backpath, maskver, plotdir)
 
 	for var in ["FRI", "AnBF"]:
 		formats = [".png"]#, ".pdf"] # None
@@ -240,7 +240,20 @@ def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, re
 	# alphabet_list = list(alphabet_string)
 	g.set_axis_labels(f'Fire$_{{{"SR"}}}$ Fraction' , "Probability")
 	g.set_titles("")
-	g.set_titles("{col_name}", loc= 'left')#alphabet_list[i] +") 
+	g.set_titles("{col_name}", loc= 'left', fontstyle="italic")#alphabet_list[i] +") 
+	for ax, leg in zip(g.axes, g.legend.texts):
+		if ax.get_title(loc='left') == "Other":
+			ax.set_title("Other", loc="left")
+		elif ax.get_title(loc='left') == "Larch sp.":
+			ax.set_title(r"$\it{Larch}$ sp.", loc="left")
+			leg.set_text(r"$\it{Larch}$ sp.", )
+		elif ax.get_title(loc='left') in ["Betula sp.", "Betula\xa0sp."]:
+			ax.set_title(r"$\it{Betula}$ sp.", loc="left")
+			leg.set_text(r"$\it{Betula}$ sp.",)
+		else:
+			leg.set_fontstyle("italic")
+
+	# breakpoint()
 
 	ppath = "./plots/ShortPaper/PF02_statplots/"
 	cf.pymkdir(ppath)
