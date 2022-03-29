@@ -112,7 +112,8 @@ def main():
 	maskver = "Boreal"
 	proj    = "polar"
 	# setup   = setupfunc()
-	formats = [".png"]#, ".pdf"]
+	# formats = [".png", ".pdf"]
+	formats = [".png", ".tiff", ".eps"]# ".pdf"
 
 
 	# dsnams1 = ["GFED", "MODIS", "esacci", "COPERN_BA"]#, "HANSEN_AFmask", "HANSEN"]
@@ -222,7 +223,10 @@ def plotmaker(dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath,
 			# 
 		# breakpoint()
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
-		ax.gridlines()
+		# ax.gridlines()
+		gl = ax.gridlines(draw_labels= True, dms=True, x_inline=False, y_inline=False)#{"bottom": "x", "Top": "y"}
+		gl.xlocator = mticker.FixedLocator([60, 120])
+		gl.ylocator = mticker.FixedLocator([50, 60, 70])
 
 	else:
 		breakpoint()
@@ -237,7 +241,8 @@ def plotmaker(dsinfo, datasets, mwb, plotdir, formats, mask, compath, backpath,
 	ax.add_feature(cpf.RIVERS, zorder=104)
 	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
 	ax.set_aspect('equal')
-	plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.98,hspace=0.063,wspace=0.0)
+	# plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.98,hspace=0.063,wspace=0.0)
+	plt.subplots_adjust(top=0.971,bottom=0.013,left=0.015,right=0.98,hspace=0.063,wspace=0.0)
 
 	if not (formats is None): 
 		# ========== loop over the formats ==========

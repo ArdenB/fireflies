@@ -110,7 +110,7 @@ def main():
 	pbounds = [10.0, 170.0, 70.0, 49.0]
 	maskver = "Boreal"
 	setup   = setupfunc()
-	formats = [".png", ".pdf"]
+	formats = [".png", ".tiff", ".eps"]# ".pdf"
 	vnames  = ["LandCover", "TreeSpecies"]
 	AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, vnames)
 
@@ -153,7 +153,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, vname
 	# ========== set the mpl rc params ==========
 	font = ({
 		'weight' : 'bold',
-		'size'   : 11, 
+		'size'   : 14, 
 		})
 
 	mpl.rc('font', **font)
@@ -162,7 +162,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, vname
 	# ========== Create the figure ==========
 	fig, axs = plt.subplots(
 		nrows, 1, sharex=True, subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
-		figsize=(14, nrows * 6)
+		figsize=(15, nrows * 6)
 		)
 	for va, ax, let in zip(setup, axs.flatten(), alpC):
 		if va == "LandCover":
@@ -208,8 +208,15 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, vname
 
 
 		ax.set_extent(pbounds, crs=ccrs.PlateCarree())
-		ax.gridlines()
-
+		gl = ax.gridlines(draw_labels= True, dms=True, x_inline=False, y_inline=False)#{"bottom": "x", "Top": "y"}
+		gl.xlocator = mticker.FixedLocator([60, 120])
+		gl.ylocator = mticker.FixedLocator([50, 60, 70])
+		# gl.xlabels_top = False
+		# gl.top_labels   = False
+		# gl.right_labels = False
+		# ax.gridlines()
+		# plt.show()
+		# breakpoint()
 		coast = cpf.GSHHSFeature(scale="intermediate")
 		# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
 		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
@@ -222,7 +229,8 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, formats, vname
 		ax.set_title("")
 		ax.set_title(axtitle, loc= 'left')
 
-	plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.993,hspace=0.063,wspace=0.0)
+	# plt.subplots_adjust(top=0.96,bottom=0.013,left=0.008,right=0.993,hspace=0.090,wspace=0.0)
+	plt.subplots_adjust(top=0.95,bottom=0.020,left=0.008,right=0.967,hspace=0.156,wspace=0.0)
 	# ========== make the plot name ==========
 	plotfname = ppath + f"PF07_ForestCoverV2"
 	# if mask:

@@ -98,7 +98,7 @@ def main():
 		})
 
 	mpl.rc('font', **font)
-	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold", 'axes.titlesize':14})
 	sns.set_style("whitegrid")
 	# ========== Setup the params ==========
 	TCF = 10
@@ -118,7 +118,8 @@ def main():
 	_riskStat(compath, backpath, maskver, plotdir)
 
 	for var in ["FRI", "AnBF"]:
-		formats = [".png"]#, ".pdf"] # None
+		formats = [".png", ".tiff", ".eps"]# ".pdf"
+		# formats = [".png"]#, ".pdf"] # None
 		# mask    = True
 		if TCF == 0:
 			tcfs = ""
@@ -168,7 +169,7 @@ def main():
 
 #==============================================================================
 def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, region = "SIBERIA", TCF = 10, 
-	griddir = "./data/gridarea/", dsg = "esacci"):
+	griddir = "./data/gridarea/", dsg = "esacci", legend=False):
 	
 	setup   = setupfunc()
 	bpath  = "./data/LandCover/Bartalev"
@@ -183,13 +184,17 @@ def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, re
 	dst    = xr.open_dataset(fnTree).sortby("latitude", ascending=False).sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 	# kys    = {}
 	for vrm in setup[var]['valmap']:	
-		dst[var] = dst[var].where(~(dst[var] == vrm), setup[var]['valmap'][vrm])
+		try:
+			dst[var] = dst[var].where(~(dst[var] == vrm), setup[var]['valmap'][vrm])
+			# pass
+		except Exception as e:
+			print(str(e))
+			breakpoint()
 
 	ppath  = compath + "/BurntArea/SRfrac/FRI/"
 	fname  = f"{ppath}SRfrac_annual_burns_MW_{mwb}degreeBox.nc"
 	ds_fr =  xr.open_dataset(f"{compath}/BurntArea/esacci/FRI/esacci_annual_burns_MW_{mwb}degreeBox.nc").sortby("latitude", ascending=False).sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 	dsf    = xr.open_dataset(fname).sortby("latitude", ascending=False).sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
-	# breakpoint()
 	dsf    = dsf.where((ds_fr["AnBF"] > 0.0001).values)
 
 	# ========== bring in the grid area ==========
@@ -198,6 +203,7 @@ def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, re
 	ds_ga = ds_ga.sel(dict(latitude=slice(70.0, 40.0), longitude=slice(-10.0, 180.0)))
 	ds_ga["cell_area"] *= 1e-6 # Convert from sq m to sq km
 	# Mask
+	# breakpoint()
 	with xr.open_dataset(fnmask).drop("treecover2000").rename({"datamask":"mask"}) as dsmask, xr.open_dataset(fnBmask).drop(["DinersteinRegions", "GlobalEcologicalZones", "LandCover"]) as Bmask:
 		# breakpoint()
 		if maskver == "Boreal":
@@ -234,26 +240,39 @@ def _FRIsrTree(compath, backpath, maskver, plotdir, var="TreeSpecies", mwb=1, re
 	cmap = palettable.cartocolors.qualitative.Bold_9.hex_colors
 
 	g = sns.displot(data=df, x = "StandReplacingFireFraction",  col="TreeSpecies", hue="TreeSpecies", palette=cmap,
-		col_wrap=3, kind="hist", stat = "probability", bins=50, common_norm=False, weights="weights")
+		col_wrap=3, kind="hist", stat = "probability", bins=50, common_norm=False, weights="weights", legend=legend)
 	# kde=True
 	# alphabet_string = string.ascii_lowercase
 	# alphabet_list = list(alphabet_string)
 	g.set_axis_labels(f'Fire$_{{{"SR"}}}$ Fraction' , "Probability")
 	g.set_titles("")
 	g.set_titles("{col_name}", loc= 'left', fontstyle="italic")#alphabet_list[i] +") 
-	for ax, leg in zip(g.axes, g.legend.texts):
-		if ax.get_title(loc='left') == "Other":
-			ax.set_title("Other", loc="left")
-		elif ax.get_title(loc='left') == "Larch sp.":
-			ax.set_title(r"$\it{Larch}$ sp.", loc="left")
-			leg.set_text(r"$\it{Larch}$ sp.", )
-		elif ax.get_title(loc='left') in ["Betula sp.", "Betula\xa0sp."]:
-			ax.set_title(r"$\it{Betula}$ sp.", loc="left")
-			leg.set_text(r"$\it{Betula}$ sp.",)
-		else:
-			leg.set_fontstyle("italic")
-
-	# breakpoint()
+	if legend:
+		for ax, leg, let in zip(g.axes, g.legend.texts, list(string.ascii_lowercase)):
+			if ax.get_title(loc='left') == "Other":
+				ax.set_title("Other", loc="left")
+			elif ax.get_title(loc='left') == "Larch sp.":
+				ax.set_title(r"$\it{Larch}$ sp.", loc="left")
+				leg.set_text(r"$\it{Larch}$ sp.", )
+			elif ax.get_title(loc='left') in ["Betula sp.", "Betula\xa0sp."]:
+				ax.set_title(r"$\it{Betula}$ sp.", loc="left")
+				leg.set_text(r"$\it{Betula}$ sp.",)
+			else:
+				leg.set_fontstyle("italic")
+	else:
+		for ax, let in zip(g.axes, list(string.ascii_lowercase)):
+			if ax.get_title(loc='left') == "Other":
+				# nstr = r"$\it{Larch}$ sp."
+				ax.set_title(f"{let}) Other", loc="left")
+			elif ax.get_title(loc='left') == "Larch sp.":
+				# nstr = r"$\it{Larch}(?# )$ sp."
+				ax.set_title(f'{let}) ' + r"$\it{Larch}$ sp.", loc="left")
+			elif ax.get_title(loc='left') in ["Betula sp.", "Betula\xa0sp."]:
+				# nstr = r"$\it{Betula}$ sp."
+				ax.set_title(f'{let}) ' + r"$\it{Betula}$ sp.", loc="left")
+			else:
+				ax.set_title(f"{let}) {ax.get_title(loc='left')}", loc="left")
+			# breakpoint()
 
 	ppath = "./plots/ShortPaper/PF02_statplots/"
 	cf.pymkdir(ppath)

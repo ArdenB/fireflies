@@ -97,12 +97,13 @@ def main():
 	dsnams2 = ["HANSEN_AFmask", "HANSEN", "SRfrac"]
 	dsnams3 = ["Risk"]
 	scale   = ({"GFED":1, "MODIS":10, "esacci":20, "COPERN_BA":15, "HANSEN_AFmask":20, "HANSEN":20, "Risk":20, "SRfrac":20})
-	dsts    = [dsnams3, dsnams2, dsnams1]
+	dsts    = [dsnams1, dsnams2, dsnams3]
 	proj    = "polar"
 	maskver = "Boreal"	
 	for var in ["FRI"]:#, "AnBF"]:
 		for dsnames, vmax in zip(dsts, [10000, 10000, 10000]):
-			formats = [".png"]#, ".pdf"] # None 
+			# formats = [".png", ".eps", ] # None ".pdf"
+			formats = [".png", ".tiff", ".eps"]# ".pdf"
 			# mask    = True
 			if TCF == 0:
 				tcfs = ""
@@ -219,11 +220,13 @@ def plotmaker(dsinfo, datasets, var, mwb, plotdir, formats, mask, compath, vmax,
 	# ========== Change parms for the entire plot =========
 	# plt.axis('scaled')
 	if len (datasets) == 4:
-		plt.subplots_adjust(top=0.99,bottom=0.010, left=0.010, right=0.97, hspace=0.00,wspace=0.0)
+		# plt.subplots_adjust(top=0.99,bottom=0.010, left=0.010, right=0.97, hspace=0.00,wspace=0.0)
+		plt.subplots_adjust(top=0.95,bottom=0.020,left=0.010,right=0.967,hspace=0.156,wspace=0.0)
 	elif len (datasets) == 1:
-		plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.98,hspace=0.063,wspace=0.0)
+		plt.subplots_adjust(top=0.971,bottom=0.013,left=0.009,right=0.98,hspace=0.063,wspace=0.0)
 	else:
-		plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.993,hspace=0.063,wspace=0.0)
+		# plt.subplots_adjust(top=0.971,bottom=0.013,left=0.008,right=0.993,hspace=0.063,wspace=0.0)
+		plt.subplots_adjust(top=0.95,bottom=0.020,left=0.010,right=0.967,hspace=0.156,wspace=0.0)
 
 	# print("Starting plot show at:", pd.Timestamp.now())
 	# plt.show()
@@ -450,7 +453,10 @@ def _subplotmaker(dsinfo, num, ax, var, dsn, datasets, mask,compath, backpath, p
 			# 
 		# breakpoint()
 		ax.set_extent(bounds, crs=ccrs.PlateCarree())
-		ax.gridlines()
+		# ax.gridlines()
+		gl = ax.gridlines(draw_labels= True, dms=True, x_inline=False, y_inline=False)#{"bottom": "x", "Top": "y"}
+		gl.xlocator = mticker.FixedLocator([60, 120])
+		gl.ylocator = mticker.FixedLocator([50, 60, 70])
 		# +++++ get rid of the excess lables +++++
 		# gl.xlabels_top = False
 		# gl.ylabels_right = False

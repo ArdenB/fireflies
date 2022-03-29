@@ -109,7 +109,7 @@ def main():
 	# ========== Setup the plot dir ==========
 	plotdir = "./plots/ShortPaper/PF04_Predictions/"
 	cf.pymkdir(plotdir)
-	formats = [".png"]#, ".pdf"]
+	formats = [".png", ".tiff", ".eps",]# ".pdf"]
 	bounds = [10.0, 170.0, 70.0, 49.0] # plot bounds
 
 	for sigmask in [True, False]:
@@ -179,12 +179,13 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 			da = ds[f"{va}_{model}_{tp}"].rename("FRI")#.coarsen()
 			
 			if scale[dsn] > 1:
-				da = da.coarsen(
-					{"latitude":scale[dsn], "longitude":scale[dsn]}, 
-					boundary ="pad", keep_attrs=True).mean().compute().rename("FRI")
+				da = da.coarsen({"latitude":scale[dsn], "longitude":scale[dsn]}, 
+					boundary ="pad").mean().compute().rename("FRI")#.squeeze().squeeze()
+					# {"latitude":scale[dsn], "longitude":scale[dsn]}, 
 
 			# Add the mask 
 			if maskver == "Boreal":
+				# breakpoint()
 				da  = da.where((msk == 1).values)
 
 			if tp == "fut":
@@ -217,7 +218,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	cmap, norm, vmin, vmax, levels = _colours("FRI", 10000)
 	# breakpoint()
 	px = daM.FRI.plot(x="longitude", y="latitude", col="time", col_wrap=2,
-		vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, size = 5,  aspect=2,
+		vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, size = 4,  aspect=2,
 		subplot_kws={"projection": ccrs.Orthographic(longMid, latiMid)},
 		transform=ccrs.PlateCarree(),
 		add_colorbar=False,
@@ -227,6 +228,10 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 	for ax, tm, alp in zip(px.axes.flat, daM.time.values, string.ascii_lowercase):
 		ax.set_aspect('equal')
 		ax.gridlines()
+		gl = ax.gridlines(draw_labels= True, dms=True, x_inline=False, y_inline=False)#{"bottom": "x", "Top": "y"}
+		gl.xlocator = mticker.FixedLocator([60, 120])
+		gl.ylocator = mticker.FixedLocator([50, 60, 70])
+
 		coast = cpf.GSHHSFeature(scale="intermediate")
 		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
@@ -242,7 +247,7 @@ def futurenetcdfloader(dsn, model, dpath, cpath, plotdir, va, tmpath, sub, sens,
 		# if dsn == "esacci":
 		# 	# breakpoint()
 	
-	plt.subplots_adjust(top=.99, bottom=0.01, left=0.009, right=0.991, hspace=0.001, wspace=0.01)
+	plt.subplots_adjust(top=.99, bottom=0.01, left=0.02, right=0.991, hspace=0.04, wspace=0.08)
 	
 	# "constrained_layout":True
 	# fig = plt.gcf()

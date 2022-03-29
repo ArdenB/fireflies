@@ -113,15 +113,16 @@ def main():
 
 	# ========== Build the annual plots ==========
 	AnnualPlotmaker(setupfunc("annual", rmaps = False), dpath, cpath, ppath, pbounds, maskver, rmaps = False)
-	breakpoint()
-	AnnualPlotmaker(setupfunc("annual", rmaps = True), dpath, cpath, ppath, pbounds, maskver, rmaps = True)
-	
 	# ========== Make a figure of the model output ==========
 	ModelPrediction(ppath)
-
 	# ========== Build the seasonal plots ==========
 	Seasonalplotmaker(setupfunc("seasonal", rmaps = True), dpath, cpath, ppath, pbounds, maskver, "Climatology")
 	Seasonalplotmaker(setupfunc("seasonal"), dpath, cpath, ppath, pbounds, maskver, "trend")
+	# AnnualPlotmaker(setupfunc("annual", rmaps = True), dpath, cpath, ppath, pbounds, maskver, rmaps = True)
+	# breakpoint()
+
+	
+
 
 	# ModelPrediction(ppath, model="OLS")
 
@@ -237,7 +238,7 @@ def ModelPrediction(ppath, model = 'XGBoost'):
 
 	plotfname = f"{ppath}PF03_ModelPrediction_{model}."
 	# breakpoint()
-	for fmt in ["pdf", "png"]:# 
+	for fmt in ["tiff", "eps", "png"]:# "pdf"
 		print(f"Starting {fmt} plot save at:{pd.Timestamp.now()}")
 		plt.savefig(plotfname+fmt)#, dpi=dpi)
 	
@@ -256,8 +257,6 @@ def ModelPrediction(ppath, model = 'XGBoost'):
 	# breakpoint()
 
 	# sns.catplot(x="Predictor", y="Score", hue="Dataset", data=df, kind="bar", col="Method")
-
-
 
 
 #==============================================================================
@@ -394,7 +393,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver, cli):
 	fig, axs = plt.subplots(
 		4, 2, sharex=True, 
 		subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
-		figsize=(14,12)
+		figsize=(14,13)
 		)
 
 	# ========== Loop over the rows ==========
@@ -434,7 +433,10 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver, cli):
 
 
 			ax.set_extent(pbounds, crs=ccrs.PlateCarree())
-			ax.gridlines()
+			# ax.gridlines()
+			gl = ax.gridlines(draw_labels= True, dms=True, x_inline=False, y_inline=False)#{"bottom": "x", "Top": "y"}
+			gl.xlocator = mticker.FixedLocator([60, 120])
+			gl.ylocator = mticker.FixedLocator([50, 60, 70])
 
 			# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
 			coast = cpf.GSHHSFeature(scale="high")
@@ -455,7 +457,8 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver, cli):
 				ax.set_title(f"{sea}", loc= 'left')
 			
 
-	plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.0, wspace=0.0)
+	# plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.0, wspace=0.0)
+	plt.subplots_adjust(top=0.94, bottom=0.020,left=0.011,right=0.967,hspace=0.2,wspace=0.0)
 	# plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.063, wspace=0.2)
 	# ========== Save the plots ==========
 	if cli == "trend":
@@ -463,7 +466,7 @@ def Seasonalplotmaker(setup, dpath, cpath, ppath, pbounds, maskver, cli):
 	else:
 		plotfname = f"{ppath}PF03_SeasonalClimatology."
 
-	for fmt in [ "png"]:#"pdf",
+	for fmt in [ "png", "tiff", "eps" ]:#,"pdf"
 		print(f"Starting {fmt} plot save at:{pd.Timestamp.now()}")
 		plt.savefig(plotfname+fmt)#, dpi=dpi)
 	
@@ -527,7 +530,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 	# ========== Create the figure ==========
 	fig, axs = plt.subplots(
 		nrows, 2, sharex=True, subplot_kw={'projection': ccrs.Orthographic(longMid,latiMid)}, 
-		figsize=(14, nrows * 3)
+		figsize=(17, nrows * 4)
 		)
 
 	# ========== load the datasets ==========
@@ -633,7 +636,10 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 
 
 		ax.set_extent(pbounds, crs=ccrs.PlateCarree())
-		ax.gridlines()
+		# ax.gridlines()
+		gl = ax.gridlines(draw_labels= True, dms=True, x_inline=False, y_inline=False)#{"bottom": "x", "Top": "y"}
+		gl.xlocator = mticker.FixedLocator([60, 120])
+		gl.ylocator = mticker.FixedLocator([50, 60, 70])
 
 		coast = cpf.GSHHSFeature(scale="intermediate")
 		# p.axes.add_feature(cpf.COASTLINE, , zorder=101)
@@ -650,7 +656,8 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 	# ========== Save the plots ==========
 
 	# plt.subplots_adjust(top=0.971, bottom=0.013, left=0.012, right=0.988, hspace=0.001, wspace=0.000)
-	plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.0, wspace=0.0)
+	# plt.subplots_adjust(top=0.971,bottom=0.013, left=0.011, right=0.97, hspace=0.0, wspace=0.0)
+	plt.subplots_adjust(top=0.93, bottom=0.025,left=0.011,right=0.967,hspace=0.25,wspace=0.0)
 	# +++++ remove unised ax +++++
 	if len(setup)%2:
 		axs[-1, -1].remove()
@@ -659,7 +666,7 @@ def AnnualPlotmaker(setup, dpath, cpath, ppath, pbounds, maskver, rmaps = False)
 	# plt.tight_layout()
 	plotfname = f"{ppath}PF03_AnnualClimateAndTrend."
 	# breakpoint()
-	for fmt in ["png"]:#"pdf", 
+	for fmt in ["png", "tiff", "eps"]:# "pdf"
 		print(f"Starting {fmt} plot save at:{pd.Timestamp.now()}")
 		plt.savefig(plotfname+fmt)#, dpi=dpi)
 	
